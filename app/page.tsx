@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { Menu, User, ChevronRight, Home, List, Wallet, Search, X, MapPin, ArrowLeft } from 'lucide-react'
 import { searchPlaces, Place } from '../lib/search'
 import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance } from '../lib/utils'
+import dynamic from 'next/dynamic'
+
+const MapView = dynamic(() => import('./components/MapView'), { ssr: false })
 
 export default function TiakTiak() {
   const [service, setService] = useState('moto')
@@ -15,7 +18,6 @@ export default function TiakTiak() {
   const [selected, setSelected] = useState<Place | null>(null)
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
-  // Recherche avec délai
   const onSearch = (val: string) => {
     setQuery(val)
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
@@ -30,16 +32,13 @@ export default function TiakTiak() {
 
   const selectPlace = (place: Place) => {
     setSelected(place)
-    const km = haversineDistance(14.7167, -17.2833, place.lat, place.lng)
     setScreen('confirm')
   }
 
-  // Calcul prix
   const km = selected ? haversineDistance(14.7167, -17.2833, selected.lat, selected.lng) : 0
   const price = selected ? calculatePrice(km, service as 'moto' | 'livraison') : 0
   const eta = selected ? calculateETA(km) : 0
 
-  // ECRAN RECHERCHE
   if (screen === 'recherche') {
     return (
       <div className="fixed inset-0 flex flex-col bg-white">
@@ -65,14 +64,12 @@ export default function TiakTiak() {
         </header>
 
         <div className="flex-1 overflow-y-auto">
-          {loading && (
-            <div className="p-4 text-center text-gray-400 text-sm">Recherche en cours...</div>
-          )}
+          {loading && <div className="p-4 text-center text-gray-400 text-sm">Recherche en cours...</div>}
           {!loading && results.map((place, i) => (
             <button
               key={i}
               onClick={() => selectPlace(place)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left hover:bg-gray-50"
+              className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"
             >
               <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#E8F5E9' }}>
                 <MapPin size={18} color="#1DB954" />
@@ -87,16 +84,13 @@ export default function TiakTiak() {
             <div className="p-4 text-center text-gray-400 text-sm">Aucun lieu trouve</div>
           )}
           {query.length < 2 && (
-            <div className="p-6 text-center text-gray-300 text-sm">
-              Tape le nom d&apos;un lieu au Senegal
-            </div>
+            <div className="p-6 text-center text-gray-300 text-sm">Tape le nom d&apos;un lieu au Senegal</div>
           )}
         </div>
       </div>
     )
   }
 
-  // ECRAN CONFIRMATION
   if (screen === 'confirm' && selected) {
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
@@ -108,16 +102,11 @@ export default function TiakTiak() {
         </header>
 
         <div className="flex-1 overflow-y-auto">
-          {/* Carte */}
           <div className="h-56 relative">
-            <iframe
-              src={`https://www.openstreetmap.org/export/embed.html?bbox=${selected.lng-0.05},${selected.lat-0.05},${selected.lng+0.05},${selected.lat+0.05}&layer=mapnik&marker=${selected.lat},${selected.lng}`}
-              className="w-full h-full border-0"
-            />
+            <MapView fromLat={14.7167} fromLng={-17.2833} toLat={selected.lat} toLng={selected.lng} />
           </div>
 
           <div className="p-4 space-y-3">
-            {/* Trajet */}
             <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="flex items-center gap-3 mb-3">
                 <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} />
@@ -135,7 +124,6 @@ export default function TiakTiak() {
               </div>
             </div>
 
-            {/* Service */}
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setService('moto')}
@@ -155,7 +143,6 @@ export default function TiakTiak() {
               </button>
             </div>
 
-            {/* Prix */}
             <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="flex justify-between mb-2">
                 <span className="text-sm text-gray-500">Distance</span>
@@ -173,12 +160,8 @@ export default function TiakTiak() {
           </div>
         </div>
 
-        {/* Bouton commander */}
         <div className="p-4 bg-white border-t border-gray-100">
-          <button
-            className="w-full py-4 rounded-2xl font-bold text-white text-base"
-            style={{ background: '#0F5138' }}
-          >
+          <button className="w-full py-4 rounded-2xl font-bold text-white text-base" style={{ background: '#0F5138' }}>
             Commander un TIAK TIAK
           </button>
         </div>
@@ -186,7 +169,6 @@ export default function TiakTiak() {
     )
   }
 
-  // ECRAN ACCUEIL
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-100">
       <header className="bg-white px-4 py-3 flex items-center justify-between flex-shrink-0 shadow-sm">
