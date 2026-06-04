@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, User, ChevronRight, Home, List, Wallet, Search, X, MapPin, ArrowLeft, LogOut, Bike, Crown } from 'lucide-react'
+import { Menu, User, ChevronRight, Home, List, Wallet, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap } from 'lucide-react'
 import { searchPlaces, Place } from '../lib/search'
 import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance } from '../lib/utils'
 import dynamic from 'next/dynamic'
@@ -107,39 +107,29 @@ export default function TiakTiak() {
   if (!user) {
     if (authScreen === 'roles') {
       return (
-        <div className="fixed inset-0 flex flex-col" style={{ background: '#0F5138' }}>
-          <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8">
+        <div className="fixed inset-0 flex flex-col bg-white">
+          <div className="flex-1 flex flex-col items-center justify-center px-8 gap-8">
+            <div className="relative flex items-center justify-center">
+              <div className="absolute rounded-full" style={{ background: '#1DB954', opacity: 0.15, width: '130px', height: '130px' }} />
+              <div className="relative w-24 h-24 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}>
+                <Navigation size={40} color="white" fill="white" style={{ transform: 'rotate(45deg)' }} />
+              </div>
+            </div>
             <div className="text-center">
-              <h1 className="text-4xl font-black italic text-white mb-2">TIAK TIAK</h1>
-              <p className="text-green-200 text-sm">Le Tiak Tiak de ta generation</p>
+              <h1 className="text-4xl font-black tracking-widest" style={{ color: '#0F5138' }}>TIAK TIAK</h1>
+              <p className="text-gray-400 text-sm mt-3 leading-relaxed">Transport moto rapide<br/>a votre service</p>
             </div>
-            <div className="w-full space-y-3 max-w-sm">
-              <p className="text-white text-center text-sm mb-4">Je suis...</p>
-              <button onClick={() => { setAuthScreen('client'); setAuthError('') }} className="w-full bg-white rounded-2xl p-4 flex items-center gap-4">
-                <span className="text-3xl">🧑</span>
-                <div className="text-left flex-1">
-                  <p className="font-bold" style={{ color: '#0F5138' }}>Client</p>
-                  <p className="text-xs text-gray-400">Je veux commander un TIAK TIAK</p>
-                </div>
-                <ChevronRight size={20} color="#1DB954" />
-              </button>
-              <button onClick={() => { setAuthScreen('chauffeur'); setAuthError('') }} className="w-full bg-white rounded-2xl p-4 flex items-center gap-4">
-                <span className="text-3xl">🛵</span>
-                <div className="text-left flex-1">
-                  <p className="font-bold" style={{ color: '#0F5138' }}>Chauffeur</p>
-                  <p className="text-xs text-gray-400">Je veux transporter des clients</p>
-                </div>
-                <ChevronRight size={20} color="#1DB954" />
-              </button>
-              <button onClick={() => { setAuthScreen('admin'); setAuthError('') }} className="w-full bg-white rounded-2xl p-4 flex items-center gap-4">
-                <span className="text-3xl">👑</span>
-                <div className="text-left flex-1">
-                  <p className="font-bold" style={{ color: '#0F5138' }}>Admin</p>
-                  <p className="text-xs text-gray-400">Gerer la plateforme</p>
-                </div>
-                <ChevronRight size={20} color="#1DB954" />
-              </button>
-            </div>
+          </div>
+          <div className="px-8 pb-10 space-y-3">
+            <button onClick={() => { setAuthScreen('client'); setAuthError('') }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#0F5138' }}>
+              <User size={20} /> Je suis un Client
+            </button>
+            <button onClick={() => { setAuthScreen('chauffeur'); setAuthError('') }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#111111' }}>
+              <Zap size={20} color="#1DB954" /> Je suis un Chauffeur
+            </button>
+            <button onClick={() => { setAuthScreen('admin'); setAuthError('') }} className="w-full text-center text-gray-400 text-sm pt-2">
+              Acces administrateur
+            </button>
           </div>
         </div>
       )
@@ -395,7 +385,6 @@ export default function TiakTiak() {
       <nav className="bg-white flex border-t border-gray-100">
         <button onClick={() => setTab('accueil')} className="flex-1 py-3 flex flex-col items-center gap-1"><Home size={22} color={tab === 'accueil' ? '#1DB954' : '#9CA3AF'} /><span className="text-xs font-semibold" style={{ color: tab === 'accueil' ? '#0F5138' : '#9CA3AF' }}>Accueil</span></button>
         <button onClick={() => setTab('courses')} className="flex-1 py-3 flex flex-col items-center gap-1"><List size={22} color={tab === 'courses' ? '#1DB954' : '#9CA3AF'} /><span className="text-xs font-semibold" style={{ color: tab === 'courses' ? '#0F5138' : '#9CA3AF' }}>Mes courses</span></button>
-        <button onClick={() => setTab('profil')} className="flex-1 py-3 flex flex-col items-center gap-1"><Wallet size={22} color={tab === 'profil' ? '#1DB954' : '#9CA3AF'} /><span className="text-xs font-semibold" style={{ color: tab === 'profil' ? '#0F5138' : '#9CA3AF' }}>Profil</span></button>
       </nav>
     </div>
   )
