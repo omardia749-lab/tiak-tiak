@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, User, ChevronRight, ChevronDown, Home, List, Wallet, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Star, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check } from 'lucide-react'
+import { Menu, User, ChevronRight, ChevronDown, Home, List, Wallet, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText } from 'lucide-react'
 import { searchPlaces, Place } from '../lib/search'
 import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance } from '../lib/utils'
+import { CONDITIONS_UTILISATION, POLITIQUE_CONFIDENTIALITE } from '../lib/legal'
 import dynamic from 'next/dynamic'
 
 const MapView = dynamic(() => import('./components/MapView'), { ssr: false })
@@ -13,6 +14,8 @@ interface AppUser {
   name: string
   phone: string
 }
+
+const SUPPORT_WHATSAPP = 'https://wa.me/221770970100?text=' + encodeURIComponent('Bonjour TIAK TIAK Support, j\'ai besoin d\'aide.')
 
 export default function TiakTiak() {
   const [user, setUser] = useState<AppUser | null>(null)
@@ -35,17 +38,26 @@ export default function TiakTiak() {
   const [selected, setSelected] = useState<Place | null>(null)
   const [payment, setPayment] = useState('cash')
   const [faqOpen, setFaqOpen] = useState<number | null>(null)
+  const [lang, setLang] = useState('fr')
+  const [notif, setNotif] = useState(true)
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('tiaktiak_user')
     if (saved) setUser(JSON.parse(saved))
+    const savedLang = localStorage.getItem('tiaktiak_lang')
+    if (savedLang) setLang(savedLang)
     setLoaded(true)
   }, [])
 
   const saveUser = (u: AppUser) => {
     localStorage.setItem('tiaktiak_user', JSON.stringify(u))
     setUser(u)
+  }
+
+  const changeLang = (code: string) => {
+    setLang(code)
+    localStorage.setItem('tiaktiak_lang', code)
   }
 
   const logout = () => {
@@ -105,6 +117,14 @@ export default function TiakTiak() {
       navigator.clipboard.writeText(text).then(() => alert('Lien copie !')).catch(() => {})
     }
   }
+
+  const languages = [
+    { code: 'fr', flag: '🇫🇷', name: 'Francais' },
+    { code: 'wo', flag: '🇸🇳', name: 'Wolof' },
+    { code: 'en', flag: '🇬🇧', name: 'English' },
+    { code: 'ar', flag: '🇸🇦', name: 'Arabe' },
+    { code: 'es', flag: '🇪🇸', name: 'Espagnol' },
+  ]
 
   if (!loaded) {
     return <div className="fixed inset-0 flex items-center justify-center" style={{ background: '#0F5138' }}>
@@ -376,6 +396,7 @@ export default function TiakTiak() {
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <button onClick={() => setScreen('courses')} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><List size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Mes courses</span><ChevronRight size={18} className="text-gray-300" /></button>
             <button onClick={() => setScreen('paiement')} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><CreditCard size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Moyens de paiement</span><ChevronRight size={18} className="text-gray-300" /></button>
+            <button onClick={() => setScreen('parametres')} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><Settings size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Parametres</span><ChevronRight size={18} className="text-gray-300" /></button>
             <button onClick={() => setScreen('aide')} className="w-full flex items-center gap-3 px-4 py-3.5 text-left"><HelpCircle size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Aide et Support</span><ChevronRight size={18} className="text-gray-300" /></button>
           </div>
           <button onClick={logout} className="w-full bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5 text-red-500"><LogOut size={20} /><span className="text-sm font-bold">Deconnexion</span></button>
@@ -443,14 +464,14 @@ export default function TiakTiak() {
     )
   }
 
-  // ===== CLIENT : AIDE =====
+  // ===== CLIENT : AIDE ET SUPPORT =====
   if (screen === 'aide') {
     const faqs = [
       { q: 'Comment commander une course ?', a: 'Choisis ta destination dans la barre de recherche, verifie le prix affiche, puis appuie sur Commander. Un chauffeur proche recevra ta demande.' },
       { q: 'Quels sont les moyens de paiement ?', a: 'Tu peux payer en especes, par Wave ou par Orange Money.' },
       { q: 'Comment est calcule le prix ?', a: 'Le prix depend de la distance. Moto-taxi : 500 + 200 FCFA par km. Livraison : 700 + 250 FCFA par km.' },
       { q: 'Dans quelles villes fonctionne TIAK TIAK ?', a: 'TIAK TIAK couvre tout le Senegal : Dakar, Thies, Touba, Saint-Louis, Kaolack et partout ailleurs.' },
-      { q: 'Comment devenir chauffeur ?', a: 'Deconnecte-toi, puis choisis Je suis un Chauffeur sur l&apos;ecran d&apos;accueil et remplis ton dossier.' },
+      { q: 'Comment devenir chauffeur ?', a: 'Deconnecte-toi, puis choisis Je suis un Chauffeur sur l ecran d accueil et remplis ton dossier.' },
     ]
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
@@ -459,6 +480,10 @@ export default function TiakTiak() {
           <span className="font-bold text-black">Aide et Support</span>
         </header>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}><MessageCircle size={20} color="white" /></div>
+            <div><p className="font-bold text-sm" style={{ color: '#0F5138' }}>Service client 7j/7</p><p className="text-xs text-gray-600">Nous sommes la pour t&apos;aider a tout moment</p></div>
+          </div>
           <p className="font-bold text-sm text-gray-500">Questions frequentes</p>
           {faqs.map((f, i) => (
             <div key={i} className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -470,8 +495,83 @@ export default function TiakTiak() {
             </div>
           ))}
           <p className="font-bold text-sm text-gray-500 pt-2">Nous contacter</p>
-          <a href="https://wa.me/221770970100" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><MessageCircle size={20} color="#1DB954" /><span className="flex-1 text-sm font-medium">WhatsApp</span><ChevronRight size={18} className="text-gray-300" /></a>
+          <a href={SUPPORT_WHATSAPP} target="_blank" rel="noreferrer" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><MessageCircle size={20} color="#1DB954" /><span className="flex-1 text-sm font-medium">WhatsApp</span><ChevronRight size={18} className="text-gray-300" /></a>
           <a href="tel:+221770970100" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><Phone size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Appeler le support</span><ChevronRight size={18} className="text-gray-300" /></a>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : PARAMETRES =====
+  if (screen === 'parametres') {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-gray-100">
+        <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setScreen('accueil')}><ArrowLeft size={24} color="#0F5138" /></button>
+          <span className="font-bold text-black">Parametres</span>
+        </header>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div>
+            <p className="font-bold text-sm text-gray-500 mb-2 flex items-center gap-2"><Globe size={16} color="#0F5138" /> Langue</p>
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              {languages.map((l, i) => (
+                <button key={l.code} onClick={() => changeLang(l.code)} className={"w-full flex items-center gap-3 px-4 py-3.5 text-left " + (i < languages.length - 1 ? 'border-b border-gray-50' : '')}>
+                  <span className="text-xl">{l.flag}</span>
+                  <span className="flex-1 text-sm font-medium">{l.name}</span>
+                  {lang === l.code && <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: '#1DB954' }}><Check size={14} color="white" /></div>}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-2 px-1">D&apos;autres langues et traductions completes arrivent progressivement.</p>
+          </div>
+
+          <div>
+            <p className="font-bold text-sm text-gray-500 mb-2 flex items-center gap-2"><Bell size={16} color="#0F5138" /> Notifications</p>
+            <div className="bg-white rounded-2xl shadow-sm flex items-center px-4 py-3.5">
+              <span className="flex-1 text-sm font-medium">Activer les notifications</span>
+              <button onClick={() => setNotif(!notif)} className="w-12 h-6 rounded-full relative transition-all" style={{ background: notif ? '#1DB954' : '#D1D5DB' }}>
+                <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: notif ? '26px' : '2px' }} />
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p className="font-bold text-sm text-gray-500 mb-2">Legal</p>
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <button onClick={() => setScreen('conditions')} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><FileText size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Conditions d&apos;utilisation</span><ChevronRight size={18} className="text-gray-300" /></button>
+              <button onClick={() => setScreen('confidentialite')} className="w-full flex items-center gap-3 px-4 py-3.5 text-left"><Shield size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Politique de confidentialite</span><ChevronRight size={18} className="text-gray-300" /></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : CONDITIONS =====
+  if (screen === 'conditions') {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-white">
+        <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setScreen('parametres')}><ArrowLeft size={24} color="#0F5138" /></button>
+          <span className="font-bold text-black">Conditions d&apos;utilisation</span>
+        </header>
+        <div className="flex-1 overflow-y-auto p-5">
+          <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{CONDITIONS_UTILISATION}</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : CONFIDENTIALITE =====
+  if (screen === 'confidentialite') {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-white">
+        <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setScreen('parametres')}><ArrowLeft size={24} color="#0F5138" /></button>
+          <span className="font-bold text-black">Confidentialite</span>
+        </header>
+        <div className="flex-1 overflow-y-auto p-5">
+          <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{POLITIQUE_CONFIDENTIALITE}</p>
         </div>
       </div>
     )
@@ -493,14 +593,23 @@ export default function TiakTiak() {
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>Notre mission</p>
-            <p className="text-sm text-gray-600 leading-relaxed">TIAK TIAK rend le transport en moto-taxi rapide, sur et accessible a tous les Senegalais. Que tu sois a Dakar, Thies, Touba ou ailleurs, un chauffeur de confiance est a quelques minutes de toi.</p>
+            <p className="text-sm text-gray-600 leading-relaxed">TIAK TIAK est nee d&apos;une idee simple : rendre le transport en moto-taxi rapide, sur et accessible a tous les Senegalais. Dans nos villes comme dans nos regions, la moto est le moyen le plus pratique pour se deplacer. Nous avons cree une application moderne qui connecte en quelques secondes les clients aux chauffeurs les plus proches, avec un prix transparent et juste.</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>Notre vision</p>
+            <p className="text-sm text-gray-600 leading-relaxed">Devenir la reference du transport moto et de la livraison au Senegal, en offrant un service fiable qui ameliore le quotidien des clients et fait vivre dignement des milliers de chauffeurs a travers le pays.</p>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
             <p className="font-bold text-sm mb-1" style={{ color: '#0F5138' }}>Ce que nous offrons</p>
             <p className="text-sm text-gray-600">🏍️ Courses moto-taxi rapides</p>
             <p className="text-sm text-gray-600">📦 Livraison express de colis</p>
             <p className="text-sm text-gray-600">💳 Paiement Cash, Wave ou Orange Money</p>
+            <p className="text-sm text-gray-600">📍 Prix transparent calcule a l&apos;avance</p>
             <p className="text-sm text-gray-600">🇸🇳 Couverture dans tout le Senegal</p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <button onClick={() => setScreen('conditions')} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><FileText size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Conditions d&apos;utilisation</span><ChevronRight size={18} className="text-gray-300" /></button>
+            <button onClick={() => setScreen('confidentialite')} className="w-full flex items-center gap-3 px-4 py-3.5 text-left"><Shield size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Politique de confidentialite</span><ChevronRight size={18} className="text-gray-300" /></button>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm text-center">
             <p className="text-sm text-gray-600">Fierement senegalais 🇸🇳</p>
@@ -552,6 +661,7 @@ export default function TiakTiak() {
               <button onClick={() => goTo('paiement')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><CreditCard size={20} color="#0F5138" /><span className="text-sm font-medium">Moyens de paiement</span></button>
               <button onClick={() => goTo('parrainage')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><Gift size={20} color="#0F5138" /><span className="text-sm font-medium">Parrainer un ami</span></button>
               <button onClick={() => goTo('aide')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><HelpCircle size={20} color="#0F5138" /><span className="text-sm font-medium">Aide et Support</span></button>
+              <button onClick={() => goTo('parametres')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><Settings size={20} color="#0F5138" /><span className="text-sm font-medium">Parametres</span></button>
               <button onClick={() => goTo('apropos')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><Info size={20} color="#0F5138" /><span className="text-sm font-medium">A propos</span></button>
             </div>
             <button onClick={logout} className="flex items-center gap-3 px-5 py-4 border-t border-gray-100 text-red-500"><LogOut size={20} /><span className="text-sm font-bold">Deconnexion</span></button>
