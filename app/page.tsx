@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, User, ChevronRight, Home, List, Wallet, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap } from 'lucide-react'
+import { Menu, User, ChevronRight, ChevronDown, Home, List, Wallet, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Star, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check } from 'lucide-react'
 import { searchPlaces, Place } from '../lib/search'
 import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance } from '../lib/utils'
 import dynamic from 'next/dynamic'
@@ -19,26 +19,24 @@ export default function TiakTiak() {
   const [authScreen, setAuthScreen] = useState('roles')
   const [loaded, setLoaded] = useState(false)
 
-  // Formulaires
   const [formName, setFormName] = useState('')
   const [formPhone, setFormPhone] = useState('')
   const [formMoto, setFormMoto] = useState('')
   const [formColor, setFormColor] = useState('')
-  const [adminEmail, setAdminEmail] = useState('')
   const [adminPass, setAdminPass] = useState('')
   const [authError, setAuthError] = useState('')
 
-  // App client
   const [service, setService] = useState('moto')
-  const [tab, setTab] = useState('accueil')
   const [screen, setScreen] = useState('accueil')
+  const [menuOpen, setMenuOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Place[]>([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Place | null>(null)
+  const [payment, setPayment] = useState('cash')
+  const [faqOpen, setFaqOpen] = useState<number | null>(null)
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
-  // Charger l'utilisateur sauvegarde
   useEffect(() => {
     const saved = localStorage.getItem('tiaktiak_user')
     if (saved) setUser(JSON.parse(saved))
@@ -54,10 +52,11 @@ export default function TiakTiak() {
     localStorage.removeItem('tiaktiak_user')
     setUser(null)
     setAuthScreen('roles')
-    setFormName(''); setFormPhone(''); setAdminEmail(''); setAdminPass(''); setAuthError('')
+    setMenuOpen(false)
+    setScreen('accueil')
+    setFormName(''); setFormPhone(''); setAdminPass(''); setAuthError('')
   }
 
-  // Inscriptions
   const signupClient = () => {
     if (!formName || !formPhone) { setAuthError('Remplis tous les champs'); return }
     saveUser({ role: 'client', name: formName, phone: formPhone })
@@ -69,15 +68,14 @@ export default function TiakTiak() {
   }
 
   const loginAdmin = () => {
-    const ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'Omar260900'
-    if (adminPass === ADMIN_PASS) {
+    const ADMIN_PASS = (process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '').trim()
+    if (adminPass.trim() === ADMIN_PASS) {
       saveUser({ role: 'admin', name: 'Omar', phone: '' })
     } else {
       setAuthError('Mot de passe incorrect')
     }
   }
 
-  // Recherche
   const onSearch = (val: string) => {
     setQuery(val)
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
@@ -91,19 +89,30 @@ export default function TiakTiak() {
   }
 
   const selectPlace = (place: Place) => { setSelected(place); setScreen('confirm') }
+  const goTo = (s: string) => { setScreen(s); setMenuOpen(false) }
 
   const km = selected ? haversineDistance(14.7167, -17.2833, selected.lat, selected.lng) : 0
   const price = selected ? calculatePrice(km, service as 'moto' | 'livraison') : 0
   const eta = selected ? calculateETA(km) : 0
 
-  // Attendre le chargement
+  const referralCode = user ? 'TIAK-' + (user.phone.replace(/[^0-9]/g, '').slice(-4) || '0000') : 'TIAK-0000'
+
+  const shareReferral = () => {
+    const text = 'Rejoins TIAK TIAK avec mon code ' + referralCode + ' et profite de -50% sur ta premiere course ! https://tiak-tiak-zeta.vercel.app'
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      (navigator as any).share({ title: 'TIAK TIAK', text }).catch(() => {})
+    } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => alert('Lien copie !')).catch(() => {})
+    }
+  }
+
   if (!loaded) {
     return <div className="fixed inset-0 flex items-center justify-center" style={{ background: '#0F5138' }}>
       <span className="text-3xl font-black italic text-white">TIAK TIAK</span>
     </div>
   }
 
-  // ===== PAS CONNECTE : CHOIX DU ROLE =====
+  // ===== NON CONNECTE =====
   if (!user) {
     if (authScreen === 'roles') {
       return (
@@ -135,7 +144,6 @@ export default function TiakTiak() {
       )
     }
 
-    // INSCRIPTION CLIENT
     if (authScreen === 'client') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
@@ -162,7 +170,6 @@ export default function TiakTiak() {
       )
     }
 
-    // INSCRIPTION CHAUFFEUR (version simple, photos en phase B)
     if (authScreen === 'chauffeur') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
@@ -188,7 +195,6 @@ export default function TiakTiak() {
               <label className="text-sm font-semibold text-gray-600">Couleur de la moto</label>
               <input value={formColor} onChange={e => setFormColor(e.target.value)} placeholder="Ex: Rouge" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
             </div>
-
             <div className="rounded-2xl p-4 mt-2" style={{ background: '#E8F5E9' }}>
               <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>📋 Regles de commission</p>
               <p className="text-xs text-gray-600 mb-1">• Commission de 100 FCFA par course</p>
@@ -208,7 +214,6 @@ export default function TiakTiak() {
       )
     }
 
-    // CONNEXION ADMIN
     if (authScreen === 'admin') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
@@ -232,7 +237,7 @@ export default function TiakTiak() {
     }
   }
 
-  // ===== CONNECTE COMME ADMIN =====
+  // ===== ADMIN =====
   if (user && user.role === 'admin') {
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
@@ -257,7 +262,7 @@ export default function TiakTiak() {
     )
   }
 
-  // ===== CONNECTE COMME CHAUFFEUR =====
+  // ===== CHAUFFEUR =====
   if (user && user.role === 'chauffeur') {
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
@@ -280,8 +285,7 @@ export default function TiakTiak() {
     )
   }
 
-  // ===== CONNECTE COMME CLIENT =====
-  // ECRAN RECHERCHE
+  // ===== CLIENT : RECHERCHE =====
   if (screen === 'recherche') {
     return (
       <div className="fixed inset-0 flex flex-col bg-white">
@@ -308,7 +312,7 @@ export default function TiakTiak() {
     )
   }
 
-  // ECRAN CONFIRMATION
+  // ===== CLIENT : CONFIRMATION =====
   if (screen === 'confirm' && selected) {
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
@@ -351,13 +355,213 @@ export default function TiakTiak() {
     )
   }
 
-  // ECRAN ACCUEIL CLIENT
+  // ===== CLIENT : MON PROFIL =====
+  if (screen === 'profil') {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-gray-100">
+        <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setScreen('accueil')}><ArrowLeft size={24} color="#0F5138" /></button>
+          <span className="font-bold text-black">Mon profil</span>
+        </header>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="bg-white rounded-2xl p-6 shadow-sm flex flex-col items-center">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center mb-3" style={{ background: '#0F5138' }}><User size={36} color="white" /></div>
+            <p className="font-black text-lg">{user?.name}</p>
+            <p className="text-gray-400 text-sm">{user?.phone}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>0</p><p className="text-xs text-gray-400">Courses</p></div>
+            <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>5.0 ⭐</p><p className="text-xs text-gray-400">Ma note</p></div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <button onClick={() => setScreen('courses')} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><List size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Mes courses</span><ChevronRight size={18} className="text-gray-300" /></button>
+            <button onClick={() => setScreen('paiement')} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><CreditCard size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Moyens de paiement</span><ChevronRight size={18} className="text-gray-300" /></button>
+            <button onClick={() => setScreen('aide')} className="w-full flex items-center gap-3 px-4 py-3.5 text-left"><HelpCircle size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Aide et Support</span><ChevronRight size={18} className="text-gray-300" /></button>
+          </div>
+          <button onClick={logout} className="w-full bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5 text-red-500"><LogOut size={20} /><span className="text-sm font-bold">Deconnexion</span></button>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : MOYENS DE PAIEMENT =====
+  if (screen === 'paiement') {
+    const methods = [
+      { id: 'cash', icon: '💵', name: 'Especes', desc: 'Payer en liquide au chauffeur' },
+      { id: 'wave', icon: '📱', name: 'Wave', desc: 'Paiement mobile Wave' },
+      { id: 'orange', icon: '🟠', name: 'Orange Money', desc: 'Paiement mobile Orange' },
+    ]
+    return (
+      <div className="fixed inset-0 flex flex-col bg-gray-100">
+        <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setScreen('accueil')}><ArrowLeft size={24} color="#0F5138" /></button>
+          <span className="font-bold text-black">Moyens de paiement</span>
+        </header>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {methods.map(m => (
+            <button key={m.id} onClick={() => setPayment(m.id)} className="w-full bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3" style={{ border: payment === m.id ? '2px solid #1DB954' : '2px solid white' }}>
+              <span className="text-2xl">{m.icon}</span>
+              <div className="flex-1 text-left"><p className="font-bold text-sm">{m.name}</p><p className="text-xs text-gray-400">{m.desc}</p></div>
+              {payment === m.id && <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: '#1DB954' }}><Check size={14} color="white" /></div>}
+            </button>
+          ))}
+          <p className="text-xs text-gray-400 text-center px-4 mt-2">Le mode de paiement choisi sera utilise par defaut pour tes prochaines courses.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : PARRAINAGE =====
+  if (screen === 'parrainage') {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-gray-100">
+        <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setScreen('accueil')}><ArrowLeft size={24} color="#0F5138" /></button>
+          <span className="font-bold text-black">Parrainer un ami</span>
+        </header>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="rounded-2xl p-6 text-center" style={{ background: '#0F5138' }}>
+            <Gift size={40} color="white" className="mx-auto mb-3" />
+            <p className="text-white font-black text-lg mb-1">Gagne des courses gratuites</p>
+            <p className="text-green-200 text-sm">Invite tes amis et vous gagnez tous les deux -50% sur une course</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm text-center">
+            <p className="text-xs text-gray-400 mb-2">TON CODE DE PARRAINAGE</p>
+            <p className="text-2xl font-black tracking-widest" style={{ color: '#0F5138' }}>{referralCode}</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+            <p className="font-bold text-sm">Comment ca marche</p>
+            <div className="flex items-start gap-3"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#1DB954' }}>1</div><p className="text-sm text-gray-600">Partage ton code avec tes amis</p></div>
+            <div className="flex items-start gap-3"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#1DB954' }}>2</div><p className="text-sm text-gray-600">Ils s&apos;inscrivent avec ton code</p></div>
+            <div className="flex items-start gap-3"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#1DB954' }}>3</div><p className="text-sm text-gray-600">Vous gagnez tous les deux une reduction</p></div>
+          </div>
+        </div>
+        <div className="p-4 bg-white border-t border-gray-100">
+          <button onClick={shareReferral} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#0F5138' }}><Share2 size={20} /> Partager mon code</button>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : AIDE =====
+  if (screen === 'aide') {
+    const faqs = [
+      { q: 'Comment commander une course ?', a: 'Choisis ta destination dans la barre de recherche, verifie le prix affiche, puis appuie sur Commander. Un chauffeur proche recevra ta demande.' },
+      { q: 'Quels sont les moyens de paiement ?', a: 'Tu peux payer en especes, par Wave ou par Orange Money.' },
+      { q: 'Comment est calcule le prix ?', a: 'Le prix depend de la distance. Moto-taxi : 500 + 200 FCFA par km. Livraison : 700 + 250 FCFA par km.' },
+      { q: 'Dans quelles villes fonctionne TIAK TIAK ?', a: 'TIAK TIAK couvre tout le Senegal : Dakar, Thies, Touba, Saint-Louis, Kaolack et partout ailleurs.' },
+      { q: 'Comment devenir chauffeur ?', a: 'Deconnecte-toi, puis choisis Je suis un Chauffeur sur l&apos;ecran d&apos;accueil et remplis ton dossier.' },
+    ]
+    return (
+      <div className="fixed inset-0 flex flex-col bg-gray-100">
+        <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setScreen('accueil')}><ArrowLeft size={24} color="#0F5138" /></button>
+          <span className="font-bold text-black">Aide et Support</span>
+        </header>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <p className="font-bold text-sm text-gray-500">Questions frequentes</p>
+          {faqs.map((f, i) => (
+            <div key={i} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <button onClick={() => setFaqOpen(faqOpen === i ? null : i)} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
+                <span className="flex-1 text-sm font-semibold">{f.q}</span>
+                <ChevronDown size={18} className="text-gray-400" style={{ transform: faqOpen === i ? 'rotate(180deg)' : 'none' }} />
+              </button>
+              {faqOpen === i && <p className="px-4 pb-4 text-sm text-gray-600">{f.a}</p>}
+            </div>
+          ))}
+          <p className="font-bold text-sm text-gray-500 pt-2">Nous contacter</p>
+          <a href="https://wa.me/221770970100" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><MessageCircle size={20} color="#1DB954" /><span className="flex-1 text-sm font-medium">WhatsApp</span><ChevronRight size={18} className="text-gray-300" /></a>
+          <a href="tel:+221770970100" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><Phone size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Appeler le support</span><ChevronRight size={18} className="text-gray-300" /></a>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : A PROPOS =====
+  if (screen === 'apropos') {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-gray-100">
+        <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setScreen('accueil')}><ArrowLeft size={24} color="#0F5138" /></button>
+          <span className="font-bold text-black">A propos</span>
+        </header>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex flex-col items-center py-4">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center mb-3" style={{ background: '#0F5138' }}><Navigation size={36} color="white" fill="white" style={{ transform: 'rotate(45deg)' }} /></div>
+            <h1 className="text-2xl font-black tracking-widest" style={{ color: '#0F5138' }}>TIAK TIAK</h1>
+            <p className="text-gray-400 text-sm mt-1">Le Tiak Tiak de ta generation</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>Notre mission</p>
+            <p className="text-sm text-gray-600 leading-relaxed">TIAK TIAK rend le transport en moto-taxi rapide, sur et accessible a tous les Senegalais. Que tu sois a Dakar, Thies, Touba ou ailleurs, un chauffeur de confiance est a quelques minutes de toi.</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
+            <p className="font-bold text-sm mb-1" style={{ color: '#0F5138' }}>Ce que nous offrons</p>
+            <p className="text-sm text-gray-600">🏍️ Courses moto-taxi rapides</p>
+            <p className="text-sm text-gray-600">📦 Livraison express de colis</p>
+            <p className="text-sm text-gray-600">💳 Paiement Cash, Wave ou Orange Money</p>
+            <p className="text-sm text-gray-600">🇸🇳 Couverture dans tout le Senegal</p>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm text-center">
+            <p className="text-sm text-gray-600">Fierement senegalais 🇸🇳</p>
+            <p className="text-xs text-gray-400 mt-1">Version 1.0.0</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : MES COURSES =====
+  if (screen === 'courses') {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-gray-100">
+        <header className="bg-white px-4 py-3 flex items-center justify-center border-b border-gray-100">
+          <span className="text-xl font-black italic" style={{ color: '#0F5138' }}>Mes courses</span>
+        </header>
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="bg-white rounded-2xl shadow-sm text-center py-16 px-6">
+            <span className="text-5xl block mb-4">🛵</span>
+            <p className="font-bold text-gray-700 mb-1">Aucune course pour le moment</p>
+            <p className="text-sm text-gray-400 mb-5">Tes trajets apparaitront ici apres ta premiere course</p>
+            <button onClick={() => setScreen('accueil')} className="px-6 py-3 rounded-full font-bold text-white text-sm" style={{ background: '#0F5138' }}>Commander maintenant</button>
+          </div>
+        </div>
+        <nav className="bg-white flex border-t border-gray-100">
+          <button onClick={() => setScreen('accueil')} className="flex-1 py-3 flex flex-col items-center gap-1"><Home size={22} color="#9CA3AF" /><span className="text-xs font-semibold text-gray-400">Accueil</span></button>
+          <button onClick={() => setScreen('courses')} className="flex-1 py-3 flex flex-col items-center gap-1"><List size={22} color="#1DB954" /><span className="text-xs font-semibold" style={{ color: '#0F5138' }}>Mes courses</span></button>
+        </nav>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : ACCUEIL =====
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-100">
+      {menuOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black bg-opacity-40" onClick={() => setMenuOpen(false)} />
+          <div className="relative bg-white w-72 h-full flex flex-col">
+            <div className="p-5" style={{ background: '#0F5138' }}>
+              <div className="w-16 h-16 rounded-full bg-white bg-opacity-20 flex items-center justify-center mb-3"><User size={28} color="white" /></div>
+              <p className="text-white font-bold text-lg">{user?.name}</p>
+              <p className="text-green-200 text-sm">{user?.phone}</p>
+            </div>
+            <div className="flex-1 overflow-y-auto py-2">
+              <button onClick={() => goTo('profil')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><User size={20} color="#0F5138" /><span className="text-sm font-medium">Mon profil</span></button>
+              <button onClick={() => goTo('courses')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><List size={20} color="#0F5138" /><span className="text-sm font-medium">Mes courses</span></button>
+              <button onClick={() => goTo('paiement')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><CreditCard size={20} color="#0F5138" /><span className="text-sm font-medium">Moyens de paiement</span></button>
+              <button onClick={() => goTo('parrainage')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><Gift size={20} color="#0F5138" /><span className="text-sm font-medium">Parrainer un ami</span></button>
+              <button onClick={() => goTo('aide')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><HelpCircle size={20} color="#0F5138" /><span className="text-sm font-medium">Aide et Support</span></button>
+              <button onClick={() => goTo('apropos')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><Info size={20} color="#0F5138" /><span className="text-sm font-medium">A propos</span></button>
+            </div>
+            <button onClick={logout} className="flex items-center gap-3 px-5 py-4 border-t border-gray-100 text-red-500"><LogOut size={20} /><span className="text-sm font-bold">Deconnexion</span></button>
+          </div>
+        </div>
+      )}
       <header className="bg-white px-4 py-3 flex items-center justify-between border-b border-gray-100">
-        <button onClick={logout} className="w-10 h-10 flex items-center justify-center"><Menu size={24} color="#0F5138" /></button>
+        <button onClick={() => setMenuOpen(true)} className="w-10 h-10 flex items-center justify-center"><Menu size={24} color="#0F5138" /></button>
         <span className="text-2xl font-black italic" style={{ color: '#0F5138' }}>TIAK TIAK</span>
-        <button className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><User size={20} className="text-gray-400" /></button>
+        <button onClick={() => setScreen('profil')} className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><User size={20} className="text-gray-400" /></button>
       </header>
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
         <div>
@@ -376,15 +580,15 @@ export default function TiakTiak() {
           <span className="flex-1 text-left text-gray-400">Ou allons-nous ?</span>
           <ChevronRight size={20} color="#0F5138" />
         </button>
-        <div className="rounded-2xl p-5 relative overflow-hidden" style={{ background: '#0F5138' }}>
+        <button onClick={() => setScreen('parrainage')} className="w-full rounded-2xl p-5 relative overflow-hidden text-left" style={{ background: '#0F5138' }}>
           <h3 className="text-white font-black italic text-xl mb-1">-50% SUR TA 1ERE COURSE</h3>
           <p className="text-white text-sm opacity-90 mb-4">Rejoins des milliers de Senegalais qui roulent malin</p>
-          <button className="bg-white px-5 py-2 rounded-full font-bold text-sm" style={{ color: '#0F5138' }}>J EN PROFITE</button>
-        </div>
+          <span className="inline-block bg-white px-5 py-2 rounded-full font-bold text-sm" style={{ color: '#0F5138' }}>J EN PROFITE</span>
+        </button>
       </div>
       <nav className="bg-white flex border-t border-gray-100">
-        <button onClick={() => setTab('accueil')} className="flex-1 py-3 flex flex-col items-center gap-1"><Home size={22} color={tab === 'accueil' ? '#1DB954' : '#9CA3AF'} /><span className="text-xs font-semibold" style={{ color: tab === 'accueil' ? '#0F5138' : '#9CA3AF' }}>Accueil</span></button>
-        <button onClick={() => setTab('courses')} className="flex-1 py-3 flex flex-col items-center gap-1"><List size={22} color={tab === 'courses' ? '#1DB954' : '#9CA3AF'} /><span className="text-xs font-semibold" style={{ color: tab === 'courses' ? '#0F5138' : '#9CA3AF' }}>Mes courses</span></button>
+        <button onClick={() => setScreen('accueil')} className="flex-1 py-3 flex flex-col items-center gap-1"><Home size={22} color="#1DB954" /><span className="text-xs font-semibold" style={{ color: '#0F5138' }}>Accueil</span></button>
+        <button onClick={() => setScreen('courses')} className="flex-1 py-3 flex flex-col items-center gap-1"><List size={22} color="#9CA3AF" /><span className="text-xs font-semibold text-gray-400">Mes courses</span></button>
       </nav>
     </div>
   )
