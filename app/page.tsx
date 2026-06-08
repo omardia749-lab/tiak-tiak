@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, User, ChevronRight, ChevronDown, Home, List, Wallet, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText } from 'lucide-react'
+import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText } from 'lucide-react'
 import { searchPlaces, Place } from '../lib/search'
 import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance } from '../lib/utils'
 import { CONDITIONS_UTILISATION, POLITIQUE_CONFIDENTIALITE } from '../lib/legal'
@@ -17,13 +17,27 @@ interface AppUser {
   phone: string
 }
 
-const SUPPORT_WHATSAPP = 'https://wa.me/221770970100?text=' + encodeURIComponent('Bonjour TIAK TIAK Support, j\'ai besoin d\'aide.')
+interface GpsPosition {
+  lat: number
+  lng: number
+  address: string
+}
+
+const SUPPORT_WHATSAPP = 'https://wa.me/221770970100?text=' + encodeURIComponent("Bonjour TIAK TIAK Support, j'ai besoin d'aide.")
+const DEFAULT_POS: GpsPosition = { lat: 14.7167, lng: -17.2833, address: 'Rufisque, Dakar' }
 
 export default function TiakTiak() {
   const [user, setUser] = useState<AppUser | null>(null)
   const [authScreen, setAuthScreen] = useState('roles')
+  const [authMode, setAuthMode] = useState<'signup' | 'login'>('signup')
   const [loaded, setLoaded] = useState(false)
 
+  // GPS
+  const [gpsAsked, setGpsAsked] = useState(false)
+  const [gpsLoading, setGpsLoading] = useState(false)
+  const [position, setPosition] = useState<GpsPosition>(DEFAULT_POS)
+
+  // Formulaires
   const [formName, setFormName] = useState('')
   const [formPhone, setFormPhone] = useState('')
   const [formMoto, setFormMoto] = useState('')
@@ -32,6 +46,7 @@ export default function TiakTiak() {
   const [authError, setAuthError] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
 
+  // App
   const [service, setService] = useState('moto')
   const [screen, setScreen] = useState('accueil')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -52,6 +67,8 @@ export default function TiakTiak() {
     if (saved) setUser(JSON.parse(saved))
     const savedLang = localStorage.getItem('tiaktiak_lang')
     if (savedLang) setLang(savedLang)
+    const gpsOk = localStorage.getItem('tiaktiak_gps_asked')
+    if (gpsOk) setGpsAsked(true)
     setLoaded(true)
   }, [])
 
@@ -69,9 +86,92 @@ export default function TiakTiak() {
     localStorage.removeItem('tiaktiak_user')
     setUser(null)
     setAuthScreen('roles')
+    setAuthMode('signup')
     setMenuOpen(false)
     setScreen('accueil')
     setFormName(''); setFormPhone(''); setAdminPass(''); setAuthError('')
+  }
+
+  // ===== GPS =====
+  const activerGPS = () => {
+    setGpsLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`
+          )
+          const data = await res.json()
+          const address = data.display_name
+            ? (data.address?.suburb || data.address?.neighbourhood || data.address?.city || 'Ma position')
+            : 'Ma position'
+          setPosition({ lat: latitude, lng: longitude, address })
+        } catch {
+          setPosition({ lat: latitude, lng: longitude, address: 'Ma position' })
+        }
+        localStorage.setItem('tiaktiak_gps_asked', '1')
+        setGpsAsked(true)
+        setGpsLoading(false)
+      },
+      () => {
+        localStorage.setItem('tiaktiak_gps_asked', '1')
+        setGpsAsked(true)
+        setGpsLoading(false)
+      },
+      { timeout: 10000 }
+    )
+  }
+
+  const passerSansGPS = () => {
+    localStorage.setItem('tiaktiak_gps_asked', '1')
+    setGpsAsked(true)
+  }
+
+  // ===== CONNEXION CLIENT (numero seul) =====
+  const loginClient = async () => {
+    if (!formPhone) { setAuthError('Entre ton numero de telephone'); return }
+    setAuthLoading(true)
+    setAuthError('')
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, phone, role')
+        .eq('phone', formPhone.trim())
+        .eq('role', 'client')
+        .single()
+      if (error || !data) {
+        setAuthError('Numero introuvable. Inscris-toi dabord.')
+      } else {
+        saveUser({ id: data.id, role: 'client', name: data.name, phone: data.phone })
+      }
+    } catch {
+      setAuthError('Erreur reseau. Verifie ta connexion.')
+    }
+    setAuthLoading(false)
+  }
+
+  // ===== CONNEXION CHAUFFEUR =====
+  const loginDriver = async () => {
+    if (!formPhone) { setAuthError('Entre ton numero de telephone'); return }
+    setAuthLoading(true)
+    setAuthError('')
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, phone, role')
+        .eq('phone', formPhone.trim())
+        .eq('role', 'chauffeur')
+        .single()
+      if (error || !data) {
+        setAuthError('Numero introuvable. Inscris-toi dabord.')
+      } else {
+        saveUser({ id: data.id, role: 'chauffeur', name: data.name, phone: data.phone })
+      }
+    } catch {
+      setAuthError('Erreur reseau. Verifie ta connexion.')
+    }
+    setAuthLoading(false)
   }
 
   // ===== INSCRIPTION CLIENT =====
@@ -85,31 +185,19 @@ export default function TiakTiak() {
         .insert({ name: formName.trim(), phone: formPhone.trim(), role: 'client' })
         .select('id')
         .single()
-
       if (error) {
-        // Doublon de téléphone
         if (error.code === '23505') {
-          // Récupérer le compte existant
-          const { data: existing } = await supabase
-            .from('users')
-            .select('id, name, phone, role')
-            .eq('phone', formPhone.trim())
-            .single()
-          if (existing) {
-            saveUser({ id: existing.id, role: 'client', name: existing.name, phone: existing.phone })
-          } else {
-            setAuthError('Ce numéro est déjà utilisé. Réessaie.')
-          }
+          setAuthError('Ce numero est deja utilise. Connecte-toi.')
+          setAuthMode('login')
         } else {
-          setAuthError('Erreur de connexion. Réessaie.')
+          setAuthError('Erreur de connexion. Reessaie.')
         }
         setAuthLoading(false)
         return
       }
-
       saveUser({ id: data.id, role: 'client', name: formName.trim(), phone: formPhone.trim() })
     } catch {
-      setAuthError('Erreur réseau. Vérifie ta connexion.')
+      setAuthError('Erreur reseau. Verifie ta connexion.')
     }
     setAuthLoading(false)
   }
@@ -122,38 +210,22 @@ export default function TiakTiak() {
     try {
       const { data, error } = await supabase
         .from('users')
-        .insert({
-          name: formName.trim(),
-          phone: formPhone.trim(),
-          role: 'chauffeur',
-          moto_type: formMoto.trim(),
-          moto_color: formColor.trim(),
-        })
+        .insert({ name: formName.trim(), phone: formPhone.trim(), role: 'chauffeur', moto_type: formMoto.trim(), moto_color: formColor.trim() })
         .select('id')
         .single()
-
       if (error) {
         if (error.code === '23505') {
-          const { data: existing } = await supabase
-            .from('users')
-            .select('id, name, phone, role')
-            .eq('phone', formPhone.trim())
-            .single()
-          if (existing) {
-            saveUser({ id: existing.id, role: 'chauffeur', name: existing.name, phone: existing.phone })
-          } else {
-            setAuthError('Ce numéro est déjà utilisé. Réessaie.')
-          }
+          setAuthError('Ce numero est deja utilise. Connecte-toi.')
+          setAuthMode('login')
         } else {
-          setAuthError('Erreur de connexion. Réessaie.')
+          setAuthError('Erreur de connexion. Reessaie.')
         }
         setAuthLoading(false)
         return
       }
-
       saveUser({ id: data.id, role: 'chauffeur', name: formName.trim(), phone: formPhone.trim() })
     } catch {
-      setAuthError('Erreur réseau. Vérifie ta connexion.')
+      setAuthError('Erreur reseau. Verifie ta connexion.')
     }
     setAuthLoading(false)
   }
@@ -187,7 +259,7 @@ export default function TiakTiak() {
 
   const goTo = (s: string) => { setScreen(s); setMenuOpen(false) }
 
-  const km = selected ? haversineDistance(14.7167, -17.2833, selected.lat, selected.lng) : 0
+  const km = selected ? haversineDistance(position.lat, position.lng, selected.lat, selected.lng) : 0
   const price = selected ? calculatePrice(km, service as 'moto' | 'livraison') : 0
   const eta = selected ? calculateETA(km) : 0
 
@@ -212,26 +284,25 @@ export default function TiakTiak() {
         .insert({
           client_id: user.id || null,
           service_type: service,
-          from_lat: 14.7167,
-          from_lng: -17.2833,
-          from_address: 'Rufisque, Dakar',
+          from_lat: position.lat,
+          from_lng: position.lng,
+          from_address: position.address,
           to_lat: selected.lat,
           to_lng: selected.lng,
           to_address: selected.name,
           distance_km: Math.round(km * 100) / 100,
           price: price,
+          commission: 100,
           payment_method: payment,
-commission: 100,
           status: 'pending',
         })
-
       if (error) {
         alert('Erreur: ' + JSON.stringify(error))
       } else {
         setCommandSuccess(true)
       }
     } catch {
-      alert('Erreur réseau. Vérifie ta connexion.')
+      alert('Erreur reseau. Verifie ta connexion.')
     }
     setCommandLoading(false)
   }
@@ -244,14 +315,65 @@ commission: 100,
     { code: 'es', flag: '🇪🇸', name: 'Espagnol' },
   ]
 
+  // ===== SPLASH =====
   if (!loaded) {
-    return <div className="fixed inset-0 flex items-center justify-center" style={{ background: '#0F5138' }}>
-      <span className="text-3xl font-black italic text-white">TIAK TIAK</span>
-    </div>
+    return (
+      <div className="fixed inset-0 flex items-center justify-center" style={{ background: '#0F5138' }}>
+        <span className="text-3xl font-black italic text-white">TIAK TIAK</span>
+      </div>
+    )
+  }
+
+  // ===== ECRAN GPS =====
+  if (loaded && !gpsAsked) {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-white">
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
+          <div className="relative flex items-center justify-center">
+            <div className="absolute rounded-full animate-pulse" style={{ background: '#1DB954', opacity: 0.15, width: '140px', height: '140px' }} />
+            <div className="relative w-28 h-28 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}>
+              <Navigation size={48} color="white" fill="white" style={{ transform: 'rotate(45deg)' }} />
+            </div>
+          </div>
+          <div className="text-center">
+            <h1 className="text-4xl font-black tracking-widest mb-2" style={{ color: '#0F5138' }}>TIAK TIAK</h1>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">Activez votre localisation</h2>
+            <p className="text-gray-400 text-sm leading-relaxed">
+              Pour trouver les chauffeurs pres de vous et calculer le prix de votre course, TIAK TIAK a besoin de connaitre votre position.
+            </p>
+          </div>
+          <div className="w-full rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}>
+                <MapPin size={16} color="white" />
+              </div>
+              <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>Pourquoi cette autorisation ?</p>
+            </div>
+            <p className="text-xs text-gray-500 ml-11">Votre position sert uniquement a calculer la distance et le prix de votre course. Elle n&apos;est jamais partagee sans votre accord.</p>
+          </div>
+        </div>
+        <div className="px-8 pb-10 space-y-3">
+          <button
+            onClick={activerGPS}
+            disabled={gpsLoading}
+            className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2"
+            style={{ background: gpsLoading ? '#7aaa94' : '#0F5138' }}
+          >
+            <Navigation size={20} color="white" />
+            {gpsLoading ? 'Localisation en cours...' : 'Activer ma localisation'}
+          </button>
+          <button onClick={passerSansGPS} className="w-full text-center text-gray-400 text-sm py-2">
+            Continuer sans localisation
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // ===== NON CONNECTE =====
   if (!user) {
+
+    // CHOIX DU ROLE
     if (authScreen === 'roles') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
@@ -264,14 +386,14 @@ commission: 100,
             </div>
             <div className="text-center">
               <h1 className="text-4xl font-black tracking-widest" style={{ color: '#0F5138' }}>TIAK TIAK</h1>
-              <p className="text-gray-400 text-sm mt-3 leading-relaxed">Transport moto rapide<br/>a votre service</p>
+              <p className="text-gray-400 text-sm mt-3 leading-relaxed">Transport moto rapide<br />a votre service</p>
             </div>
           </div>
           <div className="px-8 pb-10 space-y-3">
-            <button onClick={() => { setAuthScreen('client'); setAuthError('') }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#0F5138' }}>
+            <button onClick={() => { setAuthScreen('client'); setAuthMode('signup'); setAuthError(''); setFormName(''); setFormPhone('') }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#0F5138' }}>
               <User size={20} /> Je suis un Client
             </button>
-            <button onClick={() => { setAuthScreen('chauffeur'); setAuthError('') }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#111111' }}>
+            <button onClick={() => { setAuthScreen('chauffeur'); setAuthMode('signup'); setAuthError(''); setFormName(''); setFormPhone(''); setFormMoto(''); setFormColor('') }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#111111' }}>
               <Zap size={20} color="#1DB954" /> Je suis un Chauffeur
             </button>
             <button onClick={() => { setAuthScreen('admin'); setAuthError('') }} className="w-full text-center text-gray-400 text-sm pt-2">
@@ -282,90 +404,154 @@ commission: 100,
       )
     }
 
+    // CLIENT
     if (authScreen === 'client') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
           <header className="px-4 py-4 flex items-center gap-3 border-b border-gray-100">
             <button onClick={() => setAuthScreen('roles')}><ArrowLeft size={24} color="#0F5138" /></button>
-            <span className="font-bold text-black">Inscription Client</span>
+            <span className="font-bold text-black">{authMode === 'signup' ? 'Inscription Client' : 'Connexion Client'}</span>
           </header>
-          <div className="flex-1 p-6 space-y-4">
-            <div className="text-center mb-4"><span className="text-5xl">🧑</span></div>
-            <div>
-              <label className="text-sm font-semibold text-gray-600">Nom complet</label>
-              <input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Omar Ngalla" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
+
+          {/* Toggle S'inscrire / Se connecter */}
+          <div className="px-6 pt-5">
+            <div className="flex bg-gray-100 rounded-2xl p-1">
+              <button
+                onClick={() => { setAuthMode('signup'); setAuthError('') }}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
+                style={{ background: authMode === 'signup' ? '#0F5138' : 'transparent', color: authMode === 'signup' ? 'white' : '#9CA3AF' }}
+              >
+                S&apos;inscrire
+              </button>
+              <button
+                onClick={() => { setAuthMode('login'); setAuthError('') }}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
+                style={{ background: authMode === 'login' ? '#0F5138' : 'transparent', color: authMode === 'login' ? 'white' : '#9CA3AF' }}
+              >
+                Se connecter
+              </button>
             </div>
+          </div>
+
+          <div className="flex-1 p-6 space-y-4">
+            <div className="text-center mb-2"><span className="text-5xl">🧑</span></div>
+
+            {authMode === 'signup' && (
+              <div>
+                <label className="text-sm font-semibold text-gray-600">Nom complet</label>
+                <input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Omar Ngalla" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
+              </div>
+            )}
             <div>
               <label className="text-sm font-semibold text-gray-600">Numero de telephone</label>
               <input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 097 01 00" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
             </div>
+            {authMode === 'login' && (
+              <p className="text-xs text-gray-400 text-center">Entre le numero avec lequel tu t&apos;es inscrit</p>
+            )}
             {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
           </div>
           <div className="p-4 border-t border-gray-100">
             <button
-              onClick={signupClient}
+              onClick={authMode === 'signup' ? signupClient : loginClient}
               disabled={authLoading}
-              className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-2xl font-bold text-white"
               style={{ background: authLoading ? '#7aaa94' : '#0F5138' }}
             >
-              {authLoading ? 'Création en cours...' : 'Creer mon compte'}
+              {authLoading ? 'Chargement...' : authMode === 'signup' ? 'Creer mon compte' : 'Se connecter'}
             </button>
           </div>
         </div>
       )
     }
 
+    // CHAUFFEUR
     if (authScreen === 'chauffeur') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
           <header className="px-4 py-4 flex items-center gap-3 border-b border-gray-100">
             <button onClick={() => setAuthScreen('roles')}><ArrowLeft size={24} color="#0F5138" /></button>
-            <span className="font-bold text-black">Inscription Chauffeur</span>
+            <span className="font-bold text-black">{authMode === 'signup' ? 'Inscription Chauffeur' : 'Connexion Chauffeur'}</span>
           </header>
+
+          {/* Toggle */}
+          <div className="px-6 pt-5">
+            <div className="flex bg-gray-100 rounded-2xl p-1">
+              <button
+                onClick={() => { setAuthMode('signup'); setAuthError('') }}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
+                style={{ background: authMode === 'signup' ? '#111111' : 'transparent', color: authMode === 'signup' ? 'white' : '#9CA3AF' }}
+              >
+                S&apos;inscrire
+              </button>
+              <button
+                onClick={() => { setAuthMode('login'); setAuthError('') }}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
+                style={{ background: authMode === 'login' ? '#111111' : 'transparent', color: authMode === 'login' ? 'white' : '#9CA3AF' }}
+              >
+                Se connecter
+              </button>
+            </div>
+          </div>
+
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             <div className="text-center mb-2"><span className="text-5xl">🛵</span></div>
-            <div>
-              <label className="text-sm font-semibold text-gray-600">Nom complet</label>
-              <input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Moussa Diallo" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-600">Numero de telephone</label>
-              <input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-600">Type de moto</label>
-              <input value={formMoto} onChange={e => setFormMoto(e.target.value)} placeholder="Ex: Jakarta 125cc" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-gray-600">Couleur de la moto</label>
-              <input value={formColor} onChange={e => setFormColor(e.target.value)} placeholder="Ex: Rouge" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
-            </div>
-            <div className="rounded-2xl p-4 mt-2" style={{ background: '#E8F5E9' }}>
-              <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>📋 Regles de commission</p>
-              <p className="text-xs text-gray-600 mb-1">• Commission de 100 FCFA par course</p>
-              <p className="text-xs text-gray-600 mb-1">• Paiement obligatoire avant 23h59 chaque jour</p>
-              <p className="text-xs text-gray-600 mb-1">• Paiement via Wave ou Orange Money</p>
-              <p className="text-xs text-gray-600 mt-2 font-semibold">En cas de non-paiement :</p>
-              <p className="text-xs text-gray-600">1er manquement → Avertissement</p>
-              <p className="text-xs text-gray-600">2eme → Suspension 14 jours</p>
-              <p className="text-xs text-gray-600">3eme → Exclusion definitive</p>
-            </div>
+
+            {authMode === 'login' ? (
+              <>
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">Numero de telephone</label>
+                  <input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
+                </div>
+                <p className="text-xs text-gray-400 text-center">Entre le numero avec lequel tu t&apos;es inscrit</p>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">Nom complet</label>
+                  <input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Moussa Diallo" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">Numero de telephone</label>
+                  <input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">Type de moto</label>
+                  <input value={formMoto} onChange={e => setFormMoto(e.target.value)} placeholder="Ex: Jakarta 125cc" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">Couleur de la moto</label>
+                  <input value={formColor} onChange={e => setFormColor(e.target.value)} placeholder="Ex: Rouge" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
+                </div>
+                <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
+                  <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>📋 Regles de commission</p>
+                  <p className="text-xs text-gray-600 mb-1">• Commission de 100 FCFA par course</p>
+                  <p className="text-xs text-gray-600 mb-1">• Paiement obligatoire avant 23h59 chaque jour</p>
+                  <p className="text-xs text-gray-600 mb-1">• Paiement via Wave ou Orange Money au 77 097 01 00</p>
+                  <p className="text-xs text-gray-600 mt-2 font-semibold">En cas de non-paiement :</p>
+                  <p className="text-xs text-gray-600">1er manquement → Avertissement</p>
+                  <p className="text-xs text-gray-600">2eme → Suspension 14 jours</p>
+                  <p className="text-xs text-gray-600">3eme → Exclusion definitive</p>
+                </div>
+              </>
+            )}
             {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
           </div>
           <div className="p-4 border-t border-gray-100">
             <button
-              onClick={signupDriver}
+              onClick={authMode === 'signup' ? signupDriver : loginDriver}
               disabled={authLoading}
               className="w-full py-4 rounded-2xl font-bold text-white"
-              style={{ background: authLoading ? '#7aaa94' : '#0F5138' }}
+              style={{ background: authLoading ? '#7aaa94' : '#111111' }}
             >
-              {authLoading ? 'Inscription en cours...' : "J'accepte et je rejoins TIAK TIAK"}
+              {authLoading ? 'Chargement...' : authMode === 'signup' ? "J'accepte et je rejoins TIAK TIAK" : 'Se connecter'}
             </button>
           </div>
         </div>
       )
     }
 
+    // ADMIN
     if (authScreen === 'admin') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
@@ -428,9 +614,9 @@ commission: 100,
             <p className="font-bold text-sm mb-1" style={{ color: '#0F5138' }}>Statut : En attente de validation</p>
             <p className="text-xs text-gray-600">Ton dossier est en cours de verification par l&apos;admin.</p>
           </div>
-          <div className="bg-white rounded-2xl p-4 shadow-sm text-center text-gray-400 py-12">
+          <div className="bg-white rounded-2xl p-4 shadow-sm text-center py-12">
             <span className="text-4xl block mb-3">🛵</span>
-            <p className="text-sm">Le systeme de courses arrive bientot</p>
+            <p className="text-sm text-gray-400">Le systeme de courses arrive bientot</p>
           </div>
         </div>
       </div>
@@ -473,12 +659,14 @@ commission: 100,
           <span className="font-bold text-black">Confirmer la course</span>
         </header>
         <div className="flex-1 overflow-y-auto">
-          <div className="h-56 relative"><MapView fromLat={14.7167} fromLng={-17.2833} toLat={selected.lat} toLng={selected.lng} /></div>
+          <div className="h-56 relative">
+            <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} />
+          </div>
           <div className="p-4 space-y-3">
             <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="flex items-center gap-3 mb-3">
                 <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} />
-                <div><p className="text-xs text-gray-400">Depart</p><p className="text-sm font-semibold">Rufisque, Dakar</p></div>
+                <div><p className="text-xs text-gray-400">Depart</p><p className="text-sm font-semibold">{position.address}</p></div>
               </div>
               <div className="flex items-center gap-3">
                 <span className="w-3 h-3 rounded-full flex-shrink-0 bg-red-500" />
@@ -498,15 +686,14 @@ commission: 100,
               <div className="flex justify-between mb-3"><span className="text-sm text-gray-500">Duree estimee</span><span className="text-sm font-bold">{formatETA(eta)}</span></div>
               <div className="border-t border-gray-100 pt-3 flex justify-between items-center"><span className="font-bold">Prix total</span><span className="text-2xl font-black" style={{ color: '#0F5138' }}>{formatPrice(price)}</span></div>
             </div>
-
             {commandSuccess && (
               <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
                 <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}>
                   <Check size={18} color="white" />
                 </div>
                 <div>
-                  <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Course envoyée !</p>
-                  <p className="text-xs text-gray-600">Un chauffeur va accepter ta demande très bientôt.</p>
+                  <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Course envoyee !</p>
+                  <p className="text-xs text-gray-600">Un chauffeur va accepter ta demande tres bientot.</p>
                 </div>
               </div>
             )}
@@ -514,20 +701,11 @@ commission: 100,
         </div>
         <div className="p-4 bg-white border-t border-gray-100">
           {commandSuccess ? (
-            <button
-              onClick={() => { setScreen('accueil'); setSelected(null); setCommandSuccess(false) }}
-              className="w-full py-4 rounded-2xl font-bold text-white text-base"
-              style={{ background: '#111111' }}
-            >
-              Retour à l&apos;accueil
+            <button onClick={() => { setScreen('accueil'); setSelected(null); setCommandSuccess(false) }} className="w-full py-4 rounded-2xl font-bold text-white text-base" style={{ background: '#111111' }}>
+              Retour a l&apos;accueil
             </button>
           ) : (
-            <button
-              onClick={commanderCourse}
-              disabled={commandLoading}
-              className="w-full py-4 rounded-2xl font-bold text-white text-base"
-              style={{ background: commandLoading ? '#7aaa94' : '#0F5138' }}
-            >
+            <button onClick={commanderCourse} disabled={commandLoading} className="w-full py-4 rounded-2xl font-bold text-white text-base" style={{ background: commandLoading ? '#7aaa94' : '#0F5138' }}>
               {commandLoading ? 'Envoi en cours...' : 'Commander un TIAK TIAK'}
             </button>
           )}
@@ -632,7 +810,7 @@ commission: 100,
       { q: 'Quels sont les moyens de paiement ?', a: 'Tu peux payer en especes, par Wave ou par Orange Money.' },
       { q: 'Comment est calcule le prix ?', a: 'Le prix depend de la distance. Moto-taxi : 500 + 200 FCFA par km. Livraison : 700 + 250 FCFA par km.' },
       { q: 'Dans quelles villes fonctionne TIAK TIAK ?', a: 'TIAK TIAK couvre tout le Senegal : Dakar, Thies, Touba, Saint-Louis, Kaolack et partout ailleurs.' },
-      { q: 'Comment devenir chauffeur ?', a: 'Deconnecte-toi, puis choisis Je suis un Chauffeur sur l ecran d accueil et remplis ton dossier.' },
+      { q: 'Comment devenir chauffeur ?', a: "Deconnecte-toi, puis choisis Je suis un Chauffeur sur l'ecran d'accueil et remplis ton dossier." },
     ]
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
@@ -752,11 +930,11 @@ commission: 100,
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>Notre mission</p>
-            <p className="text-sm text-gray-600 leading-relaxed">TIAK TIAK est nee d&apos;une idee simple : rendre le transport en moto-taxi rapide, sur et accessible a tous les Senegalais. Dans nos villes comme dans nos regions, la moto est le moyen le plus pratique pour se deplacer. Nous avons cree une application moderne qui connecte en quelques secondes les clients aux chauffeurs les plus proches, avec un prix transparent et juste.</p>
+            <p className="text-sm text-gray-600 leading-relaxed">TIAK TIAK est nee d&apos;une idee simple : rendre le transport en moto-taxi rapide, sur et accessible a tous les Senegalais.</p>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>Notre vision</p>
-            <p className="text-sm text-gray-600 leading-relaxed">Devenir la reference du transport moto et de la livraison au Senegal, en offrant un service fiable qui ameliore le quotidien des clients et fait vivre dignement des milliers de chauffeurs a travers le pays.</p>
+            <p className="text-sm text-gray-600 leading-relaxed">Devenir la reference du transport moto et de la livraison au Senegal, en offrant un service fiable qui ameliore le quotidien des clients et fait vivre dignement des milliers de chauffeurs.</p>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
             <p className="font-bold text-sm mb-1" style={{ color: '#0F5138' }}>Ce que nous offrons</p>
@@ -817,7 +995,7 @@ commission: 100,
             <div className="flex-1 overflow-y-auto py-2">
               <button onClick={() => goTo('profil')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><User size={20} color="#0F5138" /><span className="text-sm font-medium">Mon profil</span></button>
               <button onClick={() => goTo('courses')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><List size={20} color="#0F5138" /><span className="text-sm font-medium">Mes courses</span></button>
-              <button onClick={() => goTo('paiement')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><CreditCard size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Moyens de paiement</span></button>
+              <button onClick={() => goTo('paiement')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><CreditCard size={20} color="#0F5138" /><span className="text-sm font-medium">Moyens de paiement</span></button>
               <button onClick={() => goTo('parrainage')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><Gift size={20} color="#0F5138" /><span className="text-sm font-medium">Parrainer un ami</span></button>
               <button onClick={() => goTo('aide')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><HelpCircle size={20} color="#0F5138" /><span className="text-sm font-medium">Aide et Support</span></button>
               <button onClick={() => goTo('parametres')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><Settings size={20} color="#0F5138" /><span className="text-sm font-medium">Parametres</span></button>
