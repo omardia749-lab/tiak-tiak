@@ -11,8 +11,12 @@ export function calculatePrice(km: number, service: 'moto' | 'livraison'): numbe
   return Math.max(600, Math.ceil(raw / 100) * 100)
 }
 
-export function calculateCommission(price: number): number {
-  return price <= 1500 ? 100 : 250
+// Commission selon le statut premium et le prix de la course
+export function calculateCommission(price: number, isPremium: boolean = false): number {
+  if (isPremium) return 100
+  if (price >= 5000) return 400
+  if (price >= 2000) return 200
+  return 100
 }
 
 export function formatPrice(price: number): string {
@@ -31,6 +35,8 @@ export function formatETA(minutes: number): string {
 export function formatDistance(km: number): string {
   return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`
 }
+
+export const WAVE_PAYMENT_LINK = 'https://pay.wave.com/m/M_sn_E4kXre9QgO9U/c/sn/'
 
 export const DESTINATIONS_SENEGAL = [
   { name: 'Marche Sandaga', address: 'Plateau, Dakar', lat: 14.6928, lng: -17.4447 },
