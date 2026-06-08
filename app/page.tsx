@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText } from 'lucide-react'
+import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText, Clock, XCircle } from 'lucide-react'
 import { searchPlaces, Place } from '../lib/search'
 import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance } from '../lib/utils'
 import { CONDITIONS_UTILISATION, POLITIQUE_CONFIDENTIALITE } from '../lib/legal'
@@ -23,8 +23,28 @@ interface GpsPosition {
   address: string
 }
 
+interface Ride {
+  id: string
+  created_at: string
+  service_type: string
+  from_address: string
+  to_address: string
+  distance_km: number
+  price: number
+  status: string
+  cancel_reason?: string
+}
+
 const SUPPORT_WHATSAPP = 'https://wa.me/221770970100?text=' + encodeURIComponent("Bonjour TIAK TIAK Support, j'ai besoin d'aide.")
 const DEFAULT_POS: GpsPosition = { lat: 14.7167, lng: -17.2833, address: 'Rufisque, Dakar' }
+
+const CANCEL_REASONS = [
+  "J'ai trouvé un autre moyen de transport",
+  "Le chauffeur tarde trop",
+  "J'ai fait une erreur de destination",
+  "Problème personnel",
+  "Autre raison",
+]
 
 export default function TiakTiak() {
   const [user, setUser] = useState<AppUser | null>(null)
@@ -57,6 +77,10 @@ export default function TiakTiak() {
   const [notif, setNotif] = useState(true)
   const [commandLoading, setCommandLoading] = useState(false)
   const [currentRideId, setCurrentRideId] = useState<string | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelLoading, setCancelLoading] = useState(false)
+  const [rides, setRides] = useState<Ride[]>([])
+  const [ridesLoading, setRidesLoading] = useState(false)
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -226,26 +250,51 @@ export default function TiakTiak() {
         payment_method: payment,
         status: 'pending',
       }).select('id').single()
-
-      if (error) {
-        alert('Erreur: ' + JSON.stringify(error))
-      } else {
-        setCurrentRideId(rideData?.id || null)
-        setScreen('attente')
-      }
-    } catch {
-      alert('Erreur reseau. Verifie ta connexion.')
-    }
+      if (error) { alert('Erreur: ' + JSON.stringify(error)) }
+      else { setCurrentRideId(rideData?.id || null); setScreen('attente') }
+    } catch { alert('Erreur reseau. Verifie ta connexion.') }
     setCommandLoading(false)
   }
 
-  const annulerCourse = async () => {
+  const confirmerAnnulation = async () => {
+    if (!cancelReason) return
+    setCancelLoading(true)
     if (currentRideId) {
-      await supabase.from('rides').update({ status: 'cancelled' }).eq('id', currentRideId)
+      await supabase.from('rides').update({ status: 'cancelled', cancel_reason: cancelReason }).eq('id', currentRideId)
     }
     setScreen('accueil')
     setSelected(null)
     setCurrentRideId(null)
+    setCancelReason('')
+    setCancelLoading(false)
+  }
+
+  const loadRides = async () => {
+    if (!user?.id) return
+    setRidesLoading(true)
+    const { data } = await supabase
+      .from('rides')
+      .select('id, created_at, service_type, from_address, to_address, distance_km, price, status, cancel_reason')
+      .eq('client_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (data) setRides(data)
+    setRidesLoading(false)
+  }
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+  }
+
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return { text: 'En attente', color: '#F59E0B' }
+      case 'accepted': return { text: 'Acceptee', color: '#1DB954' }
+      case 'completed': return { text: 'Terminee', color: '#0F5138' }
+      case 'cancelled': return { text: 'Annulee', color: '#EF4444' }
+      default: return { text: status, color: '#9CA3AF' }
+    }
   }
 
   const languages = [
@@ -508,7 +557,7 @@ export default function TiakTiak() {
       <div className="fixed inset-0 flex flex-col" style={{ background: '#0F5138' }}>
         <header className="px-4 py-4 flex items-center justify-between">
           <span className="text-xl font-black italic text-white">TIAK TIAK</span>
-          <button onClick={annulerCourse} className="text-green-200 text-sm font-semibold">Annuler</button>
+          <button onClick={() => setScreen('annulation')} className="text-green-200 text-sm font-semibold">Annuler</button>
         </header>
         <div className="flex-1 flex flex-col items-center justify-center px-8 gap-8">
           <div className="relative flex items-center justify-center">
@@ -526,17 +575,11 @@ export default function TiakTiak() {
             <div className="w-full rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.1)' }}>
               <div className="flex items-center gap-3">
                 <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} />
-                <div>
-                  <p className="text-green-200 text-xs">Depart</p>
-                  <p className="text-white text-sm font-semibold">{position.address}</p>
-                </div>
+                <div><p className="text-green-200 text-xs">Depart</p><p className="text-white text-sm font-semibold">{position.address}</p></div>
               </div>
               <div className="flex items-center gap-3">
                 <span className="w-3 h-3 rounded-full flex-shrink-0 bg-red-400" />
-                <div>
-                  <p className="text-green-200 text-xs">Destination</p>
-                  <p className="text-white text-sm font-semibold">{selected.name}</p>
-                </div>
+                <div><p className="text-green-200 text-xs">Destination</p><p className="text-white text-sm font-semibold">{selected.name}</p></div>
               </div>
               <div className="border-t border-white border-opacity-20 pt-3 flex justify-between">
                 <span className="text-green-200 text-sm">Prix</span>
@@ -551,8 +594,58 @@ export default function TiakTiak() {
           </div>
         </div>
         <div className="p-6">
-          <button onClick={annulerCourse} className="w-full py-4 rounded-2xl font-bold text-white border-2" style={{ borderColor: 'rgba(255,255,255,0.3)' }}>
+          <button onClick={() => setScreen('annulation')} className="w-full py-4 rounded-2xl font-bold text-white border-2" style={{ borderColor: 'rgba(255,255,255,0.3)' }}>
             Annuler la course
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : MOTIF D'ANNULATION =====
+  if (screen === 'annulation') {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-white">
+        <header className="px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+          <button onClick={() => setScreen('attente')}><ArrowLeft size={24} color="#0F5138" /></button>
+          <span className="font-bold text-black">Motif d&apos;annulation</span>
+        </header>
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="text-center mb-2">
+            <XCircle size={48} color="#EF4444" className="mx-auto mb-3" />
+            <p className="font-bold text-gray-800">Pourquoi veux-tu annuler ?</p>
+            <p className="text-sm text-gray-400 mt-1">Aide-nous a ameliorer notre service</p>
+          </div>
+          <div className="space-y-3">
+            {CANCEL_REASONS.map((reason) => (
+              <button
+                key={reason}
+                onClick={() => setCancelReason(reason)}
+                className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all"
+                style={{
+                  borderColor: cancelReason === reason ? '#1DB954' : '#F3F4F6',
+                  background: cancelReason === reason ? '#E8F5E9' : 'white',
+                }}
+              >
+                <div className="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0" style={{ borderColor: cancelReason === reason ? '#1DB954' : '#D1D5DB', background: cancelReason === reason ? '#1DB954' : 'white' }}>
+                  {cancelReason === reason && <Check size={14} color="white" />}
+                </div>
+                <span className="text-sm font-medium text-gray-700">{reason}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="p-4 border-t border-gray-100 space-y-2">
+          <button
+            onClick={confirmerAnnulation}
+            disabled={!cancelReason || cancelLoading}
+            className="w-full py-4 rounded-2xl font-bold text-white"
+            style={{ background: !cancelReason || cancelLoading ? '#D1D5DB' : '#EF4444' }}
+          >
+            {cancelLoading ? 'Annulation...' : 'Confirmer l\'annulation'}
+          </button>
+          <button onClick={() => setScreen('attente')} className="w-full py-3 text-sm text-gray-400 font-medium">
+            Retour — continuer à attendre
           </button>
         </div>
       </div>
@@ -882,17 +975,56 @@ export default function TiakTiak() {
         <header className="bg-white px-4 py-3 flex items-center justify-center border-b border-gray-100">
           <span className="text-xl font-black italic" style={{ color: '#0F5138' }}>Mes courses</span>
         </header>
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="bg-white rounded-2xl shadow-sm text-center py-16 px-6">
-            <span className="text-5xl block mb-4">🛵</span>
-            <p className="font-bold text-gray-700 mb-1">Aucune course pour le moment</p>
-            <p className="text-sm text-gray-400 mb-5">Tes trajets apparaitront ici apres ta premiere course</p>
-            <button onClick={() => setScreen('accueil')} className="px-6 py-3 rounded-full font-bold text-white text-sm" style={{ background: '#0F5138' }}>Commander maintenant</button>
-          </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {ridesLoading ? (
+            <div className="text-center py-16 text-gray-400 text-sm">Chargement...</div>
+          ) : rides.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm text-center py-16 px-6">
+              <span className="text-5xl block mb-4">🛵</span>
+              <p className="font-bold text-gray-700 mb-1">Aucune course pour le moment</p>
+              <p className="text-sm text-gray-400 mb-5">Tes trajets apparaitront ici apres ta premiere course</p>
+              <button onClick={() => setScreen('accueil')} className="px-6 py-3 rounded-full font-bold text-white text-sm" style={{ background: '#0F5138' }}>Commander maintenant</button>
+            </div>
+          ) : (
+            rides.map(ride => {
+              const st = statusLabel(ride.status)
+              return (
+                <div key={ride.id} className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{ride.service_type === 'moto' ? '🏍️' : '📦'}</span>
+                      <span className="font-bold text-sm capitalize">{ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span>
+                    </div>
+                    <span className="text-xs font-bold px-3 py-1 rounded-full text-white" style={{ background: st.color }}>{st.text}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} />
+                      <span className="text-xs text-gray-500 truncate">{ride.from_address}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-red-400" />
+                      <span className="text-xs text-gray-500 truncate">{ride.to_address}</span>
+                    </div>
+                  </div>
+                  {ride.cancel_reason && (
+                    <p className="text-xs text-red-400 italic">Motif : {ride.cancel_reason}</p>
+                  )}
+                  <div className="flex items-center justify-between pt-1 border-t border-gray-50">
+                    <div className="flex items-center gap-1 text-gray-400">
+                      <Clock size={12} />
+                      <span className="text-xs">{formatDate(ride.created_at)}</span>
+                    </div>
+                    <span className="font-black text-sm" style={{ color: '#0F5138' }}>{formatPrice(ride.price)}</span>
+                  </div>
+                </div>
+              )
+            })
+          )}
         </div>
         <nav className="bg-white flex border-t border-gray-100">
           <button onClick={() => setScreen('accueil')} className="flex-1 py-3 flex flex-col items-center gap-1"><Home size={22} color="#9CA3AF" /><span className="text-xs font-semibold text-gray-400">Accueil</span></button>
-          <button onClick={() => setScreen('courses')} className="flex-1 py-3 flex flex-col items-center gap-1"><List size={22} color="#1DB954" /><span className="text-xs font-semibold" style={{ color: '#0F5138' }}>Mes courses</span></button>
+          <button onClick={() => { setScreen('courses'); loadRides() }} className="flex-1 py-3 flex flex-col items-center gap-1"><List size={22} color="#1DB954" /><span className="text-xs font-semibold" style={{ color: '#0F5138' }}>Mes courses</span></button>
         </nav>
       </div>
     )
@@ -912,7 +1044,7 @@ export default function TiakTiak() {
             </div>
             <div className="flex-1 overflow-y-auto py-2">
               <button onClick={() => goTo('profil')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><User size={20} color="#0F5138" /><span className="text-sm font-medium">Mon profil</span></button>
-              <button onClick={() => goTo('courses')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><List size={20} color="#0F5138" /><span className="text-sm font-medium">Mes courses</span></button>
+              <button onClick={() => { goTo('courses'); loadRides() }} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><List size={20} color="#0F5138" /><span className="text-sm font-medium">Mes courses</span></button>
               <button onClick={() => goTo('paiement')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><CreditCard size={20} color="#0F5138" /><span className="text-sm font-medium">Moyens de paiement</span></button>
               <button onClick={() => goTo('parrainage')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><Gift size={20} color="#0F5138" /><span className="text-sm font-medium">Parrainer un ami</span></button>
               <button onClick={() => goTo('aide')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><HelpCircle size={20} color="#0F5138" /><span className="text-sm font-medium">Aide et Support</span></button>
@@ -953,7 +1085,7 @@ export default function TiakTiak() {
       </div>
       <nav className="bg-white flex border-t border-gray-100">
         <button onClick={() => setScreen('accueil')} className="flex-1 py-3 flex flex-col items-center gap-1"><Home size={22} color="#1DB954" /><span className="text-xs font-semibold" style={{ color: '#0F5138' }}>Accueil</span></button>
-        <button onClick={() => setScreen('courses')} className="flex-1 py-3 flex flex-col items-center gap-1"><List size={22} color="#9CA3AF" /><span className="text-xs font-semibold text-gray-400">Mes courses</span></button>
+        <button onClick={() => { setScreen('courses'); loadRides() }} className="flex-1 py-3 flex flex-col items-center gap-1"><List size={22} color="#9CA3AF" /><span className="text-xs font-semibold text-gray-400">Mes courses</span></button>
       </nav>
     </div>
   )
