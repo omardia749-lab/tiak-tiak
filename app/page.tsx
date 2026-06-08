@@ -5,11 +5,13 @@ import { Menu, User, ChevronRight, ChevronDown, Home, List, Wallet, Search, X, M
 import { searchPlaces, Place } from '../lib/search'
 import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance } from '../lib/utils'
 import { CONDITIONS_UTILISATION, POLITIQUE_CONFIDENTIALITE } from '../lib/legal'
+import { supabase } from '../lib/supabase'
 import dynamic from 'next/dynamic'
 
 const MapView = dynamic(() => import('./components/MapView'), { ssr: false })
 
 interface AppUser {
+  id?: string
   role: 'client' | 'chauffeur' | 'admin'
   name: string
   phone: string
@@ -28,6 +30,7 @@ export default function TiakTiak() {
   const [formColor, setFormColor] = useState('')
   const [adminPass, setAdminPass] = useState('')
   const [authError, setAuthError] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
 
   const [service, setService] = useState('moto')
   const [screen, setScreen] = useState('accueil')
@@ -40,6 +43,8 @@ export default function TiakTiak() {
   const [faqOpen, setFaqOpen] = useState<number | null>(null)
   const [lang, setLang] = useState('fr')
   const [notif, setNotif] = useState(true)
+  const [commandLoading, setCommandLoading] = useState(false)
+  const [commandSuccess, setCommandSuccess] = useState(false)
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -69,14 +74,88 @@ export default function TiakTiak() {
     setFormName(''); setFormPhone(''); setAdminPass(''); setAuthError('')
   }
 
-  const signupClient = () => {
+  // ===== INSCRIPTION CLIENT =====
+  const signupClient = async () => {
     if (!formName || !formPhone) { setAuthError('Remplis tous les champs'); return }
-    saveUser({ role: 'client', name: formName, phone: formPhone })
+    setAuthLoading(true)
+    setAuthError('')
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .insert({ name: formName.trim(), phone: formPhone.trim(), role: 'client' })
+        .select('id')
+        .single()
+
+      if (error) {
+        // Doublon de téléphone
+        if (error.code === '23505') {
+          // Récupérer le compte existant
+          const { data: existing } = await supabase
+            .from('users')
+            .select('id, name, phone, role')
+            .eq('phone', formPhone.trim())
+            .single()
+          if (existing) {
+            saveUser({ id: existing.id, role: 'client', name: existing.name, phone: existing.phone })
+          } else {
+            setAuthError('Ce numéro est déjà utilisé. Réessaie.')
+          }
+        } else {
+          setAuthError('Erreur de connexion. Réessaie.')
+        }
+        setAuthLoading(false)
+        return
+      }
+
+      saveUser({ id: data.id, role: 'client', name: formName.trim(), phone: formPhone.trim() })
+    } catch {
+      setAuthError('Erreur réseau. Vérifie ta connexion.')
+    }
+    setAuthLoading(false)
   }
 
-  const signupDriver = () => {
+  // ===== INSCRIPTION CHAUFFEUR =====
+  const signupDriver = async () => {
     if (!formName || !formPhone || !formMoto || !formColor) { setAuthError('Remplis tous les champs'); return }
-    saveUser({ role: 'chauffeur', name: formName, phone: formPhone })
+    setAuthLoading(true)
+    setAuthError('')
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .insert({
+          name: formName.trim(),
+          phone: formPhone.trim(),
+          role: 'chauffeur',
+          moto_type: formMoto.trim(),
+          moto_color: formColor.trim(),
+        })
+        .select('id')
+        .single()
+
+      if (error) {
+        if (error.code === '23505') {
+          const { data: existing } = await supabase
+            .from('users')
+            .select('id, name, phone, role')
+            .eq('phone', formPhone.trim())
+            .single()
+          if (existing) {
+            saveUser({ id: existing.id, role: 'chauffeur', name: existing.name, phone: existing.phone })
+          } else {
+            setAuthError('Ce numéro est déjà utilisé. Réessaie.')
+          }
+        } else {
+          setAuthError('Erreur de connexion. Réessaie.')
+        }
+        setAuthLoading(false)
+        return
+      }
+
+      saveUser({ id: data.id, role: 'chauffeur', name: formName.trim(), phone: formPhone.trim() })
+    } catch {
+      setAuthError('Erreur réseau. Vérifie ta connexion.')
+    }
+    setAuthLoading(false)
   }
 
   const loginAdmin = () => {
@@ -100,7 +179,12 @@ export default function TiakTiak() {
     }, 500)
   }
 
-  const selectPlace = (place: Place) => { setSelected(place); setScreen('confirm') }
+  const selectPlace = (place: Place) => {
+    setSelected(place)
+    setCommandSuccess(false)
+    setScreen('confirm')
+  }
+
   const goTo = (s: string) => { setScreen(s); setMenuOpen(false) }
 
   const km = selected ? haversineDistance(14.7167, -17.2833, selected.lat, selected.lng) : 0
@@ -116,6 +200,40 @@ export default function TiakTiak() {
     } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => alert('Lien copie !')).catch(() => {})
     }
+  }
+
+  // ===== COMMANDER UNE COURSE =====
+  const commanderCourse = async () => {
+    if (!selected || !user) return
+    setCommandLoading(true)
+    try {
+      const { error } = await supabase
+        .from('rides')
+        .insert({
+          client_id: user.id || null,
+          service_type: service,
+          from_lat: 14.7167,
+          from_lng: -17.2833,
+          from_address: 'Rufisque, Dakar',
+          to_lat: selected.lat,
+          to_lng: selected.lng,
+          to_address: selected.name,
+          distance_km: Math.round(km * 100) / 100,
+          price: price,
+          payment_method: payment,
+commission: 100,
+          status: 'pending',
+        })
+
+      if (error) {
+        alert('Erreur: ' + JSON.stringify(error))
+      } else {
+        setCommandSuccess(true)
+      }
+    } catch {
+      alert('Erreur réseau. Vérifie ta connexion.')
+    }
+    setCommandLoading(false)
   }
 
   const languages = [
@@ -184,7 +302,14 @@ export default function TiakTiak() {
             {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
           </div>
           <div className="p-4 border-t border-gray-100">
-            <button onClick={signupClient} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>Creer mon compte</button>
+            <button
+              onClick={signupClient}
+              disabled={authLoading}
+              className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2"
+              style={{ background: authLoading ? '#7aaa94' : '#0F5138' }}
+            >
+              {authLoading ? 'Création en cours...' : 'Creer mon compte'}
+            </button>
           </div>
         </div>
       )
@@ -228,7 +353,14 @@ export default function TiakTiak() {
             {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
           </div>
           <div className="p-4 border-t border-gray-100">
-            <button onClick={signupDriver} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>J&apos;accepte et je rejoins TIAK TIAK</button>
+            <button
+              onClick={signupDriver}
+              disabled={authLoading}
+              className="w-full py-4 rounded-2xl font-bold text-white"
+              style={{ background: authLoading ? '#7aaa94' : '#0F5138' }}
+            >
+              {authLoading ? 'Inscription en cours...' : "J'accepte et je rejoins TIAK TIAK"}
+            </button>
           </div>
         </div>
       )
@@ -337,7 +469,7 @@ export default function TiakTiak() {
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
         <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
-          <button onClick={() => setScreen('recherche')}><ArrowLeft size={24} color="#0F5138" /></button>
+          <button onClick={() => { setScreen('recherche'); setCommandSuccess(false) }}><ArrowLeft size={24} color="#0F5138" /></button>
           <span className="font-bold text-black">Confirmer la course</span>
         </header>
         <div className="flex-1 overflow-y-auto">
@@ -366,10 +498,39 @@ export default function TiakTiak() {
               <div className="flex justify-between mb-3"><span className="text-sm text-gray-500">Duree estimee</span><span className="text-sm font-bold">{formatETA(eta)}</span></div>
               <div className="border-t border-gray-100 pt-3 flex justify-between items-center"><span className="font-bold">Prix total</span><span className="text-2xl font-black" style={{ color: '#0F5138' }}>{formatPrice(price)}</span></div>
             </div>
+
+            {commandSuccess && (
+              <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}>
+                  <Check size={18} color="white" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Course envoyée !</p>
+                  <p className="text-xs text-gray-600">Un chauffeur va accepter ta demande très bientôt.</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="p-4 bg-white border-t border-gray-100">
-          <button className="w-full py-4 rounded-2xl font-bold text-white text-base" style={{ background: '#0F5138' }}>Commander un TIAK TIAK</button>
+          {commandSuccess ? (
+            <button
+              onClick={() => { setScreen('accueil'); setSelected(null); setCommandSuccess(false) }}
+              className="w-full py-4 rounded-2xl font-bold text-white text-base"
+              style={{ background: '#111111' }}
+            >
+              Retour à l&apos;accueil
+            </button>
+          ) : (
+            <button
+              onClick={commanderCourse}
+              disabled={commandLoading}
+              className="w-full py-4 rounded-2xl font-bold text-white text-base"
+              style={{ background: commandLoading ? '#7aaa94' : '#0F5138' }}
+            >
+              {commandLoading ? 'Envoi en cours...' : 'Commander un TIAK TIAK'}
+            </button>
+          )}
         </div>
       </div>
     )
@@ -524,7 +685,6 @@ export default function TiakTiak() {
             </div>
             <p className="text-xs text-gray-400 mt-2 px-1">D&apos;autres langues et traductions completes arrivent progressivement.</p>
           </div>
-
           <div>
             <p className="font-bold text-sm text-gray-500 mb-2 flex items-center gap-2"><Bell size={16} color="#0F5138" /> Notifications</p>
             <div className="bg-white rounded-2xl shadow-sm flex items-center px-4 py-3.5">
@@ -534,7 +694,6 @@ export default function TiakTiak() {
               </button>
             </div>
           </div>
-
           <div>
             <p className="font-bold text-sm text-gray-500 mb-2">Legal</p>
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -658,7 +817,7 @@ export default function TiakTiak() {
             <div className="flex-1 overflow-y-auto py-2">
               <button onClick={() => goTo('profil')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><User size={20} color="#0F5138" /><span className="text-sm font-medium">Mon profil</span></button>
               <button onClick={() => goTo('courses')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><List size={20} color="#0F5138" /><span className="text-sm font-medium">Mes courses</span></button>
-              <button onClick={() => goTo('paiement')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><CreditCard size={20} color="#0F5138" /><span className="text-sm font-medium">Moyens de paiement</span></button>
+              <button onClick={() => goTo('paiement')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><CreditCard size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Moyens de paiement</span></button>
               <button onClick={() => goTo('parrainage')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><Gift size={20} color="#0F5138" /><span className="text-sm font-medium">Parrainer un ami</span></button>
               <button onClick={() => goTo('aide')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><HelpCircle size={20} color="#0F5138" /><span className="text-sm font-medium">Aide et Support</span></button>
               <button onClick={() => goTo('parametres')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left"><Settings size={20} color="#0F5138" /><span className="text-sm font-medium">Parametres</span></button>
