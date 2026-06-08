@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText, Clock, XCircle } from 'lucide-react'
+import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText, Clock, XCircle, Power } from 'lucide-react'
 import { searchPlaces, Place } from '../lib/search'
 import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance } from '../lib/utils'
 import { CONDITIONS_UTILISATION, POLITIQUE_CONFIDENTIALITE } from '../lib/legal'
@@ -29,10 +29,16 @@ interface Ride {
   service_type: string
   from_address: string
   to_address: string
+  from_lat: number
+  from_lng: number
+  to_lat: number
+  to_lng: number
   distance_km: number
   price: number
   status: string
   cancel_reason?: string
+  driver_id?: string
+  client_id?: string
 }
 
 const SUPPORT_WHATSAPP = 'https://wa.me/221770970100?text=' + encodeURIComponent("Bonjour TIAK TIAK Support, j'ai besoin d'aide.")
@@ -45,6 +51,28 @@ const CANCEL_REASONS = [
   "Problème personnel",
   "Autre raison",
 ]
+
+// ===== SON TIAK TIAK =====
+const playTiakTiakSound = () => {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const notes = [523, 659, 523, 659, 784]
+    const times = [0, 0.15, 0.35, 0.5, 0.7]
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.value = freq
+      osc.type = 'sine'
+      gain.gain.setValueAtTime(0, ctx.currentTime + times[i])
+      gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + times[i] + 0.05)
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + times[i] + 0.2)
+      osc.start(ctx.currentTime + times[i])
+      osc.stop(ctx.currentTime + times[i] + 0.25)
+    })
+  } catch {}
+}
 
 export default function TiakTiak() {
   const [user, setUser] = useState<AppUser | null>(null)
@@ -81,7 +109,25 @@ export default function TiakTiak() {
   const [cancelLoading, setCancelLoading] = useState(false)
   const [rides, setRides] = useState<Ride[]>([])
   const [ridesLoading, setRidesLoading] = useState(false)
+
+  // Chauffeur
+  const [isOnline, setIsOnline] = useState(false)
+  const [onlineLoading, setOnlineLoading] = useState(false)
+  const [incomingRide, setIncomingRide] = useState<Ride | null>(null)
+  const [currentDriverRide, setCurrentDriverRide] = useState<Ride | null>(null)
+  const [acceptLoading, setAcceptLoading] = useState(false)
+  const [driverPosition, setDriverPosition] = useState<GpsPosition>(DEFAULT_POS)
+
+  // Client — suivi chauffeur
+  const [currentClientRide, setCurrentClientRide] = useState<Ride | null>(null)
+  const [driverLat, setDriverLat] = useState<number | null>(null)
+  const [driverLng, setDriverLng] = useState<number | null>(null)
+  const [driverName, setDriverName] = useState('')
+  const [driverPhone, setDriverPhone] = useState('')
+
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
+  const gpsWatchRef = useRef<number | null>(null)
+  const rideChannelRef = useRef<any>(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('tiaktiak_user')
@@ -93,6 +139,111 @@ export default function TiakTiak() {
     setLoaded(true)
   }, [])
 
+  // ===== SUIVI GPS CHAUFFEUR EN TEMPS REEL =====
+  useEffect(() => {
+    if (!user || user.role !== 'chauffeur' || !isOnline) {
+      if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current)
+      return
+    }
+    gpsWatchRef.current = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        setDriverPosition(prev => ({ ...prev, lat: latitude, lng: longitude }))
+        if (user.id) {
+          await supabase.from('users').update({ current_lat: latitude, current_lng: longitude }).eq('id', user.id)
+        }
+        // Vérifier si proche de la destination (20m)
+        if (currentDriverRide) {
+          const dist = haversineDistance(latitude, longitude, currentDriverRide.to_lat, currentDriverRide.to_lng)
+          if (dist * 1000 < 20) {
+            await terminerCourse()
+          }
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    )
+    return () => {
+      if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current)
+    }
+  }, [isOnline, user, currentDriverRide])
+
+  // ===== REALTIME CHAUFFEUR — écoute nouvelles courses =====
+  useEffect(() => {
+    if (!user || user.role !== 'chauffeur' || !isOnline) return
+
+    const channel = supabase
+      .channel('new-rides')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'rides',
+        filter: 'status=eq.pending',
+      }, (payload) => {
+        if (!currentDriverRide) {
+          setIncomingRide(payload.new as Ride)
+          playTiakTiakSound()
+          if (navigator.vibrate) navigator.vibrate([300, 100, 300])
+        }
+      })
+      .subscribe()
+
+    rideChannelRef.current = channel
+    return () => { supabase.removeChannel(channel) }
+  }, [isOnline, user, currentDriverRide])
+
+  // ===== REALTIME CLIENT — suivi chauffeur =====
+  useEffect(() => {
+    if (!currentRideId) return
+
+    const channel = supabase
+      .channel('ride-updates-' + currentRideId)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'rides',
+        filter: `id=eq.${currentRideId}`,
+      }, async (payload) => {
+        const updated = payload.new as Ride
+        if (updated.status === 'accepted' && updated.driver_id) {
+          setCurrentClientRide(updated)
+          // Récupérer infos chauffeur
+          const { data } = await supabase.from('users').select('name, phone, current_lat, current_lng').eq('id', updated.driver_id).single()
+          if (data) {
+            setDriverName(data.name)
+            setDriverPhone(data.phone)
+            setDriverLat(data.current_lat)
+            setDriverLng(data.current_lng)
+          }
+          setScreen('suivi')
+        }
+        if (updated.status === 'completed') {
+          setScreen('course_terminee')
+        }
+      })
+      .subscribe()
+
+    // Suivi position chauffeur
+    const posChannel = supabase
+      .channel('driver-pos-' + currentRideId)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'users',
+      }, (payload) => {
+        if (currentClientRide?.driver_id && payload.new.id === currentClientRide.driver_id) {
+          setDriverLat(payload.new.current_lat)
+          setDriverLng(payload.new.current_lng)
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+      supabase.removeChannel(posChannel)
+    }
+  }, [currentRideId, currentClientRide])
+
   const saveUser = (u: AppUser) => {
     localStorage.setItem('tiaktiak_user', JSON.stringify(u))
     setUser(u)
@@ -103,13 +254,17 @@ export default function TiakTiak() {
     localStorage.setItem('tiaktiak_lang', code)
   }
 
-  const logout = () => {
+  const logout = async () => {
+    if (user?.id && user.role === 'chauffeur') {
+      await supabase.from('users').update({ is_online: false }).eq('id', user.id)
+    }
     localStorage.removeItem('tiaktiak_user')
     setUser(null)
     setAuthScreen('roles')
     setAuthMode('signup')
     setMenuOpen(false)
     setScreen('accueil')
+    setIsOnline(false)
     setFormName(''); setFormPhone(''); setAdminPass(''); setAuthError('')
   }
 
@@ -142,6 +297,48 @@ export default function TiakTiak() {
   const passerSansGPS = () => {
     localStorage.setItem('tiaktiak_gps_asked', '1')
     setGpsAsked(true)
+  }
+
+  const toggleOnline = async () => {
+    if (!user?.id) return
+    setOnlineLoading(true)
+    const newStatus = !isOnline
+    await supabase.from('users').update({ is_online: newStatus }).eq('id', user.id)
+    setIsOnline(newStatus)
+    setOnlineLoading(false)
+  }
+
+  const accepterCourse = async () => {
+    if (!incomingRide || !user?.id) return
+    setAcceptLoading(true)
+    const { data, error } = await supabase
+      .from('rides')
+      .update({ status: 'accepted', driver_id: user.id, accepted_at: new Date().toISOString() })
+      .eq('id', incomingRide.id)
+      .eq('status', 'pending')
+      .select()
+      .single()
+
+    if (error || !data) {
+      alert('Course déjà prise par un autre chauffeur ! 🏍️')
+      setIncomingRide(null)
+    } else {
+      setCurrentDriverRide(data as Ride)
+      setIncomingRide(null)
+      setScreen('driver_course')
+    }
+    setAcceptLoading(false)
+  }
+
+  const refuserCourse = () => {
+    setIncomingRide(null)
+  }
+
+  const terminerCourse = async () => {
+    if (!currentDriverRide?.id) return
+    await supabase.from('rides').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', currentDriverRide.id)
+    setCurrentDriverRide(null)
+    setScreen('chauffeur_accueil')
   }
 
   const loginClient = async () => {
@@ -274,7 +471,7 @@ export default function TiakTiak() {
     setRidesLoading(true)
     const { data } = await supabase
       .from('rides')
-      .select('id, created_at, service_type, from_address, to_address, distance_km, price, status, cancel_reason')
+      .select('id, created_at, service_type, from_address, to_address, from_lat, from_lng, to_lat, to_lng, distance_km, price, status, cancel_reason, driver_id, client_id')
       .eq('client_id', user.id)
       .order('created_at', { ascending: false })
       .limit(20)
@@ -528,8 +725,97 @@ export default function TiakTiak() {
     )
   }
 
-  // ===== CHAUFFEUR =====
+  // ===== CHAUFFEUR : DASHBOARD =====
   if (user && user.role === 'chauffeur') {
+
+    // Notification course entrante
+    if (incomingRide) {
+      return (
+        <div className="fixed inset-0 flex flex-col" style={{ background: '#0F5138' }}>
+          <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6">
+            <div className="relative flex items-center justify-center">
+              <div className="absolute rounded-full" style={{ width: '140px', height: '140px', background: 'rgba(29,185,84,0.2)', animation: 'ping 1s cubic-bezier(0,0,0.2,1) infinite' }} />
+              <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+                <span className="text-5xl">🛵</span>
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-green-200 text-sm font-semibold mb-1">NOUVELLE COURSE !</p>
+              <h2 className="text-2xl font-black text-white mb-1">{formatPrice(incomingRide.price)}</h2>
+              <p className="text-green-200 text-sm">{incomingRide.distance_km} km • {incomingRide.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</p>
+            </div>
+            <div className="w-full rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.1)' }}>
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} />
+                <div><p className="text-green-200 text-xs">Prise en charge</p><p className="text-white text-sm font-semibold">{incomingRide.from_address}</p></div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full flex-shrink-0 bg-red-400" />
+                <div><p className="text-green-200 text-xs">Destination</p><p className="text-white text-sm font-semibold">{incomingRide.to_address}</p></div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-2">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: `${i * 0.2}s`, opacity: 0.7 }} />
+              ))}
+            </div>
+          </div>
+          <div className="p-6 space-y-3">
+            <button onClick={accepterCourse} disabled={acceptLoading} className="w-full py-4 rounded-2xl font-black text-lg" style={{ background: '#1DB954', color: '#0F5138' }}>
+              {acceptLoading ? 'Acceptation...' : '✅ Accepter la course'}
+            </button>
+            <button onClick={refuserCourse} className="w-full py-4 rounded-2xl font-bold text-white border-2" style={{ borderColor: 'rgba(255,255,255,0.3)' }}>
+              ❌ Refuser
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    // Écran de course en cours (chauffeur)
+    if (screen === 'driver_course' && currentDriverRide) {
+      return (
+        <div className="fixed inset-0 flex flex-col bg-gray-100">
+          <header className="px-4 py-4 flex items-center justify-between" style={{ background: '#0F5138' }}>
+            <span className="text-xl font-black italic text-white">Course en cours</span>
+            <span className="text-green-200 text-sm font-bold">{formatPrice(currentDriverRide.price)}</span>
+          </header>
+          <div className="flex-1 overflow-y-auto">
+            <div className="h-64 relative">
+              <MapView
+                fromLat={driverPosition.lat}
+                fromLng={driverPosition.lng}
+                toLat={currentDriverRide.to_lat}
+                toLng={currentDriverRide.to_lng}
+              />
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} />
+                  <div><p className="text-xs text-gray-400">Ta position</p><p className="text-sm font-semibold">{driverPosition.address || 'En route...'}</p></div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full flex-shrink-0 bg-red-500" />
+                  <div><p className="text-xs text-gray-400">Destination client</p><p className="text-sm font-semibold">{currentDriverRide.to_address}</p></div>
+                </div>
+              </div>
+              <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
+                <p className="text-xs text-gray-500 mb-1">La course se terminera automatiquement à 20m de la destination.</p>
+                <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Commission due : 100 FCFA</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 bg-white border-t border-gray-100">
+            <button onClick={terminerCourse} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>
+              Terminer la course manuellement
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    // Dashboard principal chauffeur
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
         <header className="px-4 py-4 flex items-center justify-between" style={{ background: '#0F5138' }}>
@@ -538,15 +824,105 @@ export default function TiakTiak() {
         </header>
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <h2 className="text-lg font-bold">Bonjour {user.name} 🛵</h2>
-          <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
-            <p className="font-bold text-sm mb-1" style={{ color: '#0F5138' }}>Statut : En attente de validation</p>
-            <p className="text-xs text-gray-600">Ton dossier est en cours de verification par l&apos;admin.</p>
+
+          {/* Toggle En ligne */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm flex items-center justify-between">
+            <div>
+              <p className="font-bold text-base">{isOnline ? 'En ligne' : 'Hors ligne'}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{isOnline ? 'Tu recois les courses' : 'Active pour recevoir des courses'}</p>
+            </div>
+            <button
+              onClick={toggleOnline}
+              disabled={onlineLoading}
+              className="w-16 h-8 rounded-full relative transition-all flex items-center"
+              style={{ background: isOnline ? '#1DB954' : '#D1D5DB' }}
+            >
+              <div className="absolute w-6 h-6 rounded-full bg-white shadow transition-all" style={{ left: isOnline ? '34px' : '2px' }} />
+            </button>
           </div>
-          <div className="bg-white rounded-2xl p-4 shadow-sm text-center py-12">
-            <span className="text-4xl block mb-3">🛵</span>
-            <p className="text-sm text-gray-400">Le systeme de courses arrive bientot</p>
+
+          {isOnline ? (
+            <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
+              <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: '#1DB954' }} />
+              <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>En attente de courses...</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl p-4 shadow-sm text-center py-10">
+              <Power size={40} color="#D1D5DB" className="mx-auto mb-3" />
+              <p className="text-sm text-gray-400">Active le toggle pour commencer a recevoir des courses</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : SUIVI CHAUFFEUR EN TEMPS REEL =====
+  if (screen === 'suivi' && currentClientRide) {
+    return (
+      <div className="fixed inset-0 flex flex-col bg-gray-100">
+        <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+          <span className="font-bold text-black flex-1">Chauffeur en route 🛵</span>
+          <a href={`tel:+221${driverPhone.replace(/\s/g, '')}`} className="flex items-center gap-1 text-sm font-bold" style={{ color: '#0F5138' }}>
+            <Phone size={18} /> Appeler
+          </a>
+        </header>
+        <div className="flex-1 overflow-y-auto">
+          <div className="h-64 relative">
+            <MapView
+              fromLat={driverLat || position.lat}
+              fromLng={driverLng || position.lng}
+              toLat={currentClientRide.to_lat}
+              toLng={currentClientRide.to_lng}
+            />
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#0F5138' }}>
+                <span className="text-2xl">🛵</span>
+              </div>
+              <div className="flex-1">
+                <p className="font-black text-base">{driverName}</p>
+                <p className="text-sm text-gray-400">{driverPhone}</p>
+              </div>
+              <a href={`tel:+221${driverPhone.replace(/\s/g, '')}`} className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: '#E8F5E9' }}>
+                <Phone size={18} color="#0F5138" />
+              </a>
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} />
+                <p className="text-sm text-gray-600">{position.address}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full flex-shrink-0 bg-red-400" />
+                <p className="text-sm text-gray-600">{currentClientRide.to_address}</p>
+              </div>
+            </div>
+            <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
+              <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: '#1DB954' }} />
+              <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>Le chauffeur se dirige vers toi...</p>
+            </div>
           </div>
         </div>
+      </div>
+    )
+  }
+
+  // ===== CLIENT : COURSE TERMINEE =====
+  if (screen === 'course_terminee') {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center px-8 gap-6" style={{ background: '#0F5138' }}>
+        <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+          <Check size={48} color="white" />
+        </div>
+        <div className="text-center">
+          <h2 className="text-3xl font-black text-white mb-2">Course terminée !</h2>
+          <p className="text-green-200 text-sm">Merci d&apos;avoir utilise TIAK TIAK 🙏</p>
+        </div>
+        <button onClick={() => { setScreen('accueil'); setCurrentClientRide(null); setCurrentRideId(null) }} className="w-full py-4 rounded-2xl font-bold text-lg" style={{ background: '#1DB954', color: '#0F5138' }}>
+          Retour a l&apos;accueil
+        </button>
       </div>
     )
   }
@@ -618,15 +994,7 @@ export default function TiakTiak() {
           </div>
           <div className="space-y-3">
             {CANCEL_REASONS.map((reason) => (
-              <button
-                key={reason}
-                onClick={() => setCancelReason(reason)}
-                className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all"
-                style={{
-                  borderColor: cancelReason === reason ? '#1DB954' : '#F3F4F6',
-                  background: cancelReason === reason ? '#E8F5E9' : 'white',
-                }}
-              >
+              <button key={reason} onClick={() => setCancelReason(reason)} className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all" style={{ borderColor: cancelReason === reason ? '#1DB954' : '#F3F4F6', background: cancelReason === reason ? '#E8F5E9' : 'white' }}>
                 <div className="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0" style={{ borderColor: cancelReason === reason ? '#1DB954' : '#D1D5DB', background: cancelReason === reason ? '#1DB954' : 'white' }}>
                   {cancelReason === reason && <Check size={14} color="white" />}
                 </div>
@@ -636,17 +1004,10 @@ export default function TiakTiak() {
           </div>
         </div>
         <div className="p-4 border-t border-gray-100 space-y-2">
-          <button
-            onClick={confirmerAnnulation}
-            disabled={!cancelReason || cancelLoading}
-            className="w-full py-4 rounded-2xl font-bold text-white"
-            style={{ background: !cancelReason || cancelLoading ? '#D1D5DB' : '#EF4444' }}
-          >
-            {cancelLoading ? 'Annulation...' : 'Confirmer l\'annulation'}
+          <button onClick={confirmerAnnulation} disabled={!cancelReason || cancelLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: !cancelReason || cancelLoading ? '#D1D5DB' : '#EF4444' }}>
+            {cancelLoading ? 'Annulation...' : "Confirmer l'annulation"}
           </button>
-          <button onClick={() => setScreen('attente')} className="w-full py-3 text-sm text-gray-400 font-medium">
-            Retour — continuer à attendre
-          </button>
+          <button onClick={() => setScreen('attente')} className="w-full py-3 text-sm text-gray-400 font-medium">Retour — continuer a attendre</button>
         </div>
       </div>
     )
@@ -993,7 +1354,7 @@ export default function TiakTiak() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-lg">{ride.service_type === 'moto' ? '🏍️' : '📦'}</span>
-                      <span className="font-bold text-sm capitalize">{ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span>
+                      <span className="font-bold text-sm">{ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span>
                     </div>
                     <span className="text-xs font-bold px-3 py-1 rounded-full text-white" style={{ background: st.color }}>{st.text}</span>
                   </div>
@@ -1007,9 +1368,7 @@ export default function TiakTiak() {
                       <span className="text-xs text-gray-500 truncate">{ride.to_address}</span>
                     </div>
                   </div>
-                  {ride.cancel_reason && (
-                    <p className="text-xs text-red-400 italic">Motif : {ride.cancel_reason}</p>
-                  )}
+                  {ride.cancel_reason && <p className="text-xs text-red-400 italic">Motif : {ride.cancel_reason}</p>}
                   <div className="flex items-center justify-between pt-1 border-t border-gray-50">
                     <div className="flex items-center gap-1 text-gray-400">
                       <Clock size={12} />
