@@ -32,12 +32,10 @@ export default function TiakTiak() {
   const [authMode, setAuthMode] = useState<'signup' | 'login'>('signup')
   const [loaded, setLoaded] = useState(false)
 
-  // GPS
   const [gpsAsked, setGpsAsked] = useState(false)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [position, setPosition] = useState<GpsPosition>(DEFAULT_POS)
 
-  // Formulaires
   const [formName, setFormName] = useState('')
   const [formPhone, setFormPhone] = useState('')
   const [formMoto, setFormMoto] = useState('')
@@ -46,7 +44,6 @@ export default function TiakTiak() {
   const [authError, setAuthError] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
 
-  // App
   const [service, setService] = useState('moto')
   const [screen, setScreen] = useState('accueil')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -59,7 +56,7 @@ export default function TiakTiak() {
   const [lang, setLang] = useState('fr')
   const [notif, setNotif] = useState(true)
   const [commandLoading, setCommandLoading] = useState(false)
-  const [commandSuccess, setCommandSuccess] = useState(false)
+  const [currentRideId, setCurrentRideId] = useState<string | null>(null)
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -92,20 +89,15 @@ export default function TiakTiak() {
     setFormName(''); setFormPhone(''); setAdminPass(''); setAuthError('')
   }
 
-  // ===== GPS =====
   const activerGPS = () => {
     setGpsLoading(true)
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords
         try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`
-          )
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`)
           const data = await res.json()
-          const address = data.display_name
-            ? (data.address?.suburb || data.address?.neighbourhood || data.address?.city || 'Ma position')
-            : 'Ma position'
+          const address = data.address?.suburb || data.address?.neighbourhood || data.address?.city || 'Ma position'
           setPosition({ lat: latitude, lng: longitude, address })
         } catch {
           setPosition({ lat: latitude, lng: longitude, address: 'Ma position' })
@@ -128,115 +120,62 @@ export default function TiakTiak() {
     setGpsAsked(true)
   }
 
-  // ===== CONNEXION CLIENT (numero seul) =====
   const loginClient = async () => {
     if (!formPhone) { setAuthError('Entre ton numero de telephone'); return }
-    setAuthLoading(true)
-    setAuthError('')
+    setAuthLoading(true); setAuthError('')
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, name, phone, role')
-        .eq('phone', formPhone.trim())
-        .eq('role', 'client')
-        .single()
-      if (error || !data) {
-        setAuthError('Numero introuvable. Inscris-toi dabord.')
-      } else {
-        saveUser({ id: data.id, role: 'client', name: data.name, phone: data.phone })
-      }
-    } catch {
-      setAuthError('Erreur reseau. Verifie ta connexion.')
-    }
+      const { data, error } = await supabase.from('users').select('id, name, phone, role').eq('phone', formPhone.trim()).eq('role', 'client').single()
+      if (error || !data) { setAuthError('Numero introuvable. Inscris-toi dabord.') }
+      else { saveUser({ id: data.id, role: 'client', name: data.name, phone: data.phone }) }
+    } catch { setAuthError('Erreur reseau. Verifie ta connexion.') }
     setAuthLoading(false)
   }
 
-  // ===== CONNEXION CHAUFFEUR =====
   const loginDriver = async () => {
     if (!formPhone) { setAuthError('Entre ton numero de telephone'); return }
-    setAuthLoading(true)
-    setAuthError('')
+    setAuthLoading(true); setAuthError('')
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, name, phone, role')
-        .eq('phone', formPhone.trim())
-        .eq('role', 'chauffeur')
-        .single()
-      if (error || !data) {
-        setAuthError('Numero introuvable. Inscris-toi dabord.')
-      } else {
-        saveUser({ id: data.id, role: 'chauffeur', name: data.name, phone: data.phone })
-      }
-    } catch {
-      setAuthError('Erreur reseau. Verifie ta connexion.')
-    }
+      const { data, error } = await supabase.from('users').select('id, name, phone, role').eq('phone', formPhone.trim()).eq('role', 'chauffeur').single()
+      if (error || !data) { setAuthError('Numero introuvable. Inscris-toi dabord.') }
+      else { saveUser({ id: data.id, role: 'chauffeur', name: data.name, phone: data.phone }) }
+    } catch { setAuthError('Erreur reseau. Verifie ta connexion.') }
     setAuthLoading(false)
   }
 
-  // ===== INSCRIPTION CLIENT =====
   const signupClient = async () => {
     if (!formName || !formPhone) { setAuthError('Remplis tous les champs'); return }
-    setAuthLoading(true)
-    setAuthError('')
+    setAuthLoading(true); setAuthError('')
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .insert({ name: formName.trim(), phone: formPhone.trim(), role: 'client' })
-        .select('id')
-        .single()
+      const { data, error } = await supabase.from('users').insert({ name: formName.trim(), phone: formPhone.trim(), role: 'client' }).select('id').single()
       if (error) {
-        if (error.code === '23505') {
-          setAuthError('Ce numero est deja utilise. Connecte-toi.')
-          setAuthMode('login')
-        } else {
-          setAuthError('Erreur de connexion. Reessaie.')
-        }
-        setAuthLoading(false)
-        return
+        if (error.code === '23505') { setAuthError('Ce numero est deja utilise. Connecte-toi.'); setAuthMode('login') }
+        else { setAuthError('Erreur de connexion. Reessaie.') }
+        setAuthLoading(false); return
       }
       saveUser({ id: data.id, role: 'client', name: formName.trim(), phone: formPhone.trim() })
-    } catch {
-      setAuthError('Erreur reseau. Verifie ta connexion.')
-    }
+    } catch { setAuthError('Erreur reseau. Verifie ta connexion.') }
     setAuthLoading(false)
   }
 
-  // ===== INSCRIPTION CHAUFFEUR =====
   const signupDriver = async () => {
     if (!formName || !formPhone || !formMoto || !formColor) { setAuthError('Remplis tous les champs'); return }
-    setAuthLoading(true)
-    setAuthError('')
+    setAuthLoading(true); setAuthError('')
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .insert({ name: formName.trim(), phone: formPhone.trim(), role: 'chauffeur', moto_type: formMoto.trim(), moto_color: formColor.trim() })
-        .select('id')
-        .single()
+      const { data, error } = await supabase.from('users').insert({ name: formName.trim(), phone: formPhone.trim(), role: 'chauffeur', moto_type: formMoto.trim(), moto_color: formColor.trim() }).select('id').single()
       if (error) {
-        if (error.code === '23505') {
-          setAuthError('Ce numero est deja utilise. Connecte-toi.')
-          setAuthMode('login')
-        } else {
-          setAuthError('Erreur de connexion. Reessaie.')
-        }
-        setAuthLoading(false)
-        return
+        if (error.code === '23505') { setAuthError('Ce numero est deja utilise. Connecte-toi.'); setAuthMode('login') }
+        else { setAuthError('Erreur de connexion. Reessaie.') }
+        setAuthLoading(false); return
       }
       saveUser({ id: data.id, role: 'chauffeur', name: formName.trim(), phone: formPhone.trim() })
-    } catch {
-      setAuthError('Erreur reseau. Verifie ta connexion.')
-    }
+    } catch { setAuthError('Erreur reseau. Verifie ta connexion.') }
     setAuthLoading(false)
   }
 
   const loginAdmin = () => {
     const ADMIN_PASS = (process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '').trim()
-    if (adminPass.trim() === ADMIN_PASS) {
-      saveUser({ role: 'admin', name: 'Omar', phone: '' })
-    } else {
-      setAuthError('Mot de passe incorrect')
-    }
+    if (adminPass.trim() === ADMIN_PASS) { saveUser({ role: 'admin', name: 'Omar', phone: '' }) }
+    else { setAuthError('Mot de passe incorrect') }
   }
 
   const onSearch = (val: string) => {
@@ -251,18 +190,12 @@ export default function TiakTiak() {
     }, 500)
   }
 
-  const selectPlace = (place: Place) => {
-    setSelected(place)
-    setCommandSuccess(false)
-    setScreen('confirm')
-  }
-
+  const selectPlace = (place: Place) => { setSelected(place); setScreen('confirm') }
   const goTo = (s: string) => { setScreen(s); setMenuOpen(false) }
 
   const km = selected ? haversineDistance(position.lat, position.lng, selected.lat, selected.lng) : 0
   const price = selected ? calculatePrice(km, service as 'moto' | 'livraison') : 0
   const eta = selected ? calculateETA(km) : 0
-
   const referralCode = user ? 'TIAK-' + (user.phone.replace(/[^0-9]/g, '').slice(-4) || '0000') : 'TIAK-0000'
 
   const shareReferral = () => {
@@ -274,37 +207,45 @@ export default function TiakTiak() {
     }
   }
 
-  // ===== COMMANDER UNE COURSE =====
   const commanderCourse = async () => {
     if (!selected || !user) return
     setCommandLoading(true)
     try {
-      const { error } = await supabase
-        .from('rides')
-        .insert({
-          client_id: user.id || null,
-          service_type: service,
-          from_lat: position.lat,
-          from_lng: position.lng,
-          from_address: position.address,
-          to_lat: selected.lat,
-          to_lng: selected.lng,
-          to_address: selected.name,
-          distance_km: Math.round(km * 100) / 100,
-          price: price,
-          commission: 100,
-          payment_method: payment,
-          status: 'pending',
-        })
+      const { data: rideData, error } = await supabase.from('rides').insert({
+        client_id: user.id || null,
+        service_type: service,
+        from_lat: position.lat,
+        from_lng: position.lng,
+        from_address: position.address,
+        to_lat: selected.lat,
+        to_lng: selected.lng,
+        to_address: selected.name,
+        distance_km: Math.round(km * 100) / 100,
+        price: price,
+        commission: 100,
+        payment_method: payment,
+        status: 'pending',
+      }).select('id').single()
+
       if (error) {
         alert('Erreur: ' + JSON.stringify(error))
       } else {
-        setCommandSuccess(true)
+        setCurrentRideId(rideData?.id || null)
+        setScreen('attente')
       }
     } catch {
       alert('Erreur reseau. Verifie ta connexion.')
     }
     setCommandLoading(false)
+  }
+
+  const annulerCourse = async () => {
+    if (currentRideId) {
+      await supabase.from('rides').update({ status: 'cancelled' }).eq('id', currentRideId)
+    }
+    setScreen('accueil')
+    setSelected(null)
+    setCurrentRideId(null)
   }
 
   const languages = [
@@ -324,8 +265,8 @@ export default function TiakTiak() {
     )
   }
 
-  // ===== ECRAN GPS =====
-  if (loaded && !gpsAsked) {
+  // ===== GPS =====
+  if (!gpsAsked) {
     return (
       <div className="fixed inset-0 flex flex-col bg-white">
         <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
@@ -338,33 +279,22 @@ export default function TiakTiak() {
           <div className="text-center">
             <h1 className="text-4xl font-black tracking-widest mb-2" style={{ color: '#0F5138' }}>TIAK TIAK</h1>
             <h2 className="text-xl font-bold text-gray-800 mb-2">Activez votre localisation</h2>
-            <p className="text-gray-400 text-sm leading-relaxed">
-              Pour trouver les chauffeurs pres de vous et calculer le prix de votre course, TIAK TIAK a besoin de connaitre votre position.
-            </p>
+            <p className="text-gray-400 text-sm leading-relaxed">Pour trouver les chauffeurs pres de vous et calculer le prix de votre course.</p>
           </div>
           <div className="w-full rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}>
-                <MapPin size={16} color="white" />
-              </div>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}><MapPin size={16} color="white" /></div>
               <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>Pourquoi cette autorisation ?</p>
             </div>
-            <p className="text-xs text-gray-500 ml-11">Votre position sert uniquement a calculer la distance et le prix de votre course. Elle n&apos;est jamais partagee sans votre accord.</p>
+            <p className="text-xs text-gray-500 ml-11">Votre position sert uniquement a calculer la distance et le prix. Elle n&apos;est jamais partagee sans votre accord.</p>
           </div>
         </div>
         <div className="px-8 pb-10 space-y-3">
-          <button
-            onClick={activerGPS}
-            disabled={gpsLoading}
-            className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2"
-            style={{ background: gpsLoading ? '#7aaa94' : '#0F5138' }}
-          >
+          <button onClick={activerGPS} disabled={gpsLoading} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: gpsLoading ? '#7aaa94' : '#0F5138' }}>
             <Navigation size={20} color="white" />
             {gpsLoading ? 'Localisation en cours...' : 'Activer ma localisation'}
           </button>
-          <button onClick={passerSansGPS} className="w-full text-center text-gray-400 text-sm py-2">
-            Continuer sans localisation
-          </button>
+          <button onClick={passerSansGPS} className="w-full text-center text-gray-400 text-sm py-2">Continuer sans localisation</button>
         </div>
       </div>
     )
@@ -372,8 +302,6 @@ export default function TiakTiak() {
 
   // ===== NON CONNECTE =====
   if (!user) {
-
-    // CHOIX DU ROLE
     if (authScreen === 'roles') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
@@ -396,15 +324,12 @@ export default function TiakTiak() {
             <button onClick={() => { setAuthScreen('chauffeur'); setAuthMode('signup'); setAuthError(''); setFormName(''); setFormPhone(''); setFormMoto(''); setFormColor('') }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#111111' }}>
               <Zap size={20} color="#1DB954" /> Je suis un Chauffeur
             </button>
-            <button onClick={() => { setAuthScreen('admin'); setAuthError('') }} className="w-full text-center text-gray-400 text-sm pt-2">
-              Acces administrateur
-            </button>
+            <button onClick={() => { setAuthScreen('admin'); setAuthError('') }} className="w-full text-center text-gray-400 text-sm pt-2">Acces administrateur</button>
           </div>
         </div>
       )
     }
 
-    // CLIENT
     if (authScreen === 'client') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
@@ -412,30 +337,14 @@ export default function TiakTiak() {
             <button onClick={() => setAuthScreen('roles')}><ArrowLeft size={24} color="#0F5138" /></button>
             <span className="font-bold text-black">{authMode === 'signup' ? 'Inscription Client' : 'Connexion Client'}</span>
           </header>
-
-          {/* Toggle S'inscrire / Se connecter */}
           <div className="px-6 pt-5">
             <div className="flex bg-gray-100 rounded-2xl p-1">
-              <button
-                onClick={() => { setAuthMode('signup'); setAuthError('') }}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
-                style={{ background: authMode === 'signup' ? '#0F5138' : 'transparent', color: authMode === 'signup' ? 'white' : '#9CA3AF' }}
-              >
-                S&apos;inscrire
-              </button>
-              <button
-                onClick={() => { setAuthMode('login'); setAuthError('') }}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
-                style={{ background: authMode === 'login' ? '#0F5138' : 'transparent', color: authMode === 'login' ? 'white' : '#9CA3AF' }}
-              >
-                Se connecter
-              </button>
+              <button onClick={() => { setAuthMode('signup'); setAuthError('') }} className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all" style={{ background: authMode === 'signup' ? '#0F5138' : 'transparent', color: authMode === 'signup' ? 'white' : '#9CA3AF' }}>S&apos;inscrire</button>
+              <button onClick={() => { setAuthMode('login'); setAuthError('') }} className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all" style={{ background: authMode === 'login' ? '#0F5138' : 'transparent', color: authMode === 'login' ? 'white' : '#9CA3AF' }}>Se connecter</button>
             </div>
           </div>
-
           <div className="flex-1 p-6 space-y-4">
             <div className="text-center mb-2"><span className="text-5xl">🧑</span></div>
-
             {authMode === 'signup' && (
               <div>
                 <label className="text-sm font-semibold text-gray-600">Nom complet</label>
@@ -446,18 +355,11 @@ export default function TiakTiak() {
               <label className="text-sm font-semibold text-gray-600">Numero de telephone</label>
               <input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 097 01 00" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" />
             </div>
-            {authMode === 'login' && (
-              <p className="text-xs text-gray-400 text-center">Entre le numero avec lequel tu t&apos;es inscrit</p>
-            )}
+            {authMode === 'login' && <p className="text-xs text-gray-400 text-center">Entre le numero avec lequel tu t&apos;es inscrit</p>}
             {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
           </div>
           <div className="p-4 border-t border-gray-100">
-            <button
-              onClick={authMode === 'signup' ? signupClient : loginClient}
-              disabled={authLoading}
-              className="w-full py-4 rounded-2xl font-bold text-white"
-              style={{ background: authLoading ? '#7aaa94' : '#0F5138' }}
-            >
+            <button onClick={authMode === 'signup' ? signupClient : loginClient} disabled={authLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: authLoading ? '#7aaa94' : '#0F5138' }}>
               {authLoading ? 'Chargement...' : authMode === 'signup' ? 'Creer mon compte' : 'Se connecter'}
             </button>
           </div>
@@ -465,7 +367,6 @@ export default function TiakTiak() {
       )
     }
 
-    // CHAUFFEUR
     if (authScreen === 'chauffeur') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
@@ -473,30 +374,14 @@ export default function TiakTiak() {
             <button onClick={() => setAuthScreen('roles')}><ArrowLeft size={24} color="#0F5138" /></button>
             <span className="font-bold text-black">{authMode === 'signup' ? 'Inscription Chauffeur' : 'Connexion Chauffeur'}</span>
           </header>
-
-          {/* Toggle */}
           <div className="px-6 pt-5">
             <div className="flex bg-gray-100 rounded-2xl p-1">
-              <button
-                onClick={() => { setAuthMode('signup'); setAuthError('') }}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
-                style={{ background: authMode === 'signup' ? '#111111' : 'transparent', color: authMode === 'signup' ? 'white' : '#9CA3AF' }}
-              >
-                S&apos;inscrire
-              </button>
-              <button
-                onClick={() => { setAuthMode('login'); setAuthError('') }}
-                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all"
-                style={{ background: authMode === 'login' ? '#111111' : 'transparent', color: authMode === 'login' ? 'white' : '#9CA3AF' }}
-              >
-                Se connecter
-              </button>
+              <button onClick={() => { setAuthMode('signup'); setAuthError('') }} className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all" style={{ background: authMode === 'signup' ? '#111111' : 'transparent', color: authMode === 'signup' ? 'white' : '#9CA3AF' }}>S&apos;inscrire</button>
+              <button onClick={() => { setAuthMode('login'); setAuthError('') }} className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all" style={{ background: authMode === 'login' ? '#111111' : 'transparent', color: authMode === 'login' ? 'white' : '#9CA3AF' }}>Se connecter</button>
             </div>
           </div>
-
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             <div className="text-center mb-2"><span className="text-5xl">🛵</span></div>
-
             {authMode === 'login' ? (
               <>
                 <div>
@@ -538,12 +423,7 @@ export default function TiakTiak() {
             {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
           </div>
           <div className="p-4 border-t border-gray-100">
-            <button
-              onClick={authMode === 'signup' ? signupDriver : loginDriver}
-              disabled={authLoading}
-              className="w-full py-4 rounded-2xl font-bold text-white"
-              style={{ background: authLoading ? '#7aaa94' : '#111111' }}
-            >
+            <button onClick={authMode === 'signup' ? signupDriver : loginDriver} disabled={authLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: authLoading ? '#7aaa94' : '#111111' }}>
               {authLoading ? 'Chargement...' : authMode === 'signup' ? "J'accepte et je rejoins TIAK TIAK" : 'Se connecter'}
             </button>
           </div>
@@ -551,7 +431,6 @@ export default function TiakTiak() {
       )
     }
 
-    // ADMIN
     if (authScreen === 'admin') {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
@@ -623,6 +502,63 @@ export default function TiakTiak() {
     )
   }
 
+  // ===== CLIENT : ATTENTE CHAUFFEUR =====
+  if (screen === 'attente') {
+    return (
+      <div className="fixed inset-0 flex flex-col" style={{ background: '#0F5138' }}>
+        <header className="px-4 py-4 flex items-center justify-between">
+          <span className="text-xl font-black italic text-white">TIAK TIAK</span>
+          <button onClick={annulerCourse} className="text-green-200 text-sm font-semibold">Annuler</button>
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-8">
+          <div className="relative flex items-center justify-center">
+            <div className="absolute rounded-full" style={{ width: '160px', height: '160px', background: 'rgba(29,185,84,0.15)', animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite' }} />
+            <div className="absolute rounded-full" style={{ width: '120px', height: '120px', background: 'rgba(29,185,84,0.2)', animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite', animationDelay: '0.5s' }} />
+            <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+              <span className="text-5xl">🛵</span>
+            </div>
+          </div>
+          <div className="text-center">
+            <h2 className="text-2xl font-black text-white mb-2">Recherche en cours...</h2>
+            <p className="text-green-200 text-sm">Nous cherchons le chauffeur le plus proche de toi</p>
+          </div>
+          {selected && (
+            <div className="w-full rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.1)' }}>
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} />
+                <div>
+                  <p className="text-green-200 text-xs">Depart</p>
+                  <p className="text-white text-sm font-semibold">{position.address}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="w-3 h-3 rounded-full flex-shrink-0 bg-red-400" />
+                <div>
+                  <p className="text-green-200 text-xs">Destination</p>
+                  <p className="text-white text-sm font-semibold">{selected.name}</p>
+                </div>
+              </div>
+              <div className="border-t border-white border-opacity-20 pt-3 flex justify-between">
+                <span className="text-green-200 text-sm">Prix</span>
+                <span className="text-white font-black text-lg">{formatPrice(price)}</span>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="w-3 h-3 rounded-full bg-white animate-bounce" style={{ animationDelay: `${i * 0.2}s`, opacity: 0.8 }} />
+            ))}
+          </div>
+        </div>
+        <div className="p-6">
+          <button onClick={annulerCourse} className="w-full py-4 rounded-2xl font-bold text-white border-2" style={{ borderColor: 'rgba(255,255,255,0.3)' }}>
+            Annuler la course
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // ===== CLIENT : RECHERCHE =====
   if (screen === 'recherche') {
     return (
@@ -655,7 +591,7 @@ export default function TiakTiak() {
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
         <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
-          <button onClick={() => { setScreen('recherche'); setCommandSuccess(false) }}><ArrowLeft size={24} color="#0F5138" /></button>
+          <button onClick={() => setScreen('recherche')}><ArrowLeft size={24} color="#0F5138" /></button>
           <span className="font-bold text-black">Confirmer la course</span>
         </header>
         <div className="flex-1 overflow-y-auto">
@@ -686,29 +622,12 @@ export default function TiakTiak() {
               <div className="flex justify-between mb-3"><span className="text-sm text-gray-500">Duree estimee</span><span className="text-sm font-bold">{formatETA(eta)}</span></div>
               <div className="border-t border-gray-100 pt-3 flex justify-between items-center"><span className="font-bold">Prix total</span><span className="text-2xl font-black" style={{ color: '#0F5138' }}>{formatPrice(price)}</span></div>
             </div>
-            {commandSuccess && (
-              <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}>
-                  <Check size={18} color="white" />
-                </div>
-                <div>
-                  <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Course envoyee !</p>
-                  <p className="text-xs text-gray-600">Un chauffeur va accepter ta demande tres bientot.</p>
-                </div>
-              </div>
-            )}
           </div>
         </div>
         <div className="p-4 bg-white border-t border-gray-100">
-          {commandSuccess ? (
-            <button onClick={() => { setScreen('accueil'); setSelected(null); setCommandSuccess(false) }} className="w-full py-4 rounded-2xl font-bold text-white text-base" style={{ background: '#111111' }}>
-              Retour a l&apos;accueil
-            </button>
-          ) : (
-            <button onClick={commanderCourse} disabled={commandLoading} className="w-full py-4 rounded-2xl font-bold text-white text-base" style={{ background: commandLoading ? '#7aaa94' : '#0F5138' }}>
-              {commandLoading ? 'Envoi en cours...' : 'Commander un TIAK TIAK'}
-            </button>
-          )}
+          <button onClick={commanderCourse} disabled={commandLoading} className="w-full py-4 rounded-2xl font-bold text-white text-base" style={{ background: commandLoading ? '#7aaa94' : '#0F5138' }}>
+            {commandLoading ? 'Envoi en cours...' : 'Commander un TIAK TIAK'}
+          </button>
         </div>
       </div>
     )
@@ -803,7 +722,7 @@ export default function TiakTiak() {
     )
   }
 
-  // ===== CLIENT : AIDE ET SUPPORT =====
+  // ===== CLIENT : AIDE =====
   if (screen === 'aide') {
     const faqs = [
       { q: 'Comment commander une course ?', a: 'Choisis ta destination dans la barre de recherche, verifie le prix affiche, puis appuie sur Commander. Un chauffeur proche recevra ta demande.' },
@@ -861,7 +780,6 @@ export default function TiakTiak() {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-400 mt-2 px-1">D&apos;autres langues et traductions completes arrivent progressivement.</p>
           </div>
           <div>
             <p className="font-bold text-sm text-gray-500 mb-2 flex items-center gap-2"><Bell size={16} color="#0F5138" /> Notifications</p>

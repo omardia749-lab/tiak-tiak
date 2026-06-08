@@ -1,97 +1,134 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import 'leaflet/dist/leaflet.css'
 
 interface MapViewProps {
   fromLat: number
   fromLng: number
   toLat: number
   toLng: number
-  fromLabel?: string
-  toLabel?: string
 }
 
 export default function MapView({ fromLat, fromLng, toLat, toLng }: MapViewProps) {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstance = useRef<any>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<any>(null)
+  const animFrameRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (!containerRef.current) return
+
+    // Nettoyage complet avant init
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+    if (mapRef.current) {
+      mapRef.current.remove()
+      mapRef.current = null
+    }
+    const container = containerRef.current as any
+    if (container._leaflet_id) container._leaflet_id = null
 
     let L: any
 
-    const initMap = async () => {
-      L = (await import('leaflet')).default
+    import('leaflet').then((mod) => {
+      L = mod
+      if (!containerRef.current) return
+      const c = containerRef.current as any
+      if (c._leaflet_id) c._leaflet_id = null
 
-      // Charger le CSS de Leaflet
-      if (!document.getElementById('leaflet-css')) {
-        const link = document.createElement('link')
-        link.id = 'leaflet-css'
-        link.rel = 'stylesheet'
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-        document.head.appendChild(link)
-      }
-
-      if (!mapRef.current || mapInstance.current) return
-
-      // Centre entre les deux points
-      const centerLat = (fromLat + toLat) / 2
-      const centerLng = (fromLng + toLng) / 2
-
-      const map = L.map(mapRef.current, {
-        center: [centerLat, centerLng],
-        zoom: 12,
+      const map = L.map(containerRef.current, {
         zoomControl: false,
         attributionControl: false,
+        dragging: true,
+        scrollWheelZoom: false,
       })
-      mapInstance.current = map
+      mapRef.current = map
 
-      // Tuiles style clair moderne (CARTO Voyager)
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 19,
       }).addTo(map)
 
-      // Icône départ (vert)
+      // Marqueur départ — pulsation verte
       const fromIcon = L.divIcon({
-        html: '<div style="background:#1DB954;width:20px;height:20px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>',
         className: '',
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
+        html: `<div style="position:relative;width:28px;height:28px;">
+          <div style="position:absolute;inset:0;border-radius:50%;background:#1DB954;opacity:0.3;animation:tpulse 1.8s ease-out infinite;"></div>
+          <div style="position:absolute;top:5px;left:5px;width:18px;height:18px;border-radius:50%;background:#1DB954;border:3px solid white;box-shadow:0 2px 8px rgba(29,185,84,0.6);"></div>
+          <style>@keyframes tpulse{0%{transform:scale(1);opacity:0.4}70%{transform:scale(2.2);opacity:0}100%{transform:scale(1);opacity:0}}</style>
+        </div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
       })
 
-      // Icône destination (rouge)
+      // Marqueur destination — pin rouge qui rebondit
       const toIcon = L.divIcon({
-        html: '<div style="background:#EF4444;width:20px;height:20px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>',
         className: '',
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
+        html: `<div style="width:30px;height:40px;animation:tbounce 2s ease infinite;">
+          <div style="width:28px;height:28px;border-radius:50% 50% 50% 0;background:linear-gradient(135deg,#E53935,#B71C1C);border:3px solid white;box-shadow:0 4px 12px rgba(229,57,53,0.5);transform:rotate(-45deg);"></div>
+          <div style="position:absolute;top:7px;left:7px;width:12px;height:12px;border-radius:50%;background:white;"></div>
+          <style>@keyframes tbounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}</style>
+        </div>`,
+        iconSize: [30, 40],
+        iconAnchor: [14, 38],
       })
 
       L.marker([fromLat, fromLng], { icon: fromIcon }).addTo(map)
       L.marker([toLat, toLng], { icon: toIcon }).addTo(map)
 
-      // Ligne verte entre les deux points
-      L.polyline([[fromLat, fromLng], [toLat, toLng]], {
-        color: '#0F5138',
-        weight: 4,
-        opacity: 0.7,
-        dashArray: '8, 8',
-      }).addTo(map)
+      map.fitBounds(
+        L.latLngBounds([[fromLat, fromLng], [toLat, toLng]]),
+        { padding: [40, 40], animate: true, duration: 1.2 }
+      )
 
-      // Ajuster la vue pour voir les deux points
-      const bounds = L.latLngBounds([[fromLat, fromLng], [toLat, toLng]])
-      map.fitBounds(bounds, { padding: [50, 50] })
-    }
+      fetch(`https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`)
+        .then(res => res.json())
+        .then(data => {
+          if (!mapRef.current) return
+          if (data.routes?.[0]) {
+            const coords = data.routes[0].geometry.coordinates.map(
+              ([lng, lat]: [number, number]) => [lat, lng]
+            )
+            // Ombre
+            L.polyline(coords, { color: '#0a3d25', weight: 9, opacity: 0.25, lineCap: 'round', lineJoin: 'round' }).addTo(map)
+            // Route verte
+            L.polyline(coords, { color: '#1DB954', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map)
+            // Lumière animée
+            const animLine = L.polyline(coords, {
+              color: 'white', weight: 2, opacity: 0.9,
+              lineCap: 'round', dashArray: '12, 40', dashOffset: '0',
+            }).addTo(map)
 
-    initMap()
+            let offset = 0
+            const animate = () => {
+              if (!mapRef.current) return
+              offset -= 2
+              const el = (animLine as any)._path
+              if (el) el.style.strokeDashoffset = String(offset)
+              animFrameRef.current = requestAnimationFrame(animate)
+            }
+            animFrameRef.current = requestAnimationFrame(animate)
+
+            map.fitBounds(L.latLngBounds(coords), { padding: [50, 50], animate: true, duration: 1.0 })
+          } else {
+            L.polyline([[fromLat, fromLng], [toLat, toLng]], { color: '#1DB954', weight: 4, dashArray: '10,8' }).addTo(map)
+          }
+        })
+        .catch(() => {
+          if (!mapRef.current) return
+          L.polyline([[fromLat, fromLng], [toLat, toLng]], { color: '#1DB954', weight: 4, dashArray: '10,8' }).addTo(map)
+        })
+    })
 
     return () => {
-      if (mapInstance.current) {
-        mapInstance.current.remove()
-        mapInstance.current = null
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+      if (mapRef.current) {
+        mapRef.current.remove()
+        mapRef.current = null
+      }
+      if (containerRef.current) {
+        (containerRef.current as any)._leaflet_id = null
       }
     }
   }, [fromLat, fromLng, toLat, toLng])
 
-  return <div ref={mapRef} className="w-full h-full" />
+  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }
