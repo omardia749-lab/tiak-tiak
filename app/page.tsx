@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText, Clock, XCircle, Power, Users, TrendingUp, CheckCircle, Ban, AlertTriangle, Star, Award, Wallet, AlertCircle } from 'lucide-react'
+import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText, Clock, XCircle, Power, Users, TrendingUp, CheckCircle, Ban, AlertTriangle, Star, Award, Wallet, AlertCircle, Camera, Play } from 'lucide-react'
 import { searchPlaces, Place } from '../lib/search'
 import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance, calculateCommission, WAVE_PAYMENT_LINK } from '../lib/utils'
 import { CONDITIONS_UTILISATION, POLITIQUE_CONFIDENTIALITE } from '../lib/legal'
@@ -59,7 +59,19 @@ interface Driver {
   premium_expires_at: string | null
   rating: number
   total_rides: number
+  home_address: string
+  profile_photo: string
+  id_card_front: string
+  id_card_back: string
   created_at: string
+}
+
+interface NearbyDriver {
+  id: string
+  lat: number
+  lng: number
+  name: string
+  eta: number
 }
 
 const SUPPORT_WHATSAPP = 'https://wa.me/221770970100?text=' + encodeURIComponent("Bonjour TIAK TIAK Support, j'ai besoin d'aide.")
@@ -89,16 +101,23 @@ const playTiakTiakSound = () => {
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.frequency.value = freq
-      osc.type = 'sine'
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.value = freq; osc.type = 'sine'
       gain.gain.setValueAtTime(0, ctx.currentTime + times[i])
       gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + times[i] + 0.05)
       gain.gain.linearRampToValueAtTime(0, ctx.currentTime + times[i] + 0.2)
-      osc.start(ctx.currentTime + times[i])
-      osc.stop(ctx.currentTime + times[i] + 0.25)
+      osc.start(ctx.currentTime + times[i]); osc.stop(ctx.currentTime + times[i] + 0.25)
     })
+  } catch {}
+}
+
+const speak = (text: string) => {
+  try {
+    if (!window.speechSynthesis) return
+    window.speechSynthesis.cancel()
+    const utt = new SpeechSynthesisUtterance(text)
+    utt.lang = 'fr-FR'; utt.rate = 0.95; utt.pitch = 1
+    window.speechSynthesis.speak(utt)
   } catch {}
 }
 
@@ -116,6 +135,11 @@ export default function TiakTiak() {
   const [formPhone, setFormPhone] = useState('')
   const [formMoto, setFormMoto] = useState('')
   const [formColor, setFormColor] = useState('')
+  const [formAddress, setFormAddress] = useState('')
+  const [formIdFront, setFormIdFront] = useState<string>('')
+  const [formIdBack, setFormIdBack] = useState<string>('')
+  const [formProfilePhoto, setFormProfilePhoto] = useState<string>('')
+  const [signupStep, setSignupStep] = useState(1)
   const [adminPass, setAdminPass] = useState('')
   const [authError, setAuthError] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
@@ -139,7 +163,10 @@ export default function TiakTiak() {
   const [ridesLoading, setRidesLoading] = useState(false)
   const [clientTotalRides, setClientTotalRides] = useState(0)
 
-  // Chauffeur
+  // Chauffeurs proches sur carte accueil
+  const [nearbyDrivers, setNearbyDrivers] = useState<NearbyDriver[]>([])
+
+  // Chauffeur states
   const [isOnline, setIsOnline] = useState(false)
   const [onlineLoading, setOnlineLoading] = useState(false)
   const [incomingRide, setIncomingRide] = useState<Ride | null>(null)
@@ -150,9 +177,12 @@ export default function TiakTiak() {
   const [isSuspended, setIsSuspended] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
   const [premiumExpiresAt, setPremiumExpiresAt] = useState<string | null>(null)
-  const [driverStats, setDriverStats] = useState({ todayRides: 0, todayEarnings: 0, todayCommission: 0, weekEarnings: 0, totalRides: 0, rating: 5.0, commissionPaid: false })
+  const [driverStats, setDriverStats] = useState({ todayRides: 0, todayEarnings: 0, todayCommission: 0, weekEarnings: 0, totalRides: 0, rating: 5.0 })
   const [driverHistory, setDriverHistory] = useState<Ride[]>([])
   const [driverTab, setDriverTab] = useState<'accueil' | 'gains' | 'historique'>('accueil')
+  const [driverPhase, setDriverPhase] = useState<'to_client' | 'with_client'>('to_client')
+  const [clientArrived, setClientArrived] = useState(false)
+  const [rideCancelled, setRideCancelled] = useState(false)
 
   // Client suivi
   const [currentClientRide, setCurrentClientRide] = useState<Ride | null>(null)
@@ -165,8 +195,10 @@ export default function TiakTiak() {
   const [driverRating, setDriverRating] = useState(5.0)
   const [driverTotalRides, setDriverTotalRides] = useState(0)
   const [driverIsPremium, setDriverIsPremium] = useState(false)
+  const [driverProfilePhoto, setDriverProfilePhoto] = useState('')
   const [estimatedArrival, setEstimatedArrival] = useState(0)
   const [distanceToClient, setDistanceToClient] = useState(0)
+  const [driverArrived, setDriverArrived] = useState(false)
 
   // Évaluation
   const [clientRating, setClientRating] = useState(0)
@@ -181,9 +213,11 @@ export default function TiakTiak() {
   const [adminEvals, setAdminEvals] = useState<Ride[]>([])
   const [adminStats, setAdminStats] = useState({ courses: 0, chauffeurs: 0, clients: 0, commissions: 0 })
   const [adminLoading, setAdminLoading] = useState(false)
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null)
 
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
   const gpsWatchRef = useRef<number | null>(null)
+  const nearbyInterval = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('tiaktiak_user')
@@ -195,15 +229,48 @@ export default function TiakTiak() {
     setLoaded(true)
   }, [])
 
+  // Charger chauffeurs proches en temps réel
+  useEffect(() => {
+    if (!user || user.role !== 'client') return
+
+    const loadNearbyDrivers = async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('id, name, current_lat, current_lng, is_premium')
+        .eq('role', 'chauffeur')
+        .eq('is_online', true)
+        .eq('is_validated', true)
+        .not('current_lat', 'is', null)
+
+      if (data && position.lat !== DEFAULT_POS.lat) {
+        const drivers = data
+          .filter(d => d.current_lat && d.current_lng)
+          .map(d => {
+            const dist = haversineDistance(position.lat, position.lng, d.current_lat, d.current_lng)
+            const eta = Math.max(1, Math.round(dist * 3))
+            return { id: d.id, lat: d.current_lat, lng: d.current_lng, name: d.name, eta }
+          })
+          .sort((a, b) => a.eta - b.eta)
+          .slice(0, 5)
+        setNearbyDrivers(drivers)
+      }
+    }
+
+    loadNearbyDrivers()
+    nearbyInterval.current = setInterval(loadNearbyDrivers, 8000)
+    return () => { if (nearbyInterval.current) clearInterval(nearbyInterval.current) }
+  }, [user, position])
+
   useEffect(() => {
     if (!user || user.role !== 'chauffeur' || !user.id) return
     const checkStatus = async () => {
-      const { data } = await supabase.from('users').select('is_validated, is_suspended, is_premium, premium_expires_at, rating, total_rides').eq('id', user.id!).single()
+      const { data } = await supabase.from('users').select('is_validated, is_suspended, is_premium, premium_expires_at, rating, total_rides, is_online').eq('id', user.id!).single()
       if (data) {
         setIsValidated(data.is_validated || false)
         setIsSuspended(data.is_suspended || false)
         setIsPremium(data.is_premium || false)
         setPremiumExpiresAt(data.premium_expires_at || null)
+        setIsOnline(data.is_online || false)
         setDriverStats(prev => ({ ...prev, rating: data.rating || 5.0, totalRides: data.total_rides || 0 }))
       }
     }
@@ -215,27 +282,16 @@ export default function TiakTiak() {
     if (!user?.id) return
     const today = new Date().toISOString().split('T')[0]
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-
     const [todayRes, weekRes, userRes] = await Promise.all([
-      supabase.from('rides').select('price, commission, status').eq('driver_id', user.id).gte('created_at', today).eq('status', 'completed'),
+      supabase.from('rides').select('price, commission').eq('driver_id', user.id).gte('created_at', today).eq('status', 'completed'),
       supabase.from('rides').select('price').eq('driver_id', user.id).gte('created_at', weekAgo).eq('status', 'completed'),
       supabase.from('users').select('rating, total_rides').eq('id', user.id).single(),
     ])
-
     const todayRides = todayRes.data || []
     const todayEarnings = todayRides.reduce((sum, r) => sum + (r.price || 0), 0)
     const todayCommission = todayRides.reduce((sum, r) => sum + (r.commission || 0), 0)
     const weekEarnings = (weekRes.data || []).reduce((sum, r) => sum + (r.price || 0), 0)
-
-    setDriverStats({
-      todayRides: todayRides.length,
-      todayEarnings,
-      todayCommission,
-      weekEarnings,
-      totalRides: userRes.data?.total_rides || 0,
-      rating: userRes.data?.rating || 5.0,
-      commissionPaid: false,
-    })
+    setDriverStats({ todayRides: todayRides.length, todayEarnings, todayCommission, weekEarnings, totalRides: userRes.data?.total_rides || 0, rating: userRes.data?.rating || 5.0 })
   }
 
   const loadDriverHistory = async () => {
@@ -244,6 +300,7 @@ export default function TiakTiak() {
     if (data) setDriverHistory(data)
   }
 
+  // GPS chauffeur en temps réel
   useEffect(() => {
     if (!user || user.role !== 'chauffeur' || !isOnline) {
       if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current)
@@ -254,28 +311,65 @@ export default function TiakTiak() {
         const { latitude, longitude } = pos.coords
         setDriverPosition(prev => ({ ...prev, lat: latitude, lng: longitude }))
         if (user.id) await supabase.from('users').update({ current_lat: latitude, current_lng: longitude }).eq('id', user.id)
+
         if (currentDriverRide) {
-          const dist = haversineDistance(latitude, longitude, currentDriverRide.to_lat, currentDriverRide.to_lng)
-          if (dist * 1000 < 20) await terminerCourse()
+          if (driverPhase === 'to_client') {
+            const distToClient = haversineDistance(latitude, longitude, currentDriverRide.from_lat, currentDriverRide.from_lng)
+            if (distToClient * 1000 < 10 && !clientArrived) {
+              setClientArrived(true)
+              speak("Vous êtes arrivé chez le client")
+              await supabase.from('rides').update({ driver_arrived_at: new Date().toISOString() } as any).eq('id', currentDriverRide.id)
+            }
+          } else {
+            const distToDest = haversineDistance(latitude, longitude, currentDriverRide.to_lat, currentDriverRide.to_lng)
+            if (distToDest * 1000 < 10) {
+              speak("Vous êtes arrivé à destination")
+              await terminerCourse()
+            }
+          }
         }
       },
       () => {},
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 8000 }
     )
     return () => { if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current) }
-  }, [isOnline, user, currentDriverRide])
+  }, [isOnline, user, currentDriverRide, driverPhase, clientArrived])
 
+  // Realtime chauffeur — écoute nouvelles courses + annulations
   useEffect(() => {
     if (!user || user.role !== 'chauffeur' || !isOnline || !isValidated) return
     const channel = supabase
-      .channel('new-rides-' + user.id)
+      .channel('driver-rides-' + user.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: 'status=eq.pending' }, (payload) => {
-        if (!currentDriverRide) { setIncomingRide(payload.new as Ride); playTiakTiakSound(); if (navigator.vibrate) navigator.vibrate([300, 100, 300]) }
+        if (!currentDriverRide) {
+          setIncomingRide(payload.new as Ride)
+          playTiakTiakSound()
+          if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides' }, (payload) => {
+        const updated = payload.new as Ride
+        // Si la course en cours est annulée par le client
+        if (currentDriverRide && updated.id === currentDriverRide.id && updated.status === 'cancelled') {
+          setRideCancelled(true)
+          setCurrentDriverRide(null)
+          setDriverPhase('to_client')
+          setClientArrived(false)
+          setScreen('chauffeur_accueil')
+          playTiakTiakSound()
+          speak("La course a été annulée par le client")
+          if (navigator.vibrate) navigator.vibrate([500, 200, 500])
+        }
+        // Si la course en attente est annulée
+        if (incomingRide && updated.id === incomingRide.id && updated.status === 'cancelled') {
+          setIncomingRide(null)
+        }
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [isOnline, user, currentDriverRide, isValidated])
+  }, [isOnline, user, currentDriverRide, isValidated, incomingRide])
 
+  // Realtime client — suivi course
   useEffect(() => {
     if (!currentRideId) return
     const channel = supabase
@@ -284,11 +378,9 @@ export default function TiakTiak() {
         const updated = payload.new as Ride
         if (updated.status === 'accepted' && updated.driver_id) {
           setCurrentClientRide(updated)
-          const { data: driverData } = await supabase
-            .from('users')
-            .select('name, phone, moto_type, moto_color, rating, total_rides, is_premium, current_lat, current_lng')
-            .eq('id', updated.driver_id)
-            .single()
+          const { data: driverData } = await supabase.from('users')
+            .select('name, phone, moto_type, moto_color, rating, total_rides, is_premium, current_lat, current_lng, profile_photo')
+            .eq('id', updated.driver_id).single()
           if (driverData) {
             setDriverName(driverData.name)
             setDriverPhone(driverData.phone)
@@ -297,6 +389,7 @@ export default function TiakTiak() {
             setDriverRating(driverData.rating || 5.0)
             setDriverTotalRides(driverData.total_rides || 0)
             setDriverIsPremium(driverData.is_premium || false)
+            setDriverProfilePhoto(driverData.profile_photo || '')
             setDriverLat(driverData.current_lat || position.lat)
             setDriverLng(driverData.current_lng || position.lng)
             if (driverData.current_lat && driverData.current_lng) {
@@ -304,14 +397,22 @@ export default function TiakTiak() {
               setDistanceToClient(Math.round(dist * 10) / 10)
               setEstimatedArrival(Math.max(1, Math.round(dist * 3)))
             } else {
-              setEstimatedArrival(5)
-              setDistanceToClient(0)
+              setEstimatedArrival(5); setDistanceToClient(0)
             }
           }
+          speak(`Votre chauffeur ${driverData?.name || ''} arrive bientôt`)
           setScreen('suivi')
+        }
+        if ((updated as any).driver_arrived_at && !driverArrived) {
+          setDriverArrived(true)
+          speak("Votre chauffeur est arrivé")
+        }
+        if (updated.status === 'in_progress') {
+          speak("La course a démarré. Bon voyage !")
         }
         if (updated.status === 'completed') {
           setCurrentClientRide(updated)
+          speak("Vous êtes arrivé à destination. Merci d'avoir utilisé TIAK TIAK")
           setScreen('evaluation')
         }
       })
@@ -333,7 +434,7 @@ export default function TiakTiak() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel); supabase.removeChannel(posChannel) }
-  }, [currentRideId, currentClientRide, position])
+  }, [currentRideId, currentClientRide, position, driverArrived])
 
   const loadAdminData = async () => {
     setAdminLoading(true)
@@ -357,41 +458,64 @@ export default function TiakTiak() {
     await supabase.from('users').update({ is_validated: true, is_suspended: false, validated_at: new Date().toISOString() }).eq('id', id)
     setAdminDrivers(prev => prev.map(d => d.id === id ? { ...d, is_validated: true, is_suspended: false } : d))
   }
-
   const suspendreCharffeur = async (id: string) => {
     await supabase.from('users').update({ is_suspended: true, is_online: false }).eq('id', id)
     setAdminDrivers(prev => prev.map(d => d.id === id ? { ...d, is_suspended: true } : d))
   }
-
   const exclureChauffeur = async (id: string) => {
     await supabase.from('users').update({ is_suspended: true, is_validated: false, is_online: false }).eq('id', id)
     setAdminDrivers(prev => prev.map(d => d.id === id ? { ...d, is_suspended: true, is_validated: false } : d))
   }
-
   const activerPremium = async (id: string) => {
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    await supabase.from('users').update({ is_premium: true, premium_expires_at: expiresAt, commission_rate: 100 }).eq('id', id)
+    await supabase.from('users').update({ is_premium: true, premium_expires_at: expiresAt }).eq('id', id)
     setAdminDrivers(prev => prev.map(d => d.id === id ? { ...d, is_premium: true, premium_expires_at: expiresAt } : d))
   }
-
   const desactiverPremium = async (id: string) => {
     await supabase.from('users').update({ is_premium: false, premium_expires_at: null }).eq('id', id)
     setAdminDrivers(prev => prev.map(d => d.id === id ? { ...d, is_premium: false, premium_expires_at: null } : d))
   }
 
-  const confirmerCommission = async (rideId: string) => {
-    await supabase.from('rides').update({ commission_paid: true } as any).eq('id', rideId)
-    setAdminRides(prev => prev.map(r => r.id === rideId ? { ...r, commission_paid: true } as any : r))
+  const uploadPhoto = async (base64: string, path: string): Promise<string> => {
+    const base64Data = base64.split(',')[1]
+    const byteCharacters = atob(base64Data)
+    const byteArray = new Uint8Array(byteCharacters.length)
+    for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i)
+    const blob = new Blob([byteArray], { type: 'image/jpeg' })
+    const { error } = await supabase.storage.from('drivers').upload(path, blob, { upsert: true })
+    if (error) throw error
+    const { data: urlData } = supabase.storage.from('drivers').getPublicUrl(path)
+    return urlData.publicUrl
+  }
+
+  const capturePhoto = (setter: (v: string) => void, useGallery = false) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    if (!useGallery) input.capture = 'environment'
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => setter(reader.result as string)
+      reader.readAsDataURL(file)
+    }
+    input.click()
   }
 
   const saveUser = (u: AppUser) => { localStorage.setItem('tiaktiak_user', JSON.stringify(u)); setUser(u) }
   const changeLang = (code: string) => { setLang(code); localStorage.setItem('tiaktiak_lang', code) }
 
   const logout = async () => {
-    if (user?.id && user.role === 'chauffeur') await supabase.from('users').update({ is_online: false }).eq('id', user.id)
+    if (user?.id && user.role === 'chauffeur') {
+      await supabase.from('users').update({ is_online: false }).eq('id', user.id)
+      localStorage.removeItem('tiaktiak_online')
+    }
     localStorage.removeItem('tiaktiak_user')
-    setUser(null); setAuthScreen('roles'); setAuthMode('signup'); setMenuOpen(false); setScreen('accueil'); setIsOnline(false)
-    setFormName(''); setFormPhone(''); setAdminPass(''); setAuthError('')
+    setUser(null); setAuthScreen('roles'); setAuthMode('signup'); setMenuOpen(false)
+    setScreen('accueil'); setIsOnline(false); setFormName(''); setFormPhone('')
+    setAdminPass(''); setAuthError(''); setSignupStep(1)
+    setFormIdFront(''); setFormIdBack(''); setFormProfilePhoto(''); setFormAddress('')
   }
 
   const activerGPS = () => {
@@ -408,31 +532,31 @@ export default function TiakTiak() {
         localStorage.setItem('tiaktiak_gps_asked', '1'); setGpsAsked(true); setGpsLoading(false)
       },
       () => { localStorage.setItem('tiaktiak_gps_asked', '1'); setGpsAsked(true); setGpsLoading(false) },
-      { timeout: 10000 }
+      { timeout: 10000, enableHighAccuracy: true }
     )
   }
 
   const passerSansGPS = () => { localStorage.setItem('tiaktiak_gps_asked', '1'); setGpsAsked(true) }
 
   const loginClient = async () => {
-    if (!formPhone) { setAuthError('Entre ton numero de telephone'); return }
+    if (!formPhone) { setAuthError('Entre ton numero'); return }
     setAuthLoading(true); setAuthError('')
     try {
       const { data, error } = await supabase.from('users').select('id, name, phone, role').eq('phone', formPhone.trim()).eq('role', 'client').single()
       if (error || !data) setAuthError('Numero introuvable. Inscris-toi dabord.')
       else saveUser({ id: data.id, role: 'client', name: data.name, phone: data.phone })
-    } catch { setAuthError('Erreur reseau. Verifie ta connexion.') }
+    } catch { setAuthError('Erreur reseau.') }
     setAuthLoading(false)
   }
 
   const loginDriver = async () => {
-    if (!formPhone) { setAuthError('Entre ton numero de telephone'); return }
+    if (!formPhone) { setAuthError('Entre ton numero'); return }
     setAuthLoading(true); setAuthError('')
     try {
       const { data, error } = await supabase.from('users').select('id, name, phone, role').eq('phone', formPhone.trim()).eq('role', 'chauffeur').single()
       if (error || !data) setAuthError('Numero introuvable. Inscris-toi dabord.')
       else saveUser({ id: data.id, role: 'chauffeur', name: data.name, phone: data.phone })
-    } catch { setAuthError('Erreur reseau. Verifie ta connexion.') }
+    } catch { setAuthError('Erreur reseau.') }
     setAuthLoading(false)
   }
 
@@ -442,28 +566,47 @@ export default function TiakTiak() {
     try {
       const { data, error } = await supabase.from('users').insert({ name: formName.trim(), phone: formPhone.trim(), role: 'client' }).select('id').single()
       if (error) {
-        if (error.code === '23505') { setAuthError('Ce numero est deja utilise. Connecte-toi.'); setAuthMode('login') }
-        else setAuthError('Erreur de connexion. Reessaie.')
+        if (error.code === '23505') { setAuthError('Ce numero est deja utilise.'); setAuthMode('login') }
+        else setAuthError('Erreur de connexion.')
         setAuthLoading(false); return
       }
       saveUser({ id: data.id, role: 'client', name: formName.trim(), phone: formPhone.trim() })
-    } catch { setAuthError('Erreur reseau. Verifie ta connexion.') }
+    } catch { setAuthError('Erreur reseau.') }
     setAuthLoading(false)
   }
 
   const signupDriver = async () => {
-    if (!formName || !formPhone || !formMoto || !formColor) { setAuthError('Remplis tous les champs'); return }
-    setAuthLoading(true); setAuthError('')
-    try {
-      const { data, error } = await supabase.from('users').insert({ name: formName.trim(), phone: formPhone.trim(), role: 'chauffeur', moto_type: formMoto.trim(), moto_color: formColor.trim() }).select('id').single()
-      if (error) {
-        if (error.code === '23505') { setAuthError('Ce numero est deja utilise. Connecte-toi.'); setAuthMode('login') }
-        else setAuthError('Erreur de connexion. Reessaie.')
-        setAuthLoading(false); return
-      }
-      saveUser({ id: data.id, role: 'chauffeur', name: formName.trim(), phone: formPhone.trim() })
-    } catch { setAuthError('Erreur reseau. Verifie ta connexion.') }
-    setAuthLoading(false)
+    if (signupStep === 1) {
+      if (!formName || !formPhone || !formMoto || !formColor || !formAddress) { setAuthError('Remplis tous les champs'); return }
+      setSignupStep(2); setAuthError(''); return
+    }
+    if (signupStep === 2) {
+      if (!formIdFront || !formIdBack) { setAuthError('Les photos CNI sont obligatoires'); return }
+      setSignupStep(3); setAuthError(''); return
+    }
+    if (signupStep === 3) {
+      if (!formProfilePhoto) { setAuthError('La photo de profil est obligatoire'); return }
+      setAuthLoading(true); setAuthError('')
+      try {
+        const { data, error } = await supabase.from('users').insert({
+          name: formName.trim(), phone: formPhone.trim(), role: 'chauffeur',
+          moto_type: formMoto.trim(), moto_color: formColor.trim(), home_address: formAddress.trim()
+        }).select('id').single()
+        if (error) {
+          if (error.code === '23505') { setAuthError('Ce numero est deja utilise.'); setAuthMode('login') }
+          else setAuthError('Erreur de connexion.')
+          setAuthLoading(false); setSignupStep(1); return
+        }
+        const [frontUrl, backUrl, profileUrl] = await Promise.all([
+          uploadPhoto(formIdFront, `${data.id}/id_front.jpg`),
+          uploadPhoto(formIdBack, `${data.id}/id_back.jpg`),
+          uploadPhoto(formProfilePhoto, `${data.id}/profile.jpg`),
+        ])
+        await supabase.from('users').update({ id_card_front: frontUrl, id_card_back: backUrl, profile_photo: profileUrl }).eq('id', data.id)
+        saveUser({ id: data.id, role: 'chauffeur', name: formName.trim(), phone: formPhone.trim() })
+      } catch { setAuthError('Erreur upload photos.') }
+      setAuthLoading(false)
+    }
   }
 
   const loginAdmin = () => {
@@ -488,11 +631,10 @@ export default function TiakTiak() {
   const km = selected ? haversineDistance(position.lat, position.lng, selected.lat, selected.lng) : 0
   const price = selected ? calculatePrice(km, service as 'moto' | 'livraison') : 0
   const eta = selected ? calculateETA(km) : 0
-  const commission = calculateCommission(price, isPremium)
   const referralCode = user ? 'TIAK-' + (user.phone.replace(/[^0-9]/g, '').slice(-4) || '0000') : 'TIAK-0000'
 
   const shareReferral = () => {
-    const text = 'Rejoins TIAK TIAK avec mon code ' + referralCode + ' et profite de -50% sur ta premiere course ! https://tiak-tiak-zeta.vercel.app'
+    const text = 'Rejoins TIAK TIAK ! https://tiak-tiak-zeta.vercel.app'
     if (typeof navigator !== 'undefined' && (navigator as any).share) (navigator as any).share({ title: 'TIAK TIAK', text }).catch(() => {})
     else if (typeof navigator !== 'undefined' && navigator.clipboard) navigator.clipboard.writeText(text).then(() => alert('Lien copie !')).catch(() => {})
   }
@@ -505,12 +647,13 @@ export default function TiakTiak() {
         client_id: user.id || null, service_type: service,
         from_lat: position.lat, from_lng: position.lng, from_address: position.address,
         to_lat: selected.lat, to_lng: selected.lng, to_address: selected.name,
-        distance_km: Math.round(km * 100) / 100, price, commission: calculateCommission(price, false),
+        distance_km: Math.round(km * 100) / 100, price,
+        commission: calculateCommission(price, false),
         payment_method: payment, status: 'pending',
       }).select('id').single()
       if (error) alert('Erreur: ' + JSON.stringify(error))
       else { setCurrentRideId(rideData?.id || null); setScreen('attente') }
-    } catch { alert('Erreur reseau. Verifie ta connexion.') }
+    } catch { alert('Erreur reseau.') }
     setCommandLoading(false)
   }
 
@@ -518,7 +661,8 @@ export default function TiakTiak() {
     if (!cancelReason) return
     setCancelLoading(true)
     if (currentRideId) await supabase.from('rides').update({ status: 'cancelled', cancel_reason: cancelReason }).eq('id', currentRideId)
-    setScreen('accueil'); setSelected(null); setCurrentRideId(null); setCancelReason(''); setCancelLoading(false)
+    setScreen('accueil'); setSelected(null); setCurrentRideId(null); setCancelReason('')
+    setCurrentClientRide(null); setDriverArrived(false); setCancelLoading(false)
   }
 
   const toggleOnline = async () => {
@@ -526,7 +670,9 @@ export default function TiakTiak() {
     setOnlineLoading(true)
     const newStatus = !isOnline
     await supabase.from('users').update({ is_online: newStatus }).eq('id', user.id)
-    setIsOnline(newStatus); setOnlineLoading(false)
+    setIsOnline(newStatus)
+    localStorage.setItem('tiaktiak_online', String(newStatus))
+    setOnlineLoading(false)
   }
 
   const accepterCourse = async () => {
@@ -536,12 +682,28 @@ export default function TiakTiak() {
     const { data, error } = await supabase.from('rides')
       .update({ status: 'accepted', driver_id: user.id, accepted_at: new Date().toISOString(), commission: rideCommission })
       .eq('id', incomingRide.id).eq('status', 'pending').select().single()
-    if (error || !data) { alert('Course déjà prise par un autre chauffeur ! 🏍️'); setIncomingRide(null) }
-    else { setCurrentDriverRide(data as Ride); setIncomingRide(null); setScreen('driver_course') }
+    if (error || !data) { alert('Course déjà prise !'); setIncomingRide(null) }
+    else {
+      setCurrentDriverRide(data as Ride)
+      setIncomingRide(null)
+      setDriverPhase('to_client')
+      setClientArrived(false)
+      setRideCancelled(false)
+      setScreen('driver_to_client')
+      speak(`Course acceptée. Direction ${data.from_address}`)
+    }
     setAcceptLoading(false)
   }
 
   const refuserCourse = () => setIncomingRide(null)
+
+  const demarrerCourse = async () => {
+    if (!currentDriverRide?.id) return
+    await supabase.from('rides').update({ status: 'in_progress', started_at: new Date().toISOString() } as any).eq('id', currentDriverRide.id)
+    setDriverPhase('with_client')
+    setScreen('driver_course')
+    speak(`Course démarrée. Direction ${currentDriverRide.to_address}`)
+  }
 
   const terminerCourse = async () => {
     if (!currentDriverRide?.id) return
@@ -551,7 +713,8 @@ export default function TiakTiak() {
       if (driverData) await supabase.from('users').update({ total_rides: (driverData.total_rides || 0) + 1 }).eq('id', user.id)
     }
     await loadDriverStats()
-    setCurrentDriverRide(null); setScreen('chauffeur_accueil'); setDriverTab('accueil')
+    setCurrentDriverRide(null); setDriverPhase('to_client'); setClientArrived(false)
+    setScreen('chauffeur_accueil'); setDriverTab('accueil')
   }
 
   const soumettreEvaluation = async () => {
@@ -566,7 +729,8 @@ export default function TiakTiak() {
         await supabase.from('users').update({ rating: Math.round(newRating * 10) / 10 }).eq('id', currentClientRide.driver_id)
       }
     }
-    setScreen('accueil'); setCurrentClientRide(null); setCurrentRideId(null); setClientRating(0); setClientComment(''); setClientReport(''); setEvalLoading(false)
+    setScreen('accueil'); setCurrentClientRide(null); setCurrentRideId(null)
+    setClientRating(0); setClientComment(''); setClientReport(''); setEvalLoading(false); setDriverArrived(false)
   }
 
   const loadRides = async () => {
@@ -578,13 +742,8 @@ export default function TiakTiak() {
     setRidesLoading(false)
   }
 
-  const ouvrirWavePremium = () => {
-    window.open(WAVE_PAYMENT_LINK + '?amount=5000', '_blank')
-  }
-
-  const ouvrirWaveCommission = () => {
-    window.open(WAVE_PAYMENT_LINK + '?amount=' + driverStats.todayCommission, '_blank')
-  }
+  const ouvrirWavePremium = () => window.open(WAVE_PAYMENT_LINK, '_blank')
+  const ouvrirWaveCommission = () => window.open(WAVE_PAYMENT_LINK, '_blank')
 
   const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
@@ -592,6 +751,7 @@ export default function TiakTiak() {
     switch (status) {
       case 'pending': return { text: 'En attente', color: '#F59E0B' }
       case 'accepted': return { text: 'Acceptee', color: '#1DB954' }
+      case 'in_progress': return { text: 'En cours', color: '#3B82F6' }
       case 'completed': return { text: 'Terminee', color: '#0F5138' }
       case 'cancelled': return { text: 'Annulee', color: '#EF4444' }
       default: return { text: status, color: '#9CA3AF' }
@@ -614,6 +774,7 @@ export default function TiakTiak() {
 
   if (!loaded) return <div className="fixed inset-0 flex items-center justify-center" style={{ background: '#0F5138' }}><span className="text-3xl font-black italic text-white">TIAK TIAK</span></div>
 
+  // ===== GPS =====
   if (!gpsAsked) {
     return (
       <div className="fixed inset-0 flex flex-col bg-white">
@@ -627,19 +788,12 @@ export default function TiakTiak() {
           <div className="text-center">
             <h1 className="text-4xl font-black tracking-widest mb-2" style={{ color: '#0F5138' }}>TIAK TIAK</h1>
             <h2 className="text-xl font-bold text-gray-800 mb-2">Activez votre localisation</h2>
-            <p className="text-gray-400 text-sm leading-relaxed">Pour trouver les chauffeurs pres de vous et calculer le prix de votre course.</p>
-          </div>
-          <div className="w-full rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}><MapPin size={16} color="white" /></div>
-              <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>Pourquoi cette autorisation ?</p>
-            </div>
-            <p className="text-xs text-gray-500 ml-11">Votre position sert uniquement a calculer la distance et le prix.</p>
+            <p className="text-gray-400 text-sm leading-relaxed">Pour voir les chauffeurs autour de vous.</p>
           </div>
         </div>
         <div className="px-8 pb-10 space-y-3">
           <button onClick={activerGPS} disabled={gpsLoading} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: gpsLoading ? '#7aaa94' : '#0F5138' }}>
-            <Navigation size={20} color="white" />{gpsLoading ? 'Localisation en cours...' : 'Activer ma localisation'}
+            <Navigation size={20} color="white" />{gpsLoading ? 'Localisation...' : 'Activer ma localisation'}
           </button>
           <button onClick={passerSansGPS} className="w-full text-center text-gray-400 text-sm py-2">Continuer sans localisation</button>
         </div>
@@ -647,6 +801,7 @@ export default function TiakTiak() {
     )
   }
 
+  // ===== AUTH =====
   if (!user) {
     if (authScreen === 'roles') {
       return (
@@ -667,7 +822,7 @@ export default function TiakTiak() {
             <button onClick={() => { setAuthScreen('client'); setAuthMode('signup'); setAuthError(''); setFormName(''); setFormPhone('') }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#0F5138' }}>
               <User size={20} /> Je suis un Client
             </button>
-            <button onClick={() => { setAuthScreen('chauffeur'); setAuthMode('signup'); setAuthError(''); setFormName(''); setFormPhone(''); setFormMoto(''); setFormColor('') }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#111111' }}>
+            <button onClick={() => { setAuthScreen('chauffeur'); setAuthMode('signup'); setAuthError(''); setFormName(''); setFormPhone(''); setFormMoto(''); setFormColor(''); setSignupStep(1) }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#111111' }}>
               <Zap size={20} color="#1DB954" /> Je suis un Chauffeur
             </button>
             <button onClick={() => { setAuthScreen('admin'); setAuthError('') }} className="w-full text-center text-gray-400 text-sm pt-2">Acces administrateur</button>
@@ -692,8 +847,7 @@ export default function TiakTiak() {
           <div className="flex-1 p-6 space-y-4">
             <div className="text-center mb-2"><span className="text-5xl">🧑</span></div>
             {authMode === 'signup' && <div><label className="text-sm font-semibold text-gray-600">Nom complet</label><input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Omar Ngalla" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>}
-            <div><label className="text-sm font-semibold text-gray-600">Numero de telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 097 01 00" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
-            {authMode === 'login' && <p className="text-xs text-gray-400 text-center">Entre le numero avec lequel tu t&apos;es inscrit</p>}
+            <div><label className="text-sm font-semibold text-gray-600">Telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 097 01 00" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
             {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
           </div>
           <div className="p-4 border-t border-gray-100">
@@ -709,46 +863,120 @@ export default function TiakTiak() {
       return (
         <div className="fixed inset-0 flex flex-col bg-white">
           <header className="px-4 py-4 flex items-center gap-3 border-b border-gray-100">
-            <button onClick={() => setAuthScreen('roles')}><ArrowLeft size={24} color="#0F5138" /></button>
-            <span className="font-bold text-black">{authMode === 'signup' ? 'Inscription Chauffeur' : 'Connexion Chauffeur'}</span>
-          </header>
-          <div className="px-6 pt-5">
-            <div className="flex bg-gray-100 rounded-2xl p-1">
-              <button onClick={() => { setAuthMode('signup'); setAuthError('') }} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{ background: authMode === 'signup' ? '#111111' : 'transparent', color: authMode === 'signup' ? 'white' : '#9CA3AF' }}>S&apos;inscrire</button>
-              <button onClick={() => { setAuthMode('login'); setAuthError('') }} className="flex-1 py-2.5 rounded-xl font-bold text-sm" style={{ background: authMode === 'login' ? '#111111' : 'transparent', color: authMode === 'login' ? 'white' : '#9CA3AF' }}>Se connecter</button>
+            <button onClick={() => { if (signupStep > 1 && authMode === 'signup') setSignupStep(signupStep - 1); else setAuthScreen('roles') }}><ArrowLeft size={24} color="#0F5138" /></button>
+            <div className="flex-1">
+              <span className="font-bold text-black">{authMode === 'signup' ? `Inscription (${signupStep}/3)` : 'Connexion Chauffeur'}</span>
+              {authMode === 'signup' && (
+                <div className="flex gap-1 mt-1">
+                  {[1, 2, 3].map(s => <div key={s} className="h-1 flex-1 rounded-full" style={{ background: s <= signupStep ? '#0F5138' : '#E5E7EB' }} />)}
+                </div>
+              )}
             </div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="text-center mb-2"><span className="text-5xl">🛵</span></div>
-            {authMode === 'login' ? (
-              <>
-                <div><label className="text-sm font-semibold text-gray-600">Numero de telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
-                <p className="text-xs text-gray-400 text-center">Entre le numero avec lequel tu t&apos;es inscrit</p>
-              </>
-            ) : (
-              <>
+          </header>
+
+          {authMode === 'login' ? (
+            <>
+              <div className="flex-1 p-6 space-y-4">
+                <div className="text-center mb-2"><span className="text-5xl">🛵</span></div>
+                <div><label className="text-sm font-semibold text-gray-600">Telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
+                {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
+                <button onClick={() => { setAuthMode('signup'); setSignupStep(1); setAuthError('') }} className="w-full text-center text-sm" style={{ color: '#0F5138' }}>Pas encore inscrit ? S&apos;inscrire</button>
+              </div>
+              <div className="p-4 border-t border-gray-100">
+                <button onClick={loginDriver} disabled={authLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#111111' }}>
+                  {authLoading ? 'Chargement...' : 'Se connecter'}
+                </button>
+              </div>
+            </>
+          ) : signupStep === 1 ? (
+            <>
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <p className="font-bold text-sm text-gray-500">Informations personnelles</p>
                 <div><label className="text-sm font-semibold text-gray-600">Nom complet</label><input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Moussa Diallo" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
-                <div><label className="text-sm font-semibold text-gray-600">Numero de telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
+                <div><label className="text-sm font-semibold text-gray-600">Telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
+                <div><label className="text-sm font-semibold text-gray-600">Adresse de domicile</label><input value={formAddress} onChange={e => setFormAddress(e.target.value)} placeholder="Ex: Pikine, Dakar" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
                 <div><label className="text-sm font-semibold text-gray-600">Type de moto</label><input value={formMoto} onChange={e => setFormMoto(e.target.value)} placeholder="Ex: Jakarta 125cc" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
                 <div><label className="text-sm font-semibold text-gray-600">Couleur de la moto</label><input value={formColor} onChange={e => setFormColor(e.target.value)} placeholder="Ex: Rouge" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
                 <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
-                  <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>📋 Regles de commission</p>
-                  <p className="text-xs text-gray-600 mb-1">• Course &lt; 2000 FCFA → 100 FCFA</p>
-                  <p className="text-xs text-gray-600 mb-1">• Course 2000-4999 FCFA → 200 FCFA</p>
-                  <p className="text-xs text-gray-600 mb-1">• Course ≥ 5000 FCFA → 400 FCFA</p>
-                  <p className="text-xs text-gray-600 mb-1">• Premium → 100 FCFA fixe toujours</p>
-                  <p className="text-xs text-gray-600 mb-1">• Paiement obligatoire avant 23h59</p>
-                  <p className="text-xs text-gray-600">• Via Wave ou Orange Money au 77 097 01 00</p>
+                  <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>📋 Barème commission</p>
+                  <p className="text-xs text-gray-600">Course &lt; 2000 FCFA → 100 FCFA</p>
+                  <p className="text-xs text-gray-600">Course 2000-4999 FCFA → 200 FCFA</p>
+                  <p className="text-xs text-gray-600">Course ≥ 5000 FCFA → 400 FCFA</p>
+                  <p className="text-xs text-gray-600">Premium → 100 FCFA fixe</p>
                 </div>
-              </>
-            )}
-            {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
-          </div>
-          <div className="p-4 border-t border-gray-100">
-            <button onClick={authMode === 'signup' ? signupDriver : loginDriver} disabled={authLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: authLoading ? '#7aaa94' : '#111111' }}>
-              {authLoading ? 'Chargement...' : authMode === 'signup' ? "J'accepte et je rejoins TIAK TIAK" : 'Se connecter'}
-            </button>
-          </div>
+                {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
+                <button onClick={() => { setAuthMode('login'); setAuthError('') }} className="w-full text-center text-sm" style={{ color: '#0F5138' }}>Deja inscrit ? Se connecter</button>
+              </div>
+              <div className="p-4 border-t border-gray-100">
+                <button onClick={signupDriver} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#111111' }}>Suivant →</button>
+              </div>
+            </>
+          ) : signupStep === 2 ? (
+            <>
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <p className="font-bold text-sm text-gray-500">Photos de la pièce d&apos;identité</p>
+                <p className="text-xs text-gray-400">Visible uniquement par l&apos;administrateur TIAK TIAK</p>
+                <div>
+                  <p className="text-sm font-semibold text-gray-600 mb-2">CNI Recto ✱</p>
+                  {formIdFront ? (
+                    <div className="relative">
+                      <img src={formIdFront} alt="CNI recto" className="w-full h-40 object-cover rounded-2xl" />
+                      <button onClick={() => setFormIdFront('')} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button>
+                    </div>
+                  ) : (
+                    <button onClick={() => capturePhoto(setFormIdFront)} className="w-full h-36 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2 bg-gray-50">
+                      <Camera size={28} color="#9CA3AF" /><span className="text-sm text-gray-400">Prendre une photo</span>
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-600 mb-2">CNI Verso ✱</p>
+                  {formIdBack ? (
+                    <div className="relative">
+                      <img src={formIdBack} alt="CNI verso" className="w-full h-40 object-cover rounded-2xl" />
+                      <button onClick={() => setFormIdBack('')} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button>
+                    </div>
+                  ) : (
+                    <button onClick={() => capturePhoto(setFormIdBack)} className="w-full h-36 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2 bg-gray-50">
+                      <Camera size={28} color="#9CA3AF" /><span className="text-sm text-gray-400">Prendre une photo</span>
+                    </button>
+                  )}
+                </div>
+                {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
+              </div>
+              <div className="p-4 border-t border-gray-100">
+                <button onClick={signupDriver} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#111111' }}>Suivant →</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <p className="font-bold text-sm text-gray-500">Photo de profil</p>
+                <p className="text-xs text-gray-400">Visible par les clients lors de leurs courses</p>
+                {formProfilePhoto ? (
+                  <div className="relative flex justify-center">
+                    <img src={formProfilePhoto} alt="Profil" className="w-40 h-40 object-cover rounded-full border-4" style={{ borderColor: '#0F5138' }} />
+                    <button onClick={() => setFormProfilePhoto('')} className="absolute top-0 right-12 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <button onClick={() => capturePhoto(setFormProfilePhoto)} className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center gap-3 bg-gray-50">
+                      <Camera size={24} color="#9CA3AF" /><span className="text-sm text-gray-500 font-semibold">Prendre une photo</span>
+                    </button>
+                    <button onClick={() => capturePhoto(setFormProfilePhoto, true)} className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center gap-3 bg-gray-50">
+                      <span className="text-lg">🖼️</span><span className="text-sm text-gray-500 font-semibold">Choisir depuis la galerie</span>
+                    </button>
+                  </div>
+                )}
+                {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
+              </div>
+              <div className="p-4 border-t border-gray-100">
+                <button onClick={signupDriver} disabled={authLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: authLoading ? '#7aaa94' : '#0F5138' }}>
+                  {authLoading ? 'Inscription...' : "J'accepte et je rejoins TIAK TIAK"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )
     }
@@ -762,11 +990,11 @@ export default function TiakTiak() {
           </header>
           <div className="flex-1 p-6 space-y-4">
             <div className="text-center mb-4"><span className="text-5xl">👑</span></div>
-            <div><label className="text-sm font-semibold text-gray-600">Mot de passe admin</label><input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="Entre ton mot de passe" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
+            <div><label className="text-sm font-semibold text-gray-600">Mot de passe</label><input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="Mot de passe admin" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
             {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
           </div>
           <div className="p-4 border-t border-gray-100">
-            <button onClick={loginAdmin} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>Acceder au dashboard</button>
+            <button onClick={loginAdmin} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>Acceder</button>
           </div>
         </div>
       )
@@ -775,6 +1003,74 @@ export default function TiakTiak() {
 
   // ===== ADMIN =====
   if (user && user.role === 'admin') {
+    if (selectedDriver) {
+      return (
+        <div className="fixed inset-0 flex flex-col bg-gray-100">
+          <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+            <button onClick={() => setSelectedDriver(null)}><ArrowLeft size={24} color="#0F5138" /></button>
+            <span className="font-bold text-black">Profil Chauffeur</span>
+          </header>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="bg-white rounded-2xl p-6 shadow-sm flex flex-col items-center gap-3">
+              {selectedDriver.profile_photo ? (
+                <img src={selectedDriver.profile_photo} alt="Profil" className="w-24 h-24 rounded-full object-cover border-4" style={{ borderColor: '#0F5138' }} />
+              ) : (
+                <div className="w-24 h-24 rounded-full flex items-center justify-center text-4xl" style={{ background: '#0F5138' }}>🛵</div>
+              )}
+              <div className="text-center">
+                <div className="flex items-center gap-2 justify-center">
+                  <p className="font-black text-xl">{selectedDriver.name}</p>
+                  {selectedDriver.is_premium && <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#1D6BF5' }}>✓ PREMIUM</span>}
+                </div>
+                <div className="flex items-center gap-1 justify-center mt-1">
+                  {[1,2,3,4,5].map(s => <Star key={s} size={14} color="#F59E0B" fill={s <= Math.round(selectedDriver.rating || 5) ? '#F59E0B' : 'none'} />)}
+                  <span className="text-sm text-gray-500 ml-1">{(selectedDriver.rating || 5).toFixed(1)} • {selectedDriver.total_rides || 0} courses</span>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+              <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Informations</p>
+              <div className="flex justify-between"><span className="text-sm text-gray-500">Telephone</span><span className="text-sm font-bold">{selectedDriver.phone}</span></div>
+              <div className="flex justify-between"><span className="text-sm text-gray-500">Domicile</span><span className="text-sm font-bold text-right flex-1 ml-4">{selectedDriver.home_address || 'Non renseigne'}</span></div>
+              <div className="flex justify-between"><span className="text-sm text-gray-500">Moto</span><span className="text-sm font-bold">{selectedDriver.moto_type} • {selectedDriver.moto_color}</span></div>
+              <div className="flex justify-between"><span className="text-sm text-gray-500">Inscrit le</span><span className="text-sm font-bold">{formatDate(selectedDriver.created_at)}</span></div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-500">Statut</span>
+                <span className="text-sm font-bold">{selectedDriver.is_suspended ? '🔴 Suspendu' : selectedDriver.is_validated ? '🟢 Valide' : '🟡 En attente'}</span>
+              </div>
+              {selectedDriver.is_premium && selectedDriver.premium_expires_at && (
+                <div className="flex justify-between"><span className="text-sm text-gray-500">Premium expire</span><span className="text-sm font-bold text-blue-500">{new Date(selectedDriver.premium_expires_at).toLocaleDateString('fr-FR')}</span></div>
+              )}
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+              <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Pièce d&apos;identité</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Recto</p>
+                  {selectedDriver.id_card_front ? <img src={selectedDriver.id_card_front} alt="CNI recto" className="w-full h-28 object-cover rounded-xl" /> : <div className="w-full h-28 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 text-xs">Non fourni</div>}
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Verso</p>
+                  {selectedDriver.id_card_back ? <img src={selectedDriver.id_card_back} alt="CNI verso" className="w-full h-28 object-cover rounded-xl" /> : <div className="w-full h-28 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 text-xs">Non fourni</div>}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {!selectedDriver.is_validated && !selectedDriver.is_suspended && <button onClick={() => { validerChauffeur(selectedDriver.id); setSelectedDriver({ ...selectedDriver, is_validated: true }) }} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#0F5138' }}><CheckCircle size={18} /> Valider</button>}
+              {selectedDriver.is_validated && !selectedDriver.is_suspended && <button onClick={() => { suspendreCharffeur(selectedDriver.id); setSelectedDriver({ ...selectedDriver, is_suspended: true }) }} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-yellow-500"><AlertTriangle size={18} /> Suspendre</button>}
+              {selectedDriver.is_suspended && <button onClick={() => { validerChauffeur(selectedDriver.id); setSelectedDriver({ ...selectedDriver, is_suspended: false, is_validated: true }) }} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#0F5138' }}><CheckCircle size={18} /> Reactiver</button>}
+              {!selectedDriver.is_premium ? (
+                <button onClick={() => { activerPremium(selectedDriver.id); const exp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); setSelectedDriver({ ...selectedDriver, is_premium: true, premium_expires_at: exp }) }} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#1D6BF5' }}><Award size={18} /> Activer Premium</button>
+              ) : (
+                <button onClick={() => { desactiverPremium(selectedDriver.id); setSelectedDriver({ ...selectedDriver, is_premium: false, premium_expires_at: null }) }} className="w-full py-3 rounded-2xl font-bold bg-blue-50 text-blue-500 flex items-center justify-center gap-2"><X size={18} /> Retirer Premium</button>
+              )}
+              <button onClick={() => { exclureChauffeur(selectedDriver.id); setSelectedDriver(null) }} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><Ban size={18} /> Exclure definitivement</button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
         <header className="bg-white px-4 py-3 flex items-center justify-between border-b border-gray-100">
@@ -782,120 +1078,76 @@ export default function TiakTiak() {
           <button onClick={logout} className="flex items-center gap-1 text-red-500 text-sm font-semibold"><LogOut size={18} /> Quitter</button>
         </header>
         <div className="bg-white px-3 pb-3 flex gap-1.5 border-b border-gray-100">
-          {[
-            { key: 'stats', label: 'Stats', icon: TrendingUp },
-            { key: 'chauffeurs', label: 'Chauffeurs', icon: Users },
-            { key: 'courses', label: 'Courses', icon: List },
-            { key: 'evaluations', label: 'Avis', icon: Star },
-          ].map(tab => (
+          {[{ key: 'stats', label: 'Stats', icon: TrendingUp }, { key: 'chauffeurs', label: 'Chauffeurs', icon: Users }, { key: 'courses', label: 'Courses', icon: List }, { key: 'evaluations', label: 'Avis', icon: Star }].map(tab => (
             <button key={tab.key} onClick={() => { setAdminTab(tab.key as any); loadAdminData() }} className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl font-bold text-xs" style={{ background: adminTab === tab.key ? '#0F5138' : '#F5F5F5', color: adminTab === tab.key ? 'white' : '#9CA3AF' }}>
               <tab.icon size={13} /> {tab.label}
             </button>
           ))}
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-
           {adminTab === 'stats' && (
             <>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="font-bold text-gray-700">Aujourd&apos;hui</h2>
-                <button onClick={loadAdminData} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: '#E8F5E9', color: '#0F5138' }}>{adminLoading ? 'Chargement...' : 'Actualiser'}</button>
+                <button onClick={loadAdminData} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: '#E8F5E9', color: '#0F5138' }}>{adminLoading ? '...' : 'Actualiser'}</button>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{adminStats.courses}</p><p className="text-xs text-gray-400">Courses du jour</p></div>
-                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{adminStats.chauffeurs}</p><p className="text-xs text-gray-400">Chauffeurs en ligne</p></div>
-                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{adminStats.clients}</p><p className="text-xs text-gray-400">Clients inscrits</p></div>
-                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{formatPrice(adminStats.commissions)}</p><p className="text-xs text-gray-400">Commissions du jour</p></div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{adminStats.courses}</p><p className="text-xs text-gray-400">Courses</p></div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{adminStats.chauffeurs}</p><p className="text-xs text-gray-400">En ligne</p></div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{adminStats.clients}</p><p className="text-xs text-gray-400">Clients</p></div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(adminStats.commissions)}</p><p className="text-xs text-gray-400">Commissions</p></div>
               </div>
-              <div className="bg-white rounded-2xl p-4 shadow-sm">
-                <p className="font-bold text-sm mb-1">Numero de paiement</p>
-                <p className="text-sm text-gray-500">Wave / Orange : 77 097 01 00</p>
-                <p className="text-xs text-gray-400 mt-1">Commissions + Abonnements Premium</p>
-              </div>
-              <div className="bg-white rounded-2xl p-4 shadow-sm">
-                <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>Plan Premium — 5000 FCFA/mois</p>
-                <p className="text-xs text-gray-500">• Commission fixe 100 FCFA par course</p>
-                <p className="text-xs text-gray-500">• Badge bleu de certification ✓</p>
-                <p className="text-xs text-gray-500">• Statistiques avancees</p>
-                <p className="text-xs text-gray-500">• Support prioritaire</p>
-              </div>
+              <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="font-bold text-sm mb-1">Paiements</p><p className="text-sm text-gray-500">Wave / Orange : 77 097 01 00</p></div>
             </>
           )}
-
           {adminTab === 'chauffeurs' && (
             <>
               <div className="flex items-center justify-between mb-2">
-                <h2 className="font-bold text-gray-700">Tous les chauffeurs</h2>
+                <h2 className="font-bold text-gray-700">Chauffeurs ({adminDrivers.length})</h2>
                 <button onClick={loadAdminData} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: '#E8F5E9', color: '#0F5138' }}>Actualiser</button>
               </div>
-              {adminLoading ? <div className="text-center py-10 text-gray-400 text-sm">Chargement...</div> : adminDrivers.length === 0 ? <div className="bg-white rounded-2xl p-8 text-center text-gray-400 text-sm">Aucun chauffeur inscrit</div> : adminDrivers.map(driver => (
-                <div key={driver.id} className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+              {adminLoading ? <div className="text-center py-10 text-gray-400 text-sm">Chargement...</div> : adminDrivers.map(driver => (
+                <button key={driver.id} onClick={() => setSelectedDriver(driver)} className="w-full bg-white rounded-2xl p-4 shadow-sm text-left">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#0F5138' }}><span className="text-xl">🛵</span></div>
-                      {driver.is_premium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black" style={{ background: '#1D6BF5' }}>✓</div>}
+                      {driver.profile_photo ? <img src={driver.profile_photo} alt="" className="w-12 h-12 rounded-full object-cover" /> : <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}><span className="text-xl">🛵</span></div>}
+                      {driver.is_premium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs" style={{ background: '#1D6BF5' }}>✓</div>}
                     </div>
                     <div className="flex-1">
-                      <div className="flex items-center gap-1">
-                        <p className="font-bold text-sm">{driver.name}</p>
-                        {driver.is_premium && <span className="text-xs font-black px-1.5 py-0.5 rounded-full text-white" style={{ background: '#1D6BF5' }}>PREMIUM</span>}
-                      </div>
-                      <p className="text-xs text-gray-400">{driver.phone}</p>
-                      <p className="text-xs text-gray-400">{driver.moto_type} • {driver.moto_color}</p>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <Star size={10} color="#F59E0B" fill="#F59E0B" />
-                        <span className="text-xs text-gray-500">{driver.rating || 5.0} • {driver.total_rides || 0} courses</span>
-                      </div>
-                      {driver.is_premium && driver.premium_expires_at && (
-                        <p className="text-xs text-blue-500 mt-0.5">Expire : {new Date(driver.premium_expires_at).toLocaleDateString('fr-FR')}</p>
-                      )}
+                      <p className="font-bold text-sm">{driver.name}</p>
+                      <p className="text-xs text-gray-400">{driver.phone} • {driver.moto_type}</p>
+                      <div className="flex items-center gap-1 mt-0.5"><Star size={10} color="#F59E0B" fill="#F59E0B" /><span className="text-xs text-gray-500">{(driver.rating || 5).toFixed(1)} • {driver.total_rides || 0} courses</span></div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      {driver.is_suspended && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-500">Suspendu</span>}
-                      {!driver.is_suspended && driver.is_validated && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-600">Valide</span>}
-                      {!driver.is_suspended && !driver.is_validated && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-600">En attente</span>}
+                      {driver.is_suspended ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-500">Suspendu</span> : driver.is_validated ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-600">Valide</span> : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-600">En attente</span>}
                       {driver.is_online && <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9', color: '#1DB954' }}>En ligne</span>}
+                      <ChevronRight size={16} color="#D1D5DB" />
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {!driver.is_validated && !driver.is_suspended && <button onClick={() => validerChauffeur(driver.id)} className="flex-1 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1" style={{ background: '#E8F5E9', color: '#0F5138' }}><CheckCircle size={12} /> Valider</button>}
-                    {driver.is_validated && !driver.is_suspended && <button onClick={() => suspendreCharffeur(driver.id)} className="flex-1 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 bg-yellow-50 text-yellow-600"><AlertTriangle size={12} /> Suspendre</button>}
-                    {driver.is_suspended && <button onClick={() => validerChauffeur(driver.id)} className="flex-1 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1" style={{ background: '#E8F5E9', color: '#0F5138' }}><CheckCircle size={12} /> Reactiver</button>}
-                    {!driver.is_premium ? (
-                      <button onClick={() => activerPremium(driver.id)} className="flex-1 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 text-white" style={{ background: '#1D6BF5' }}><Award size={12} /> Premium</button>
-                    ) : (
-                      <button onClick={() => desactiverPremium(driver.id)} className="flex-1 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 bg-blue-50 text-blue-500"><X size={12} /> Retirer</button>
-                    )}
-                    <button onClick={() => exclureChauffeur(driver.id)} className="py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1 bg-red-50 text-red-500"><Ban size={12} /></button>
-                  </div>
-                </div>
+                </button>
               ))}
             </>
           )}
-
           {adminTab === 'courses' && (
             <>
               <div className="flex items-center justify-between mb-2">
-                <h2 className="font-bold text-gray-700">Toutes les courses</h2>
+                <h2 className="font-bold text-gray-700">Courses</h2>
                 <button onClick={loadAdminData} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: '#E8F5E9', color: '#0F5138' }}>Actualiser</button>
               </div>
-              {adminLoading ? <div className="text-center py-10 text-gray-400 text-sm">Chargement...</div> : adminRides.length === 0 ? <div className="bg-white rounded-2xl p-8 text-center text-gray-400 text-sm">Aucune course</div> : adminRides.map(ride => {
+              {adminRides.map(ride => {
                 const st = statusLabel(ride.status)
                 return (
                   <div key={ride.id} className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm">{ride.service_type === 'moto' ? '🏍️ Moto-taxi' : '📦 Livraison'}</span>
+                      <span className="font-bold text-sm">{ride.service_type === 'moto' ? '🏍️' : '📦'} {ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span>
                       <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: st.color }}>{st.text}</span>
                     </div>
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} /><span className="text-xs text-gray-500 truncate">{ride.from_address}</span></div>
-                      <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full flex-shrink-0 bg-red-400" /><span className="text-xs text-gray-500 truncate">{ride.to_address}</span></div>
+                      <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: '#1DB954' }} /><span className="text-xs text-gray-500 truncate">{ride.from_address}</span></div>
+                      <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-400" /><span className="text-xs text-gray-500 truncate">{ride.to_address}</span></div>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-gray-50">
-                      <div>
-                        <span className="text-xs text-gray-400">{formatDate(ride.created_at)}</span>
-                        <span className="text-xs text-gray-400 ml-2">Commission: {formatPrice(ride.commission || 0)}</span>
-                      </div>
+                      <span className="text-xs text-gray-400">{formatDate(ride.created_at)}</span>
                       <span className="font-black text-sm" style={{ color: '#0F5138' }}>{formatPrice(ride.price)}</span>
                     </div>
                   </div>
@@ -903,30 +1155,21 @@ export default function TiakTiak() {
               })}
             </>
           )}
-
           {adminTab === 'evaluations' && (
             <>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="font-bold text-gray-700">Avis clients</h2>
                 <button onClick={loadAdminData} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: '#E8F5E9', color: '#0F5138' }}>Actualiser</button>
               </div>
-              {adminLoading ? <div className="text-center py-10 text-gray-400 text-sm">Chargement...</div> : adminEvals.length === 0 ? <div className="bg-white rounded-2xl p-8 text-center text-gray-400 text-sm">Aucun avis</div> : adminEvals.map(eval_ => (
+              {adminEvals.map(eval_ => (
                 <div key={eval_.id} className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      {[1,2,3,4,5].map(s => <Star key={s} size={14} color="#F59E0B" fill={s <= (eval_.client_rating || 0) ? '#F59E0B' : 'none'} />)}
-                    </div>
+                    <div className="flex items-center gap-1">{[1,2,3,4,5].map(s => <Star key={s} size={14} color="#F59E0B" fill={s <= (eval_.client_rating || 0) ? '#F59E0B' : 'none'} />)}</div>
                     <span className="text-xs text-gray-400">{formatDate(eval_.created_at)}</span>
                   </div>
                   <p className="text-xs text-gray-500 truncate">{eval_.from_address} → {eval_.to_address}</p>
                   {eval_.client_comment && <p className="text-sm text-gray-700 italic">&quot;{eval_.client_comment}&quot;</p>}
-                  {eval_.client_report && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">
-                        {REPORT_OPTIONS.find(r => r.id === eval_.client_report)?.label || eval_.client_report}
-                      </span>
-                    </div>
-                  )}
+                  {eval_.client_report && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">{REPORT_OPTIONS.find(r => r.id === eval_.client_report)?.label}</span>}
                 </div>
               ))}
             </>
@@ -939,17 +1182,28 @@ export default function TiakTiak() {
   // ===== CHAUFFEUR =====
   if (user && user.role === 'chauffeur') {
 
+    // Notification annulation
+    if (rideCancelled) {
+      return (
+        <div className="fixed inset-0 flex flex-col items-center justify-center px-8 gap-6 bg-gray-100">
+          <div className="w-24 h-24 rounded-full flex items-center justify-center bg-red-100"><XCircle size={48} color="#EF4444" /></div>
+          <h2 className="text-2xl font-black text-gray-800 text-center">Course annulée !</h2>
+          <p className="text-sm text-gray-500 text-center">Le client a annulé la course. Tu peux continuer à recevoir des courses.</p>
+          <button onClick={() => { setRideCancelled(false); setDriverTab('accueil') }} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>Retour au dashboard</button>
+        </div>
+      )
+    }
+
     if (isSuspended) {
       return (
         <div className="fixed inset-0 flex flex-col bg-gray-100">
           <header className="px-4 py-4 flex items-center justify-between" style={{ background: '#0F5138' }}>
             <span className="text-xl font-black italic text-white">TIAK TIAK</span>
-            <button onClick={logout} className="flex items-center gap-1 text-green-200 text-sm font-semibold"><LogOut size={18} /> Quitter</button>
+            <button onClick={logout} className="flex items-center gap-1 text-green-200 text-sm"><LogOut size={18} /> Quitter</button>
           </header>
           <div className="flex-1 flex flex-col items-center justify-center p-8 gap-4">
             <Ban size={60} color="#EF4444" />
             <h2 className="text-xl font-black text-gray-800 text-center">Compte suspendu</h2>
-            <p className="text-sm text-gray-500 text-center">Ton compte a ete suspendu par l&apos;administrateur. Contacte le support.</p>
             <a href={SUPPORT_WHATSAPP} target="_blank" rel="noreferrer" className="w-full py-4 rounded-2xl font-bold text-white text-center" style={{ background: '#0F5138' }}>Contacter le support</a>
           </div>
         </div>
@@ -961,15 +1215,15 @@ export default function TiakTiak() {
         <div className="fixed inset-0 flex flex-col bg-gray-100">
           <header className="px-4 py-4 flex items-center justify-between" style={{ background: '#0F5138' }}>
             <span className="text-xl font-black italic text-white">TIAK TIAK</span>
-            <button onClick={logout} className="flex items-center gap-1 text-green-200 text-sm font-semibold"><LogOut size={18} /> Quitter</button>
+            <button onClick={logout} className="flex items-center gap-1 text-green-200 text-sm"><LogOut size={18} /> Quitter</button>
           </header>
           <div className="flex-1 flex flex-col items-center justify-center p-8 gap-4">
             <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: '#E8F5E9' }}><Clock size={40} color="#0F5138" /></div>
             <h2 className="text-xl font-black text-gray-800 text-center">Dossier en cours de validation</h2>
-            <p className="text-sm text-gray-500 text-center leading-relaxed">Bonjour {user.name} ! Ton dossier est en cours de verification. Tu recevras une confirmation sous 24h.</p>
+            <p className="text-sm text-gray-500 text-center">Bonjour {user.name} ! Verification sous 24h.</p>
             <div className="w-full rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
               <div className="flex items-center gap-2 mb-1"><Check size={14} color="#1DB954" /><span className="text-xs text-gray-600">Inscription soumise</span></div>
-              <div className="flex items-center gap-2 mb-1"><Clock size={14} color="#F59E0B" /><span className="text-xs text-gray-600">Verification du dossier en cours</span></div>
+              <div className="flex items-center gap-2 mb-1"><Clock size={14} color="#F59E0B" /><span className="text-xs text-gray-600">Verification en cours</span></div>
               <div className="flex items-center gap-2"><Clock size={14} color="#D1D5DB" /><span className="text-xs text-gray-400">Activation du compte</span></div>
             </div>
             <a href={SUPPORT_WHATSAPP} target="_blank" rel="noreferrer" className="text-sm font-bold" style={{ color: '#0F5138' }}>Contacter le support</a>
@@ -993,63 +1247,118 @@ export default function TiakTiak() {
               <p className="text-green-300 text-xs mt-1">Commission : {formatPrice(calculateCommission(incomingRide.price, isPremium))}</p>
             </div>
             <div className="w-full rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.1)' }}>
-              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} /><div><p className="text-green-200 text-xs">Prise en charge</p><p className="text-white text-sm font-semibold">{incomingRide.from_address}</p></div></div>
-              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full flex-shrink-0 bg-red-400" /><div><p className="text-green-200 text-xs">Destination</p><p className="text-white text-sm font-semibold">{incomingRide.to_address}</p></div></div>
+              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954' }} /><div><p className="text-green-200 text-xs">Client à prendre</p><p className="text-white text-sm font-semibold">{incomingRide.from_address}</p></div></div>
+              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-red-400" /><div><p className="text-green-200 text-xs">Destination</p><p className="text-white text-sm font-semibold">{incomingRide.to_address}</p></div></div>
             </div>
-            <div className="flex gap-2">{[0, 1, 2].map(i => <div key={i} className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: `${i * 0.2}s`, opacity: 0.7 }} />)}</div>
+            <div className="flex gap-2">{[0, 1, 2].map(i => <div key={i} className="w-2 h-2 rounded-full bg-white animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />)}</div>
           </div>
           <div className="p-6 space-y-3">
-            <button onClick={accepterCourse} disabled={acceptLoading} className="w-full py-4 rounded-2xl font-black text-lg" style={{ background: '#1DB954', color: '#0F5138' }}>{acceptLoading ? 'Acceptation...' : '✅ Accepter la course'}</button>
+            <button onClick={accepterCourse} disabled={acceptLoading} className="w-full py-4 rounded-2xl font-black text-lg" style={{ background: '#1DB954', color: '#0F5138' }}>{acceptLoading ? 'Acceptation...' : '✅ Accepter'}</button>
             <button onClick={refuserCourse} className="w-full py-4 rounded-2xl font-bold text-white border-2" style={{ borderColor: 'rgba(255,255,255,0.3)' }}>❌ Refuser</button>
           </div>
         </div>
       )
     }
 
-    if (screen === 'driver_course' && currentDriverRide) {
+    // Phase 1 : Aller vers le client
+    if (screen === 'driver_to_client' && currentDriverRide) {
       return (
         <div className="fixed inset-0 flex flex-col bg-gray-100">
-          <header className="px-4 py-4 flex items-center justify-between" style={{ background: '#0F5138' }}>
+          <header className="px-4 py-3 flex items-center justify-between" style={{ background: '#0F5138' }}>
             <div>
-              <span className="text-lg font-black italic text-white">Course en cours 🛵</span>
-              <p className="text-green-200 text-xs">{currentDriverRide.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</p>
+              <p className="text-white font-black">Vers le client 🛵</p>
+              <p className="text-green-200 text-xs truncate">{currentDriverRide.from_address}</p>
             </div>
             <span className="text-green-200 text-sm font-bold">{formatPrice(currentDriverRide.price)}</span>
           </header>
           <div className="flex-1 overflow-y-auto">
-            <div className="h-64 relative"><MapView fromLat={driverPosition.lat} fromLng={driverPosition.lng} toLat={currentDriverRide.to_lat} toLng={currentDriverRide.to_lng} /></div>
+            <div className="h-64 relative">
+              <MapView
+                fromLat={driverPosition.lat}
+                fromLng={driverPosition.lng}
+                toLat={currentDriverRide.from_lat}
+                toLng={currentDriverRide.from_lng}
+                mode="driver"
+              />
+            </div>
             <div className="p-4 space-y-3">
-              <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-                <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} /><div><p className="text-xs text-gray-400">Ta position</p><p className="text-sm font-semibold">En route...</p></div></div>
-                <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full flex-shrink-0 bg-red-500" /><div><p className="text-xs text-gray-400">Destination client</p><p className="text-sm font-semibold">{currentDriverRide.to_address}</p></div></div>
+              <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
+                <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954' }} /><div><p className="text-xs text-gray-400">Ta position</p><p className="text-sm font-semibold">En route...</p></div></div>
+                <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-blue-500" /><div><p className="text-xs text-gray-400">Client à prendre</p><p className="text-sm font-semibold">{currentDriverRide.from_address}</p></div></div>
               </div>
+              {clientArrived ? (
+                <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
+                  <p className="font-black text-base mb-1" style={{ color: '#0F5138' }}>✅ Tu es arrivé !</p>
+                  <p className="text-xs text-gray-600">Appuie sur Démarrer une fois que le client est monté</p>
+                </div>
+              ) : (
+                <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
+                  <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: '#1DB954' }} />
+                  <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>En route vers le client...</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-2xl p-3 shadow-sm text-center">
-                  <p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(currentDriverRide.price)}</p>
-                  <p className="text-xs text-gray-400">Prix course</p>
-                </div>
-                <div className="bg-white rounded-2xl p-3 shadow-sm text-center">
-                  <p className="text-xl font-black text-orange-500">{formatPrice(currentDriverRide.commission || 0)}</p>
-                  <p className="text-xs text-gray-400">Commission</p>
-                </div>
+                <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(currentDriverRide.price)}</p><p className="text-xs text-gray-400">Prix</p></div>
+                <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black text-orange-500">{formatPrice(currentDriverRide.commission || 0)}</p><p className="text-xs text-gray-400">Commission</p></div>
+              </div>
+              <a href="tel:+221770970100" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> SOS Support</a>
+            </div>
+          </div>
+          {clientArrived && (
+            <div className="p-4 bg-white border-t border-gray-100">
+              <button onClick={demarrerCourse} className="w-full py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2" style={{ background: '#1DB954', color: '#0F5138' }}>
+                <Play size={22} /> Démarrer la course
+              </button>
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    // Phase 2 : Course en cours
+    if (screen === 'driver_course' && currentDriverRide) {
+      return (
+        <div className="fixed inset-0 flex flex-col bg-gray-100">
+          <header className="px-4 py-3 flex items-center justify-between" style={{ background: '#0F5138' }}>
+            <div>
+              <p className="text-white font-black">Course en cours 🛵</p>
+              <p className="text-green-200 text-xs truncate">{currentDriverRide.to_address}</p>
+            </div>
+            <span className="text-green-200 text-sm font-bold">{formatPrice(currentDriverRide.price)}</span>
+          </header>
+          <div className="flex-1 overflow-y-auto">
+            <div className="h-64 relative">
+              <MapView
+                fromLat={driverPosition.lat}
+                fromLng={driverPosition.lng}
+                toLat={currentDriverRide.to_lat}
+                toLng={currentDriverRide.to_lng}
+                mode="driver"
+              />
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
+                <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954' }} /><div><p className="text-xs text-gray-400">Depart</p><p className="text-sm font-semibold">{currentDriverRide.from_address}</p></div></div>
+                <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-red-500" /><div><p className="text-xs text-gray-400">Destination</p><p className="text-sm font-semibold">{currentDriverRide.to_address}</p></div></div>
               </div>
               <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
-                <p className="text-xs font-semibold" style={{ color: '#0F5138' }}>✅ La course se termine automatiquement a 20m de la destination</p>
+                <p className="text-xs font-semibold" style={{ color: '#0F5138' }}>✅ Terminaison automatique à 10m de la destination</p>
               </div>
-              {/* Bouton SOS */}
-              <a href="tel:+221770970100" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500">
-                <AlertCircle size={18} /> SOS — Appeler le support
-              </a>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(currentDriverRide.price)}</p><p className="text-xs text-gray-400">Prix</p></div>
+                <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black text-orange-500">{formatPrice(currentDriverRide.commission || 0)}</p><p className="text-xs text-gray-400">Commission</p></div>
+              </div>
+              <a href="tel:+221770970100" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> SOS Support</a>
             </div>
           </div>
           <div className="p-4 bg-white border-t border-gray-100">
-            <button onClick={terminerCourse} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>Terminer la course manuellement</button>
+            <button onClick={terminerCourse} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>Terminer manuellement</button>
           </div>
         </div>
       )
     }
 
-    // ===== DASHBOARD CHAUFFEUR PRINCIPAL =====
+    // Dashboard chauffeur
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
         <header className="px-4 py-3 flex items-center justify-between" style={{ background: '#0F5138' }}>
@@ -1057,52 +1366,41 @@ export default function TiakTiak() {
             <span className="text-xl font-black italic text-white">TIAK TIAK</span>
             {isPremium && <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#1D6BF5' }}>✓ PREMIUM</span>}
           </div>
-          <button onClick={logout} className="flex items-center gap-1 text-green-200 text-sm font-semibold"><LogOut size={16} /> Quitter</button>
+          <button onClick={logout} className="flex items-center gap-1 text-green-200 text-sm"><LogOut size={16} /> Quitter</button>
         </header>
-
-        {/* Tabs chauffeur */}
-        <div className="bg-white flex gap-0 border-b border-gray-100">
-          {[
-            { key: 'accueil', label: 'Accueil', icon: Home },
-            { key: 'gains', label: 'Gains', icon: Wallet },
-            { key: 'historique', label: 'Historique', icon: List },
-          ].map(tab => (
+        <div className="bg-white flex border-b border-gray-100">
+          {[{ key: 'accueil', label: 'Accueil', icon: Home }, { key: 'gains', label: 'Gains', icon: Wallet }, { key: 'historique', label: 'Historique', icon: List }].map(tab => (
             <button key={tab.key} onClick={() => { setDriverTab(tab.key as any); if (tab.key === 'historique') loadDriverHistory(); if (tab.key === 'gains') loadDriverStats() }} className="flex-1 flex items-center justify-center gap-1 py-3 font-bold text-xs border-b-2" style={{ borderBottomColor: driverTab === tab.key ? '#0F5138' : 'transparent', color: driverTab === tab.key ? '#0F5138' : '#9CA3AF' }}>
               <tab.icon size={15} /> {tab.label}
             </button>
           ))}
         </div>
-
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
           {driverTab === 'accueil' && (
             <>
-              {/* Profil chauffeur */}
               <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}>
-                    <span className="text-2xl">🛵</span>
-                  </div>
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden" style={{ background: '#0F5138' }}><span className="text-2xl">🛵</span></div>
                   {isPremium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black" style={{ background: '#1D6BF5' }}>✓</div>}
                 </div>
                 <div className="flex-1">
                   <p className="font-black text-base">{user.name}</p>
                   <div className="flex items-center gap-1">
-                    {[1,2,3,4,5].map(s => <Star key={s} size={12} color="#F59E0B" fill={s <= Math.round(driverStats.rating) ? '#F59E0B' : 'none'} />)}
+                    {[1,2,3,4,5].map(s => <Star key={s} size={11} color="#F59E0B" fill={s <= Math.round(driverStats.rating) ? '#F59E0B' : 'none'} />)}
                     <span className="text-xs text-gray-500 ml-1">{driverStats.rating.toFixed(1)} • {driverStats.totalRides} courses</span>
                   </div>
                   {driverStats.totalRides < 10 && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-600">🌟 Nouveau chauffeur</span>}
                 </div>
               </div>
 
-              {/* Toggle En ligne */}
               <div className="bg-white rounded-2xl p-5 shadow-sm flex items-center justify-between">
                 <div>
                   <p className="font-bold text-base">{isOnline ? '🟢 En ligne' : '⚫ Hors ligne'}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{isOnline ? 'Tu recois les courses' : 'Active pour recevoir des courses'}</p>
+                  {isOnline && <p className="text-xs text-green-500 mt-0.5">Actif meme si tu fermes l&apos;app</p>}
                 </div>
-                <button onClick={toggleOnline} disabled={onlineLoading} className="w-16 h-8 rounded-full relative flex items-center transition-all" style={{ background: isOnline ? '#1DB954' : '#D1D5DB' }}>
-                  <div className="absolute w-6 h-6 rounded-full bg-white shadow transition-all" style={{ left: isOnline ? '34px' : '2px' }} />
+                <button onClick={toggleOnline} disabled={onlineLoading} className="w-16 h-8 rounded-full relative flex items-center" style={{ background: isOnline ? '#1DB954' : '#D1D5DB' }}>
+                  <div className="absolute w-6 h-6 rounded-full bg-white shadow" style={{ left: isOnline ? '34px' : '2px' }} />
                 </button>
               </div>
 
@@ -1118,50 +1416,39 @@ export default function TiakTiak() {
                 </div>
               )}
 
-              {/* Commission du jour */}
               {driverStats.todayCommission > 0 && (
                 <div className="rounded-2xl p-4 space-y-3" style={{ background: '#FFF3E0' }}>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-bold text-sm text-orange-700">Commission du jour</p>
                       <p className="text-2xl font-black text-orange-600">{formatPrice(driverStats.todayCommission)}</p>
-                      <p className="text-xs text-orange-500">A payer avant 23h59 ce soir</p>
+                      <p className="text-xs text-orange-500">A payer avant 23h59</p>
                     </div>
                     <AlertCircle size={24} color="#F59E0B" />
                   </div>
                   <button onClick={ouvrirWaveCommission} className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#1D6BF5' }}>
-                    <span>📱</span> Payer avec Wave
+                    📱 Payer avec Wave
                   </button>
                 </div>
               )}
 
-              {/* Plan Premium */}
               {!isPremium ? (
                 <div className="rounded-2xl p-4 space-y-3" style={{ background: 'linear-gradient(135deg, #1D6BF5, #0F5138)' }}>
-                  <div className="flex items-center gap-2">
-                    <Award size={20} color="white" />
-                    <p className="font-black text-white">Passe en Premium !</p>
-                  </div>
-                  <p className="text-blue-100 text-xs">Commission fixe 100 FCFA • Badge bleu ✓ • Stats avancees</p>
+                  <div className="flex items-center gap-2"><Award size={20} color="white" /><p className="font-black text-white">Passe en Premium !</p></div>
+                  <p className="text-blue-100 text-xs">Commission 100 FCFA fixe • Badge bleu ✓</p>
                   <div className="flex items-center justify-between">
                     <p className="text-white font-black text-lg">5 000 FCFA/mois</p>
-                    <button onClick={ouvrirWavePremium} className="px-4 py-2 rounded-xl font-bold text-sm bg-white" style={{ color: '#1D6BF5' }}>
-                      Souscrire Wave
-                    </button>
+                    <button onClick={ouvrirWavePremium} className="px-4 py-2 rounded-xl font-bold text-sm bg-white" style={{ color: '#1D6BF5' }}>Souscrire</button>
                   </div>
-                  <p className="text-blue-200 text-xs">Apres paiement, contacte l&apos;admin pour activation</p>
                 </div>
               ) : (
                 <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(135deg, #1D6BF5, #0a4db5)' }}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-white font-black">✓ PREMIUM ACTIF</span>
-                  </div>
-                  <p className="text-blue-100 text-xs">Commission fixe 100 FCFA par course</p>
+                  <p className="text-white font-black">✓ PREMIUM ACTIF</p>
+                  <p className="text-blue-100 text-xs">Commission fixe 100 FCFA</p>
                   {premiumExpiresAt && <p className="text-blue-200 text-xs mt-1">Expire le {new Date(premiumExpiresAt).toLocaleDateString('fr-FR')}</p>}
                 </div>
               )}
 
-              {/* SOS */}
               <a href="tel:+221770970100" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500">
                 <AlertCircle size={18} /> SOS — Urgence / Support
               </a>
@@ -1171,66 +1458,30 @@ export default function TiakTiak() {
           {driverTab === 'gains' && (
             <>
               <h2 className="font-bold text-gray-700">Mes gains</h2>
-
-              {/* Stats du jour */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-2xl p-4 shadow-sm">
-                  <p className="text-2xl font-black" style={{ color: '#0F5138' }}>{driverStats.todayRides}</p>
-                  <p className="text-xs text-gray-400">Courses aujourd&apos;hui</p>
-                </div>
-                <div className="bg-white rounded-2xl p-4 shadow-sm">
-                  <p className="text-2xl font-black" style={{ color: '#0F5138' }}>{formatPrice(driverStats.todayEarnings)}</p>
-                  <p className="text-xs text-gray-400">Gains aujourd&apos;hui</p>
-                </div>
-                <div className="bg-white rounded-2xl p-4 shadow-sm">
-                  <p className="text-2xl font-black text-orange-500">{formatPrice(driverStats.todayCommission)}</p>
-                  <p className="text-xs text-gray-400">Commission du jour</p>
-                </div>
-                <div className="bg-white rounded-2xl p-4 shadow-sm">
-                  <p className="text-2xl font-black" style={{ color: '#0F5138' }}>{formatPrice(driverStats.weekEarnings)}</p>
-                  <p className="text-xs text-gray-400">Gains cette semaine</p>
-                </div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{driverStats.todayRides}</p><p className="text-xs text-gray-400">Courses aujourd&apos;hui</p></div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(driverStats.todayEarnings)}</p><p className="text-xs text-gray-400">Gains aujourd&apos;hui</p></div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-xl font-black text-orange-500">{formatPrice(driverStats.todayCommission)}</p><p className="text-xs text-gray-400">Commission</p></div>
+                <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(driverStats.weekEarnings)}</p><p className="text-xs text-gray-400">Cette semaine</p></div>
               </div>
-
-              {/* Net du jour */}
               <div className="bg-white rounded-2xl p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-2">
                   <p className="font-bold text-sm">Gain net du jour</p>
                   <p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(driverStats.todayEarnings - driverStats.todayCommission)}</p>
                 </div>
                 <div className="flex justify-between text-xs text-gray-400">
-                  <span>Gains bruts : {formatPrice(driverStats.todayEarnings)}</span>
-                  <span>- Commission : {formatPrice(driverStats.todayCommission)}</span>
+                  <span>Brut : {formatPrice(driverStats.todayEarnings)}</span>
+                  <span>-{formatPrice(driverStats.todayCommission)}</span>
                 </div>
               </div>
-
-              {/* Règles commission */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm">
-                <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>Barème de commission</p>
-                {isPremium ? (
-                  <div className="rounded-xl p-3" style={{ background: '#EEF2FF' }}>
-                    <p className="text-sm font-bold text-blue-600">✓ Premium — 100 FCFA fixe par course</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex justify-between py-1 border-b border-gray-50"><span className="text-xs text-gray-500">Course &lt; 2000 FCFA</span><span className="text-xs font-bold">100 FCFA</span></div>
-                    <div className="flex justify-between py-1 border-b border-gray-50"><span className="text-xs text-gray-500">Course 2000-4999 FCFA</span><span className="text-xs font-bold">200 FCFA</span></div>
-                    <div className="flex justify-between py-1"><span className="text-xs text-gray-500">Course ≥ 5000 FCFA</span><span className="text-xs font-bold">400 FCFA</span></div>
-                  </>
-                )}
-              </div>
-
-              {/* Payer commission */}
               {driverStats.todayCommission > 0 && (
                 <button onClick={ouvrirWaveCommission} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#1D6BF5' }}>
-                  <span>📱</span> Payer {formatPrice(driverStats.todayCommission)} avec Wave
+                  📱 Payer {formatPrice(driverStats.todayCommission)} via Wave
                 </button>
               )}
-
-              {/* Premium upsell */}
               {!isPremium && (
                 <button onClick={ouvrirWavePremium} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg, #1D6BF5, #0F5138)' }}>
-                  <Award size={18} /> Passer Premium — 5000 FCFA/mois
+                  <Award size={18} /> Premium — 5000 FCFA/mois
                 </button>
               )}
             </>
@@ -1240,18 +1491,18 @@ export default function TiakTiak() {
             <>
               <h2 className="font-bold text-gray-700">Mes courses</h2>
               {driverHistory.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 text-center text-gray-400 text-sm">Aucune course pour le moment</div>
+                <div className="bg-white rounded-2xl p-8 text-center text-gray-400 text-sm">Aucune course</div>
               ) : driverHistory.map(ride => {
                 const st = statusLabel(ride.status)
                 return (
                   <div key={ride.id} className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm">{ride.service_type === 'moto' ? '🏍️ Moto-taxi' : '📦 Livraison'}</span>
+                      <span className="font-bold text-sm">{ride.service_type === 'moto' ? '🏍️' : '📦'} {ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span>
                       <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: st.color }}>{st.text}</span>
                     </div>
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} /><span className="text-xs text-gray-500 truncate">{ride.from_address}</span></div>
-                      <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full flex-shrink-0 bg-red-400" /><span className="text-xs text-gray-500 truncate">{ride.to_address}</span></div>
+                      <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: '#1DB954' }} /><span className="text-xs text-gray-500 truncate">{ride.from_address}</span></div>
+                      <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-400" /><span className="text-xs text-gray-500 truncate">{ride.to_address}</span></div>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-gray-50">
                       <div className="flex items-center gap-1 text-gray-400"><Clock size={12} /><span className="text-xs">{formatDate(ride.created_at)}</span></div>
@@ -1276,31 +1527,44 @@ export default function TiakTiak() {
     )
   }
 
-  // ===== CLIENT : SUIVI =====
+  // ===== CLIENT SUIVI =====
   if (screen === 'suivi' && currentClientRide) {
     const pmLabel = paymentLabel(payment)
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
         <div className="h-48 relative">
-          <MapView fromLat={driverLat || position.lat} fromLng={driverLng || position.lng} toLat={currentClientRide.to_lat} toLng={currentClientRide.to_lng} />
+          <MapView
+            fromLat={driverLat || position.lat}
+            fromLng={driverLng || position.lng}
+            toLat={position.lat}
+            toLng={position.lng}
+            driverLat={driverLat || undefined}
+            driverLng={driverLng || undefined}
+            showDriver={true}
+          />
         </div>
         <div className="flex-1 overflow-y-auto">
-          <div className="px-4 py-3 flex items-center justify-between" style={{ background: '#0F5138' }}>
+          <div className="px-4 py-3 flex items-center justify-between" style={{ background: driverArrived ? '#1DB954' : '#0F5138' }}>
             <div>
-              <p className="text-white font-black text-lg">Arrive dans ~{estimatedArrival} min</p>
-              <p className="text-green-200 text-sm">
-                {distanceToClient > 0 ? `A ${distanceToClient} km de toi • ` : ''}{driverMotoType} {driverMotoColor}
-              </p>
+              {driverArrived ? (
+                <p className="text-white font-black text-lg">🎉 Chauffeur arrivé !</p>
+              ) : (
+                <p className="text-white font-black text-lg">Arrive dans ~{estimatedArrival} min</p>
+              )}
+              <p className="text-green-200 text-sm">{distanceToClient > 0 ? `${distanceToClient} km • ` : ''}{driverMotoType} {driverMotoColor}</p>
             </div>
             <a href={`tel:+221${driverPhone.replace(/\s/g, '')}`} className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
               <Phone size={22} color="white" />
             </a>
           </div>
           <div className="p-4 space-y-3">
-            {/* Carte chauffeur */}
             <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-4">
               <div className="relative">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 text-3xl" style={{ background: '#0F5138' }}>🛵</div>
+                {driverProfilePhoto ? (
+                  <img src={driverProfilePhoto} alt="Chauffeur" className="w-16 h-16 rounded-full object-cover border-2" style={{ borderColor: '#0F5138' }} />
+                ) : (
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl" style={{ background: '#0F5138' }}>🛵</div>
+                )}
                 {driverIsPremium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black" style={{ background: '#1D6BF5' }}>✓</div>}
               </div>
               <div className="flex-1">
@@ -1311,7 +1575,7 @@ export default function TiakTiak() {
                 <div className="flex items-center gap-1 mt-0.5">
                   {[1,2,3,4,5].map(s => <Star key={s} size={13} color="#F59E0B" fill={s <= Math.round(driverRating) ? '#F59E0B' : 'none'} />)}
                   <span className="text-sm font-bold text-gray-600 ml-1">{driverRating.toFixed(1)}</span>
-                  <span className="text-xs text-gray-400 ml-1">({driverTotalRides} courses)</span>
+                  <span className="text-xs text-gray-400 ml-1">({driverTotalRides})</span>
                 </div>
                 <p className="text-xs text-gray-400 mt-0.5">{driverMotoType} • {driverMotoColor}</p>
               </div>
@@ -1320,37 +1584,34 @@ export default function TiakTiak() {
               </a>
             </div>
 
-            {/* Trajet */}
             <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#E8F5E9' }}>
-                  <span className="w-3 h-3 rounded-full" style={{ background: '#1DB954', display: 'block' }} />
-                </div>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: '#E8F5E9' }}><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954', display: 'block' }} /></div>
                 <div><p className="text-xs text-gray-400">Prise en charge</p><p className="text-sm font-semibold">{position.address}</p></div>
               </div>
               <div className="ml-4 border-l-2 border-dashed border-gray-200 h-4" />
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-red-50">
-                  <span className="w-3 h-3 rounded-full bg-red-500" style={{ display: 'block' }} />
-                </div>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-50"><span className="w-3 h-3 rounded-full bg-red-500" style={{ display: 'block' }} /></div>
                 <div><p className="text-xs text-gray-400">Destination</p><p className="text-sm font-semibold">{currentClientRide.to_address}</p></div>
               </div>
             </div>
 
-            {/* Prix + paiement */}
             <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{pmLabel.icon}</span>
-                <span className="text-sm font-bold text-gray-600">{pmLabel.name}</span>
-              </div>
+              <div className="flex items-center gap-2"><span className="text-lg">{pmLabel.icon}</span><span className="text-sm font-bold text-gray-600">{pmLabel.name}</span></div>
               <span className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(currentClientRide.price)}</span>
             </div>
 
-            {/* Statut */}
-            <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
-              <div className="w-3 h-3 rounded-full animate-pulse flex-shrink-0" style={{ background: '#1DB954' }} />
-              <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>Le chauffeur se dirige vers toi...</p>
-            </div>
+            {driverArrived ? (
+              <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
+                <span className="text-2xl">🎉</span>
+                <p className="text-sm font-bold" style={{ color: '#0F5138' }}>Ton chauffeur est là ! Monte dans la moto.</p>
+              </div>
+            ) : (
+              <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
+                <div className="w-3 h-3 rounded-full animate-pulse flex-shrink-0" style={{ background: '#1DB954' }} />
+                <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>Le chauffeur se dirige vers toi... 🛵</p>
+              </div>
+            )}
 
             <button onClick={() => setScreen('annulation_suivi')} className="w-full py-3 rounded-2xl font-bold text-red-500 border-2 border-red-100 bg-white text-sm">
               Annuler la course
@@ -1386,7 +1647,7 @@ export default function TiakTiak() {
           <button onClick={confirmerAnnulation} disabled={!cancelReason || cancelLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: !cancelReason || cancelLoading ? '#D1D5DB' : '#EF4444' }}>
             {cancelLoading ? 'Annulation...' : "Confirmer l'annulation"}
           </button>
-          <button onClick={() => setScreen('suivi')} className="w-full py-3 text-sm text-gray-400 font-medium">Retour — continuer a attendre</button>
+          <button onClick={() => setScreen('suivi')} className="w-full py-3 text-sm text-gray-400 font-medium">Retour</button>
         </div>
       </div>
     )
@@ -1400,11 +1661,11 @@ export default function TiakTiak() {
           <div className="text-center pt-4">
             <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: '#0F5138' }}><Check size={36} color="white" /></div>
             <h2 className="text-2xl font-black" style={{ color: '#0F5138' }}>Course terminee !</h2>
-            <p className="text-gray-400 text-sm mt-1">Note ton chauffeur pour aider la communaute</p>
+            <p className="text-gray-400 text-sm mt-1">Note ton chauffeur</p>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3">
             <div className="relative">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 text-2xl" style={{ background: '#0F5138' }}>🛵</div>
+              {driverProfilePhoto ? <img src={driverProfilePhoto} alt="Chauffeur" className="w-14 h-14 rounded-full object-cover" /> : <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl" style={{ background: '#0F5138' }}>🛵</div>}
               {driverIsPremium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs" style={{ background: '#1D6BF5' }}>✓</div>}
             </div>
             <div><p className="font-black text-base">{driverName}</p><p className="text-sm text-gray-400">{driverMotoType} • {driverMotoColor}</p></div>
@@ -1426,10 +1687,10 @@ export default function TiakTiak() {
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <p className="font-bold text-sm text-gray-700 mb-2">Commentaire (optionnel)</p>
-            <textarea value={clientComment} onChange={e => setClientComment(e.target.value)} placeholder="Decris ton experience avec ce chauffeur..." className="w-full px-3 py-2 bg-gray-50 rounded-xl outline-none text-sm resize-none" rows={3} />
+            <textarea value={clientComment} onChange={e => setClientComment(e.target.value)} placeholder="Decris ton experience..." className="w-full px-3 py-2 bg-gray-50 rounded-xl outline-none text-sm resize-none" rows={3} />
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <p className="font-bold text-sm text-gray-700 mb-3">Signalement rapide</p>
+            <p className="font-bold text-sm text-gray-700 mb-3">Signalement</p>
             <div className="space-y-2">
               {REPORT_OPTIONS.map(opt => (
                 <button key={opt.id} onClick={() => setClientReport(clientReport === opt.id ? '' : opt.id)} className="w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left" style={{ borderColor: clientReport === opt.id ? '#1DB954' : '#F3F4F6', background: clientReport === opt.id ? '#E8F5E9' : 'white' }}>
@@ -1443,9 +1704,9 @@ export default function TiakTiak() {
         </div>
         <div className="p-4 bg-white border-t border-gray-100 space-y-2">
           <button onClick={soumettreEvaluation} disabled={clientRating === 0 || evalLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: clientRating === 0 || evalLoading ? '#D1D5DB' : '#0F5138' }}>
-            {evalLoading ? 'Envoi...' : clientRating === 0 ? 'Selectionne une note' : 'Soumettre mon avis'}
+            {evalLoading ? 'Envoi...' : clientRating === 0 ? 'Selectionne une note' : 'Soumettre'}
           </button>
-          <button onClick={() => { setScreen('accueil'); setCurrentClientRide(null); setCurrentRideId(null); setClientRating(0); setClientComment(''); setClientReport('') }} className="w-full py-3 text-sm text-gray-400 font-medium">Passer</button>
+          <button onClick={() => { setScreen('accueil'); setCurrentClientRide(null); setCurrentRideId(null); setClientRating(0); setClientComment(''); setClientReport(''); setDriverArrived(false) }} className="w-full py-3 text-sm text-gray-400 font-medium">Passer</button>
         </div>
       </div>
     )
@@ -1464,11 +1725,11 @@ export default function TiakTiak() {
             <div className="absolute rounded-full" style={{ width: '120px', height: '120px', background: 'rgba(29,185,84,0.2)', animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite', animationDelay: '0.5s' }} />
             <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}><span className="text-5xl">🛵</span></div>
           </div>
-          <div className="text-center"><h2 className="text-2xl font-black text-white mb-2">Recherche en cours...</h2><p className="text-green-200 text-sm">Nous cherchons le chauffeur le plus proche de toi</p></div>
+          <div className="text-center"><h2 className="text-2xl font-black text-white mb-2">Recherche en cours...</h2><p className="text-green-200 text-sm">Nous cherchons le chauffeur le plus proche</p></div>
           {selected && (
             <div className="w-full rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.1)' }}>
-              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} /><div><p className="text-green-200 text-xs">Depart</p><p className="text-white text-sm font-semibold">{position.address}</p></div></div>
-              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full flex-shrink-0 bg-red-400" /><div><p className="text-green-200 text-xs">Destination</p><p className="text-white text-sm font-semibold">{selected.name}</p></div></div>
+              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954' }} /><div><p className="text-green-200 text-xs">Depart</p><p className="text-white text-sm font-semibold">{position.address}</p></div></div>
+              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-red-400" /><div><p className="text-green-200 text-xs">Destination</p><p className="text-white text-sm font-semibold">{selected.name}</p></div></div>
               <div className="border-t border-white border-opacity-20 pt-3 flex justify-between"><span className="text-green-200 text-sm">Prix</span><span className="text-white font-black text-lg">{formatPrice(price)}</span></div>
             </div>
           )}
@@ -1487,7 +1748,7 @@ export default function TiakTiak() {
           <span className="font-bold text-black">Motif d&apos;annulation</span>
         </header>
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="text-center mb-2"><XCircle size={48} color="#EF4444" className="mx-auto mb-3" /><p className="font-bold text-gray-800">Pourquoi veux-tu annuler ?</p><p className="text-sm text-gray-400 mt-1">Aide-nous a ameliorer notre service</p></div>
+          <div className="text-center mb-2"><XCircle size={48} color="#EF4444" className="mx-auto mb-3" /><p className="font-bold text-gray-800">Pourquoi veux-tu annuler ?</p></div>
           <div className="space-y-3">
             {CANCEL_REASONS.map((reason) => (
               <button key={reason} onClick={() => setCancelReason(reason)} className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left" style={{ borderColor: cancelReason === reason ? '#1DB954' : '#F3F4F6', background: cancelReason === reason ? '#E8F5E9' : 'white' }}>
@@ -1503,7 +1764,7 @@ export default function TiakTiak() {
           <button onClick={confirmerAnnulation} disabled={!cancelReason || cancelLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: !cancelReason || cancelLoading ? '#D1D5DB' : '#EF4444' }}>
             {cancelLoading ? 'Annulation...' : "Confirmer l'annulation"}
           </button>
-          <button onClick={() => setScreen('attente')} className="w-full py-3 text-sm text-gray-400 font-medium">Retour — continuer a attendre</button>
+          <button onClick={() => setScreen('attente')} className="w-full py-3 text-sm text-gray-400 font-medium">Retour</button>
         </div>
       </div>
     )
@@ -1548,11 +1809,28 @@ export default function TiakTiak() {
           <span className="font-bold text-black">Confirmer la course</span>
         </header>
         <div className="flex-1 overflow-y-auto">
-          <div className="h-52 relative"><MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} /></div>
+          <div className="h-52 relative">
+            <MapView
+              fromLat={position.lat}
+              fromLng={position.lng}
+              toLat={selected.lat}
+              toLng={selected.lng}
+              nearbyDrivers={nearbyDrivers}
+              showNearby={true}
+            />
+          </div>
           <div className="p-4 space-y-3">
+            {nearbyDrivers.length > 0 && (
+              <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#E8F5E9' }}>
+                <span className="text-lg">🛵</span>
+                <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>
+                  {nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} disponible{nearbyDrivers.length > 1 ? 's' : ''} • Plus proche : {nearbyDrivers[0].eta} min
+                </p>
+              </div>
+            )}
             <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-3"><span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} /><div><p className="text-xs text-gray-400">Depart</p><p className="text-sm font-semibold">{position.address}</p></div></div>
-              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full flex-shrink-0 bg-red-500" /><div><p className="text-xs text-gray-400">Destination</p><p className="text-sm font-semibold">{selected.name}</p></div></div>
+              <div className="flex items-center gap-3 mb-3"><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954' }} /><div><p className="text-xs text-gray-400">Depart</p><p className="text-sm font-semibold">{position.address}</p></div></div>
+              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-red-500" /><div><p className="text-xs text-gray-400">Destination</p><p className="text-sm font-semibold">{selected.name}</p></div></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setService('moto')} className="bg-white rounded-2xl p-3 flex items-center gap-2 shadow-sm" style={{ border: service === 'moto' ? '2px solid #1DB954' : '2px solid white' }}>
@@ -1567,8 +1845,6 @@ export default function TiakTiak() {
               <div className="flex justify-between mb-3"><span className="text-sm text-gray-500">Duree estimee</span><span className="text-sm font-bold">{formatETA(eta)}</span></div>
               <div className="border-t border-gray-100 pt-3 flex justify-between items-center"><span className="font-bold">Prix total</span><span className="text-2xl font-black" style={{ color: '#0F5138' }}>{formatPrice(price)}</span></div>
             </div>
-
-            {/* Choix paiement */}
             <div className="bg-white rounded-2xl p-4 shadow-sm">
               <p className="font-bold text-sm text-gray-700 mb-3">Mode de paiement</p>
               <div className="flex gap-2">
@@ -1584,7 +1860,7 @@ export default function TiakTiak() {
         </div>
         <div className="p-4 bg-white border-t border-gray-100">
           <button onClick={commanderCourse} disabled={commandLoading} className="w-full py-4 rounded-2xl font-bold text-white text-base" style={{ background: commandLoading ? '#7aaa94' : '#0F5138' }}>
-            {commandLoading ? 'Envoi en cours...' : `Commander — ${paymentLabel(payment).icon} ${paymentLabel(payment).name}`}
+            {commandLoading ? 'Envoi...' : `Commander — ${paymentLabel(payment).icon} ${paymentLabel(payment).name}`}
           </button>
         </div>
       </div>
@@ -1640,7 +1916,7 @@ export default function TiakTiak() {
               {payment === m.id && <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: '#1DB954' }}><Check size={14} color="white" /></div>}
             </button>
           ))}
-          <p className="text-xs text-gray-400 text-center px-4 mt-2">Le paiement se fait directement entre toi et le chauffeur.</p>
+          <p className="text-xs text-gray-400 text-center px-4">Le paiement se fait directement entre toi et le chauffeur.</p>
         </div>
       </div>
     )
@@ -1657,21 +1933,21 @@ export default function TiakTiak() {
           <div className="rounded-2xl p-6 text-center" style={{ background: '#0F5138' }}>
             <Gift size={40} color="white" className="mx-auto mb-3" />
             <p className="text-white font-black text-lg mb-1">Gagne des courses gratuites</p>
-            <p className="text-green-200 text-sm">Invite tes amis et vous gagnez tous les deux -50% sur une course</p>
+            <p className="text-green-200 text-sm">Invite tes amis et vous gagnez tous les deux -50%</p>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm text-center">
-            <p className="text-xs text-gray-400 mb-2">TON CODE DE PARRAINAGE</p>
+            <p className="text-xs text-gray-400 mb-2">TON CODE</p>
             <p className="text-2xl font-black tracking-widest" style={{ color: '#0F5138' }}>{referralCode}</p>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
             <p className="font-bold text-sm">Comment ca marche</p>
-            <div className="flex items-start gap-3"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#1DB954' }}>1</div><p className="text-sm text-gray-600">Partage ton code avec tes amis</p></div>
-            <div className="flex items-start gap-3"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#1DB954' }}>2</div><p className="text-sm text-gray-600">Ils s&apos;inscrivent avec ton code</p></div>
-            <div className="flex items-start gap-3"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#1DB954' }}>3</div><p className="text-sm text-gray-600">Vous gagnez tous les deux une reduction</p></div>
+            <div className="flex items-start gap-3"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: '#1DB954' }}>1</div><p className="text-sm text-gray-600">Partage ton code</p></div>
+            <div className="flex items-start gap-3"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: '#1DB954' }}>2</div><p className="text-sm text-gray-600">Ton ami s&apos;inscrit</p></div>
+            <div className="flex items-start gap-3"><div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: '#1DB954' }}>3</div><p className="text-sm text-gray-600">Vous gagnez tous les deux</p></div>
           </div>
         </div>
         <div className="p-4 bg-white border-t border-gray-100">
-          <button onClick={shareReferral} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#0F5138' }}><Share2 size={20} /> Partager mon code</button>
+          <button onClick={shareReferral} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#0F5138' }}><Share2 size={20} /> Partager</button>
         </div>
       </div>
     )
@@ -1679,12 +1955,11 @@ export default function TiakTiak() {
 
   if (screen === 'aide') {
     const faqs = [
-      { q: 'Comment commander une course ?', a: 'Choisis ta destination dans la barre de recherche, verifie le prix affiche, choisis ton mode de paiement, puis appuie sur Commander.' },
-      { q: 'Quels sont les moyens de paiement ?', a: 'Tu peux payer en especes, par Wave ou par Orange Money directement au chauffeur.' },
-      { q: 'Comment est calcule le prix ?', a: 'Moto-taxi : 500 + 200 FCFA par km. Livraison : 700 + 250 FCFA par km.' },
-      { q: 'Dans quelles villes fonctionne TIAK TIAK ?', a: 'TIAK TIAK couvre tout le Senegal : Dakar, Thies, Touba, Saint-Louis, Kaolack et partout ailleurs.' },
-      { q: 'Comment devenir chauffeur ?', a: "Deconnecte-toi, choisis Je suis un Chauffeur et remplis ton dossier. L'admin validera ton compte sous 24h." },
-      { q: "C'est quoi le badge bleu du chauffeur ?", a: "Le badge bleu ✓ signifie que le chauffeur est Premium — il a ete verifie et certifie serieux par TIAK TIAK." },
+      { q: 'Comment commander ?', a: 'Choisis ta destination, le prix, le paiement puis Commander.' },
+      { q: 'Moyens de paiement ?', a: 'Tu paies directement le chauffeur : especes, Wave ou Orange Money.' },
+      { q: 'Comment est calcule le prix ?', a: 'Moto : 500 + 200/km. Livraison : 700 + 250/km.' },
+      { q: 'Zones couvertes ?', a: 'Tout le Senegal : Dakar, Thies, Touba, Saint-Louis, Kaolack...' },
+      { q: "Badge bleu ?", a: "Le ✓ bleu = chauffeur Premium certifie par TIAK TIAK." },
     ]
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
@@ -1694,10 +1969,9 @@ export default function TiakTiak() {
         </header>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
-            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#1DB954' }}><MessageCircle size={20} color="white" /></div>
-            <div><p className="font-bold text-sm" style={{ color: '#0F5138' }}>Service client 7j/7</p><p className="text-xs text-gray-600">Nous sommes la pour t&apos;aider</p></div>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: '#1DB954' }}><MessageCircle size={20} color="white" /></div>
+            <div><p className="font-bold text-sm" style={{ color: '#0F5138' }}>Service client 7j/7</p></div>
           </div>
-          <p className="font-bold text-sm text-gray-500">Questions frequentes</p>
           {faqs.map((f, i) => (
             <div key={i} className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <button onClick={() => setFaqOpen(faqOpen === i ? null : i)} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
@@ -1707,9 +1981,8 @@ export default function TiakTiak() {
               {faqOpen === i && <p className="px-4 pb-4 text-sm text-gray-600">{f.a}</p>}
             </div>
           ))}
-          <p className="font-bold text-sm text-gray-500 pt-2">Nous contacter</p>
           <a href={SUPPORT_WHATSAPP} target="_blank" rel="noreferrer" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><MessageCircle size={20} color="#1DB954" /><span className="flex-1 text-sm font-medium">WhatsApp</span><ChevronRight size={18} className="text-gray-300" /></a>
-          <a href="tel:+221770970100" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><Phone size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Appeler le support</span><ChevronRight size={18} className="text-gray-300" /></a>
+          <a href="tel:+221770970100" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><Phone size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Appeler</span><ChevronRight size={18} className="text-gray-300" /></a>
         </div>
       </div>
     )
@@ -1746,8 +2019,8 @@ export default function TiakTiak() {
           <div>
             <p className="font-bold text-sm text-gray-500 mb-2">Legal</p>
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <button onClick={() => setScreen('conditions')} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><FileText size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Conditions d&apos;utilisation</span><ChevronRight size={18} className="text-gray-300" /></button>
-              <button onClick={() => setScreen('confidentialite')} className="w-full flex items-center gap-3 px-4 py-3.5 text-left"><Shield size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Politique de confidentialite</span><ChevronRight size={18} className="text-gray-300" /></button>
+              <button onClick={() => setScreen('conditions')} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><FileText size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Conditions</span><ChevronRight size={18} className="text-gray-300" /></button>
+              <button onClick={() => setScreen('confidentialite')} className="w-full flex items-center gap-3 px-4 py-3.5 text-left"><Shield size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Confidentialite</span><ChevronRight size={18} className="text-gray-300" /></button>
             </div>
           </div>
         </div>
@@ -1760,7 +2033,7 @@ export default function TiakTiak() {
       <div className="fixed inset-0 flex flex-col bg-white">
         <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
           <button onClick={() => setScreen('parametres')}><ArrowLeft size={24} color="#0F5138" /></button>
-          <span className="font-bold text-black">Conditions d&apos;utilisation</span>
+          <span className="font-bold text-black">Conditions</span>
         </header>
         <div className="flex-1 overflow-y-auto p-5"><p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{CONDITIONS_UTILISATION}</p></div>
       </div>
@@ -1792,14 +2065,13 @@ export default function TiakTiak() {
             <h1 className="text-2xl font-black tracking-widest" style={{ color: '#0F5138' }}>TIAK TIAK</h1>
             <p className="text-gray-400 text-sm mt-1">Le Tiak Tiak de ta generation</p>
           </div>
-          <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>Notre mission</p><p className="text-sm text-gray-600 leading-relaxed">TIAK TIAK est nee d&apos;une idee simple : rendre le transport en moto-taxi rapide, sur et accessible a tous les Senegalais.</p></div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
             <p className="font-bold text-sm mb-1" style={{ color: '#0F5138' }}>Ce que nous offrons</p>
             <p className="text-sm text-gray-600">🏍️ Courses moto-taxi rapides</p>
-            <p className="text-sm text-gray-600">📦 Livraison express de colis</p>
-            <p className="text-sm text-gray-600">💳 Paiement Cash, Wave ou Orange Money</p>
+            <p className="text-sm text-gray-600">📦 Livraison express</p>
+            <p className="text-sm text-gray-600">💳 Cash, Wave, Orange Money</p>
             <p className="text-sm text-gray-600">🔵 Chauffeurs Premium certifies</p>
-            <p className="text-sm text-gray-600">🇸🇳 Couverture dans tout le Senegal</p>
+            <p className="text-sm text-gray-600">🇸🇳 Tout le Senegal</p>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-sm text-gray-600">Fierement senegalais 🇸🇳</p><p className="text-xs text-gray-400 mt-1">Version 1.0.0</p></div>
         </div>
@@ -1817,9 +2089,8 @@ export default function TiakTiak() {
           {ridesLoading ? <div className="text-center py-16 text-gray-400 text-sm">Chargement...</div> : rides.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-sm text-center py-16 px-6">
               <span className="text-5xl block mb-4">🛵</span>
-              <p className="font-bold text-gray-700 mb-1">Aucune course pour le moment</p>
-              <p className="text-sm text-gray-400 mb-5">Tes trajets apparaitront ici apres ta premiere course</p>
-              <button onClick={() => setScreen('accueil')} className="px-6 py-3 rounded-full font-bold text-white text-sm" style={{ background: '#0F5138' }}>Commander maintenant</button>
+              <p className="font-bold text-gray-700 mb-1">Aucune course</p>
+              <button onClick={() => setScreen('accueil')} className="px-6 py-3 rounded-full font-bold text-white text-sm mt-4" style={{ background: '#0F5138' }}>Commander</button>
             </div>
           ) : rides.map(ride => {
             const st = statusLabel(ride.status)
@@ -1830,14 +2101,14 @@ export default function TiakTiak() {
                   <span className="text-xs font-bold px-3 py-1 rounded-full text-white" style={{ background: st.color }}>{st.text}</span>
                 </div>
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} /><span className="text-xs text-gray-500 truncate">{ride.from_address}</span></div>
-                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full flex-shrink-0 bg-red-400" /><span className="text-xs text-gray-500 truncate">{ride.to_address}</span></div>
+                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: '#1DB954' }} /><span className="text-xs text-gray-500 truncate">{ride.from_address}</span></div>
+                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-400" /><span className="text-xs text-gray-500 truncate">{ride.to_address}</span></div>
                 </div>
                 {ride.cancel_reason && <p className="text-xs text-red-400 italic">Motif : {ride.cancel_reason}</p>}
                 <div className="flex items-center justify-between pt-1 border-t border-gray-50">
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1 text-gray-400"><Clock size={12} /><span className="text-xs">{formatDate(ride.created_at)}</span></div>
-                    {ride.payment_method && <span className="text-xs text-gray-400">{paymentLabel(ride.payment_method).icon}</span>}
+                    {ride.payment_method && <span className="text-xs">{paymentLabel(ride.payment_method).icon}</span>}
                   </div>
                   <span className="font-black text-sm" style={{ color: '#0F5138' }}>{formatPrice(ride.price)}</span>
                 </div>
@@ -1853,6 +2124,7 @@ export default function TiakTiak() {
     )
   }
 
+  // ===== ACCUEIL CLIENT =====
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-100">
       {menuOpen && (
@@ -1882,7 +2154,34 @@ export default function TiakTiak() {
         <span className="text-2xl font-black italic" style={{ color: '#0F5138' }}>TIAK TIAK</span>
         <button onClick={() => setScreen('profil')} className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><User size={20} className="text-gray-400" /></button>
       </header>
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
+
+      {/* Carte accueil avec motos en temps réel */}
+      <div className="h-48 relative">
+        <MapView
+          fromLat={position.lat}
+          fromLng={position.lng}
+          toLat={position.lat}
+          toLng={position.lng}
+          nearbyDrivers={nearbyDrivers}
+          showNearby={true}
+        />
+        {nearbyDrivers.length > 0 && (
+          <div className="absolute bottom-2 left-2 right-2 bg-white bg-opacity-90 rounded-xl px-3 py-2 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#1DB954' }} />
+            <span className="text-xs font-bold" style={{ color: '#0F5138' }}>
+              {nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} disponible{nearbyDrivers.length > 1 ? 's' : ''} • Plus proche : {nearbyDrivers[0]?.eta} min
+            </span>
+          </div>
+        )}
+        {nearbyDrivers.length === 0 && (
+          <div className="absolute bottom-2 left-2 right-2 bg-white bg-opacity-90 rounded-xl px-3 py-2 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-gray-300" />
+            <span className="text-xs text-gray-400">Aucun chauffeur disponible pour le moment</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         <div>
           <h2 className="text-lg font-bold text-black mb-3">Services disponibles</h2>
           <div className="grid grid-cols-2 gap-3">
