@@ -89,7 +89,7 @@ interface FreqDest {
   count: number
 }
 
-const SUPPORT_WHATSAPP = 'https://wa.me/221770970100?text=' + encodeURIComponent("Bonjour TIAK TIAK Support, j'ai besoin d'aide.")
+const SUPPORT_WHATSAPP = 'https://wa.me/221755535030?text=' + encodeURIComponent("Bonjour TIAK TIAK Support, j'ai besoin d'aide.")
 const DEFAULT_POS: GpsPosition = { lat: 14.7167, lng: -17.2833, address: 'Rufisque, Dakar' }
 
 const CANCEL_REASONS = [
@@ -1608,7 +1608,7 @@ const OfflineBanner = () => isOffline ? (
               <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(currentDriverRide.price)}</p><p className="text-xs text-gray-400">Prix</p></div>
               <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: freeTrialActive ? '#1DB954' : '#F59E0B' }}>{freeTrialActive ? '0F 🎉' : formatPrice(currentDriverRide.commission || 0)}</p><p className="text-xs text-gray-400">Commission</p></div>
             </div>
-            <a href="tel:+221770970100" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> SOS</a>
+            <a href="tel:+221755535030" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> SOS</a>
           </div>
         </div>
         {clientArrived && (
@@ -1654,7 +1654,7 @@ const OfflineBanner = () => isOffline ? (
               <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(currentDriverRide.price)}</p><p className="text-xs text-gray-400">Prix</p></div>
               <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: freeTrialActive ? '#1DB954' : '#F59E0B' }}>{freeTrialActive ? '0F 🎉' : formatPrice(currentDriverRide.commission || 0)}</p><p className="text-xs text-gray-400">Commission</p></div>
             </div>
-            <a href="tel:+221770970100" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> SOS</a>
+            <a href="tel:+221755535030" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> SOS</a>
           </div>
         </div>
         <div className="p-4 bg-white border-t border-gray-100">
@@ -1745,7 +1745,7 @@ const OfflineBanner = () => isOffline ? (
                 <ChevronRight size={20} color="rgba(255,255,255,0.7)" />
               </button>
 
-              <a href="tel:+221770970100" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> SOS — Urgence</a>
+              <a href="tel:+221755535030" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> SOS — Urgence</a>
             </>
           )}
 
