@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText, Clock, XCircle, Power, Users, TrendingUp, CheckCircle, Ban, AlertTriangle, Star, Award, Wallet, AlertCircle, Camera, Play, Lock, Heart, UserCheck } from 'lucide-react'
+import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText, Clock, XCircle, Power, Users, TrendingUp, CheckCircle, Ban, AlertTriangle, Star, Award, Wallet, AlertCircle, Camera, Play, Lock } from 'lucide-react'
 import { searchPlaces, Place } from '../lib/search'
-import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance, calculateCommission, WAVE_PAYMENT_LINK } from '../lib/utils'
+import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance, calculateCommission, applyFirstRideDiscount, WAVE_PAYMENT_LINK } from '../lib/utils'
 import { CONDITIONS_UTILISATION, POLITIQUE_CONFIDENTIALITE } from '../lib/legal'
 import { supabase } from '../lib/supabase'
 import dynamic from 'next/dynamic'
@@ -48,7 +48,6 @@ interface Ride {
   pin_verified?: boolean
   client_name?: string
   client_phone?: string
-  scheduled_at?: string
 }
 
 interface Driver {
@@ -110,9 +109,9 @@ const REPORT_OPTIONS = [
 ]
 
 const PREMIUM_BENEFITS = [
-  { icon: '💰', text: 'Commission fixe 100 FCFA (au lieu de 200-400)' },
+  { icon: '💰', text: 'Commission fixe 100 FCFA moto / 200 FCFA livraison' },
   { icon: '🔵', text: 'Badge bleu ✓ visible par tous les clients' },
-  { icon: '⚡', text: 'Priorité dans la réception des courses' },
+  { icon: '⚡', text: 'Reçois les courses 1 minute avant les autres' },
   { icon: '📊', text: 'Statistiques détaillées semaine/mois' },
   { icon: '🎯', text: '3 jours gratuits sans commission inclus' },
   { icon: '💬', text: 'Support prioritaire 24h/24' },
@@ -159,7 +158,7 @@ const formatCountdown = (endDate: string) => {
   return `${mins}min`
 }
 
-const shareTrip = (rideId: string, driverName: string, fromAddr: string, toAddr: string) => {
+const shareTrip = (driverName: string, fromAddr: string, toAddr: string) => {
   const text = `🛵 Je suis dans un TIAK TIAK !\n\nChauffeur : ${driverName}\nDe : ${fromAddr}\nVers : ${toAddr}\n\nSuis mon trajet en temps réel.`
   if ((navigator as any).share) {
     (navigator as any).share({ title: 'Mon trajet TIAK TIAK', text }).catch(() => {})
@@ -175,8 +174,6 @@ export default function TiakTiak() {
   const [loaded, setLoaded] = useState(false)
   const [splashPhase, setSplashPhase] = useState<'green' | 'white'>('green')
 
-  const [gpsAsked, setGpsAsked] = useState(false)
-  const [gpsLoading, setGpsLoading] = useState(false)
   const [position, setPosition] = useState<GpsPosition>(DEFAULT_POS)
 
   const [formName, setFormName] = useState('')
@@ -214,6 +211,7 @@ export default function TiakTiak() {
   const [clientTotalRides, setClientTotalRides] = useState(0)
   const [nearbyDrivers, setNearbyDrivers] = useState<NearbyDriver[]>([])
   const [freqDests, setFreqDests] = useState<FreqDest[]>([])
+  const [isFirstRide, setIsFirstRide] = useState(false)
 
   // Client PIN
   const [clientPinCode, setClientPinCode] = useState('')
@@ -284,8 +282,9 @@ export default function TiakTiak() {
   const searchTimeout = useRef<NodeJS.Timeout | null>(null)
   const gpsWatchRef = useRef<number | null>(null)
   const nearbyInterval = useRef<NodeJS.Timeout | null>(null)
+  const priorityTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
-  // ===== SPLASH =====
+  // ===== SPLASH + GPS AUTO =====
   useEffect(() => {
     const t1 = setTimeout(() => setSplashPhase('white'), 3000)
     const t2 = setTimeout(() => {
@@ -293,14 +292,26 @@ export default function TiakTiak() {
       if (saved) setUser(JSON.parse(saved))
       const savedLang = localStorage.getItem('tiaktiak_lang')
       if (savedLang) setLang(savedLang)
-      const gpsOk = localStorage.getItem('tiaktiak_gps_asked')
-      if (gpsOk) setGpsAsked(true)
       setLoaded(true)
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`)
+            const data = await res.json()
+            const address = data.address?.suburb || data.address?.neighbourhood || data.address?.city || data.address?.town || 'Ma position'
+            setPosition({ lat: latitude, lng: longitude, address })
+          } catch {
+            setPosition({ lat: latitude, lng: longitude, address: 'Ma position' })
+          }
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      )
     }, 8000)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
-  // Chauffeurs proches
   useEffect(() => {
     if (!user || user.role !== 'client') return
     const loadNearby = async () => {
@@ -318,7 +329,6 @@ export default function TiakTiak() {
     return () => { if (nearbyInterval.current) clearInterval(nearbyInterval.current) }
   }, [user, position])
 
-  // Destinations fréquentes
   const loadFreqDests = useCallback(async () => {
     if (!user?.id) return
     const { data } = await supabase.from('rides').select('to_address, to_lat, to_lng').eq('client_id', user.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(30)
@@ -336,7 +346,12 @@ export default function TiakTiak() {
 
   useEffect(() => { loadFreqDests() }, [loadFreqDests])
 
-  // Statut chauffeur
+  const checkFirstRide = useCallback(async () => {
+    if (!user?.id) { setIsFirstRide(false); return }
+    const { count } = await supabase.from('rides').select('id', { count: 'exact', head: true }).eq('client_id', user.id).eq('status', 'completed')
+    setIsFirstRide((count || 0) === 0)
+  }, [user?.id])
+
   useEffect(() => {
     if (!user || user.role !== 'chauffeur' || !user.id) return
     const checkStatus = async () => {
@@ -406,7 +421,6 @@ export default function TiakTiak() {
     speak("Vos 3 jours gratuits sont activés !")
   }
 
-  // GPS chauffeur + recalcul itinéraire
   useEffect(() => {
     if (!user || user.role !== 'chauffeur' || !isOnline) {
       if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current)
@@ -427,7 +441,6 @@ export default function TiakTiak() {
               await supabase.from('rides').update({ driver_arrived_at: new Date().toISOString() } as any).eq('id', currentDriverRide.id)
               setShowPinEntry(true)
             }
-            // Recalcul itinéraire si déviation > 50m
             if (routeCoords.length > 0) {
               const minDist = Math.min(...routeCoords.map(c => haversineDistance(latitude, longitude, c[0], c[1]) * 1000))
               if (minDist > 50) speak("Recalcul de l'itinéraire...")
@@ -447,22 +460,34 @@ export default function TiakTiak() {
     return () => { if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current) }
   }, [isOnline, user, currentDriverRide, driverPhase, clientArrived, routeCoords])
 
-  // Realtime chauffeur
   useEffect(() => {
     if (!user || user.role !== 'chauffeur' || !isOnline || !isValidated) return
     const channel = supabase
       .channel('driver-rides-' + user.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: 'status=eq.pending' }, (payload) => {
         const newRide = payload.new as Ride
-        if (!currentDriverRide) {
-          setIncomingRide(newRide)
-          playTiakTiakSound()
-          if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
+
+        const showRide = () => {
+          if (!currentDriverRide) {
+            setIncomingRide(newRide)
+            playTiakTiakSound()
+            if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300])
+          } else {
+            setNextIncomingRide(newRide)
+            setShowNextRideBanner(true)
+            playTiakTiakSound()
+          }
+        }
+
+        if (isPremium) {
+          showRide()
         } else {
-          // Course suivante pendant course en cours
-          setNextIncomingRide(newRide)
-          setShowNextRideBanner(true)
-          playTiakTiakSound()
+          const t = setTimeout(async () => {
+            const { data } = await supabase.from('rides').select('status').eq('id', newRide.id).single()
+            if (data?.status === 'pending') showRide()
+            priorityTimeouts.current.delete(newRide.id)
+          }, 60000)
+          priorityTimeouts.current.set(newRide.id, t)
         }
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rides' }, (payload) => {
@@ -480,12 +505,19 @@ export default function TiakTiak() {
           if (navigator.vibrate) navigator.vibrate([500, 200, 500])
         }
         if (incomingRide && updated.id === incomingRide.id && updated.status === 'cancelled') setIncomingRide(null)
+        if (updated.status !== 'pending' && priorityTimeouts.current.has(updated.id)) {
+          clearTimeout(priorityTimeouts.current.get(updated.id)!)
+          priorityTimeouts.current.delete(updated.id)
+        }
       })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [isOnline, user, currentDriverRide, isValidated, incomingRide])
+    return () => {
+      supabase.removeChannel(channel)
+      priorityTimeouts.current.forEach(t => clearTimeout(t))
+      priorityTimeouts.current.clear()
+    }
+  }, [isOnline, user, currentDriverRide, isValidated, incomingRide, isPremium])
 
-  // Realtime client
   useEffect(() => {
     if (!currentRideId) return
     const channel = supabase
@@ -526,7 +558,6 @@ export default function TiakTiak() {
           setCurrentClientRide(updated)
           speak("Vous êtes arrivé à destination. Merci d'avoir utilisé TIAK TIAK")
           setScreen('evaluation')
-          // Sauvegarder destination fréquente
           loadFreqDests()
         }
       })
@@ -640,26 +671,6 @@ export default function TiakTiak() {
     setFormIdFront(''); setFormIdBack(''); setFormProfilePhoto(''); setFormAddress('')
   }
 
-  const activerGPS = () => {
-    setGpsLoading(true)
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`)
-          const data = await res.json()
-          const address = data.address?.suburb || data.address?.neighbourhood || data.address?.city || 'Ma position'
-          setPosition({ lat: latitude, lng: longitude, address })
-        } catch { setPosition({ lat: latitude, lng: longitude, address: 'Ma position' }) }
-        localStorage.setItem('tiaktiak_gps_asked', '1'); setGpsAsked(true); setGpsLoading(false)
-      },
-      () => { localStorage.setItem('tiaktiak_gps_asked', '1'); setGpsAsked(true); setGpsLoading(false) },
-      { timeout: 10000, enableHighAccuracy: true }
-    )
-  }
-
-  const passerSansGPS = () => { localStorage.setItem('tiaktiak_gps_asked', '1'); setGpsAsked(true) }
-
   const loginClient = async () => {
     if (!formPhone) { setAuthError('Entre ton numero'); return }
     setAuthLoading(true); setAuthError('')
@@ -742,15 +753,17 @@ export default function TiakTiak() {
     }, 500)
   }
 
-  const selectPlace = (place: Place) => { setSelected(place); setQuery(''); setResults([]); setScreen('confirm') }
+  const selectPlace = (place: Place) => { setSelected(place); setQuery(''); setResults([]); checkFirstRide(); setScreen('confirm') }
   const selectFreqDest = (dest: FreqDest) => {
     setSelected({ name: dest.address, lat: dest.lat, lng: dest.lng, address: dest.address })
+    checkFirstRide()
     setScreen('confirm')
   }
   const goTo = (s: string) => { setScreen(s); setMenuOpen(false) }
 
   const km = selected ? haversineDistance(position.lat, position.lng, selected.lat, selected.lng) : 0
-  const price = selected ? calculatePrice(km, service as 'moto' | 'livraison') : 0
+  const basePrice = selected ? calculatePrice(km, service as 'moto' | 'livraison') : 0
+  const price = isFirstRide ? applyFirstRideDiscount(basePrice, true) : basePrice
   const eta = selected ? calculateETA(km) : 0
   const referralCode = user ? 'TIAK-' + (user.phone.replace(/[^0-9]/g, '').slice(-4) || '0000') : 'TIAK-0000'
 
@@ -770,7 +783,7 @@ export default function TiakTiak() {
       from_lat: position.lat, from_lng: position.lng, from_address: position.address,
       to_lat: selected.lat, to_lng: selected.lng, to_address: selected.name,
       distance_km: Math.round(km * 100) / 100, price,
-      commission: calculateCommission(price, false),
+      commission: calculateCommission(price, false, service as 'moto' | 'livraison'),
       payment_method: payment, status: 'pending', pin_code: pin,
     }).select('id').single()
     if (error) alert('Erreur: ' + JSON.stringify(error))
@@ -798,7 +811,7 @@ export default function TiakTiak() {
   const accepterCourse = async () => {
     if (!incomingRide || !user?.id) return
     setAcceptLoading(true)
-    const rideCommission = freeTrialActive ? 0 : calculateCommission(incomingRide.price, isPremium)
+    const rideCommission = freeTrialActive ? 0 : calculateCommission(incomingRide.price, isPremium, incomingRide.service_type as 'moto' | 'livraison')
     const { data, error } = await supabase.from('rides')
       .update({ status: 'accepted', driver_id: user.id, accepted_at: new Date().toISOString(), commission: rideCommission })
       .eq('id', incomingRide.id).eq('status', 'pending').select().single()
@@ -815,7 +828,7 @@ export default function TiakTiak() {
 
   const accepterCourseSuivante = async () => {
     if (!nextIncomingRide || !user?.id) return
-    const rideCommission = freeTrialActive ? 0 : calculateCommission(nextIncomingRide.price, isPremium)
+    const rideCommission = freeTrialActive ? 0 : calculateCommission(nextIncomingRide.price, isPremium, nextIncomingRide.service_type as 'moto' | 'livraison')
     const { data, error } = await supabase.from('rides')
       .update({ status: 'accepted', driver_id: user.id, accepted_at: new Date().toISOString(), commission: rideCommission })
       .eq('id', nextIncomingRide.id).eq('status', 'pending').select().single()
@@ -843,7 +856,6 @@ export default function TiakTiak() {
       if (data) await supabase.from('users').update({ total_rides: (data.total_rides || 0) + 1 }).eq('id', user.id)
     }
     await loadDriverStats()
-    // Si course suivante acceptée
     if (nextIncomingRide && (nextIncomingRide as any).status === 'accepted') {
       setCurrentDriverRide(nextIncomingRide as Ride)
       setNextIncomingRide(null)
@@ -914,70 +926,46 @@ export default function TiakTiak() {
 
   // ===== SPLASH =====
   if (!loaded) return (
-  <div
-    className="fixed inset-0 flex items-center justify-center"
-    style={{
-      background: splashPhase === 'green' ? '#0B3D2E' : '#FFFFFF',
-      transition: 'background 1s ease',
-    }}
-  >
-    <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-      <span style={{
-        fontSize: '72px',
-        fontWeight: 800,
-        fontStyle: 'italic',
-        letterSpacing: '-1px',
-        color: splashPhase === 'green' ? '#FFFFFF' : '#0B3D2E',
-        transition: 'color 1s ease',
-        fontFamily: '"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif',
-        lineHeight: 1,
-      }}>Tiak</span>
-      <span style={{
-        fontSize: '72px',
-        fontWeight: 800,
-        fontStyle: 'italic',
-        letterSpacing: '-1px',
-        color: '#1DB954',
-        fontFamily: '"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif',
-        lineHeight: 1,
-      }}>Tiak</span>
-    </div>
-  </div>
-)
-
-  // ===== GPS =====
-  if (!gpsAsked) {
-    return (
-      <div className="fixed inset-0 flex flex-col bg-white">
-        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
-          <div className="relative flex items-center justify-center">
-            <div className="absolute rounded-full animate-pulse" style={{ background: '#1DB954', opacity: 0.15, width: '140px', height: '140px' }} />
-            <div className="relative w-28 h-28 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}>
-              <Navigation size={48} color="white" fill="white" style={{ transform: 'rotate(45deg)' }} />
-            </div>
-          </div>
-          <div className="text-center">
-            <h1 className="text-4xl font-black tracking-widest mb-2" style={{ color: '#0F5138' }}>TIAK TIAK</h1>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">Activez votre localisation</h2>
-            <p className="text-gray-400 text-sm">Pour voir les chauffeurs autour de vous.</p>
-          </div>
-        </div>
-        <div className="px-8 pb-10 space-y-3">
-          <button onClick={activerGPS} disabled={gpsLoading} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: gpsLoading ? '#7aaa94' : '#0F5138' }}>
-            <Navigation size={20} color="white" />{gpsLoading ? 'Localisation...' : 'Activer ma localisation'}
-          </button>
-          <button onClick={passerSansGPS} className="w-full text-center text-gray-400 text-sm py-2">Continuer sans localisation</button>
-        </div>
+    <div
+      className="fixed inset-0 flex items-center justify-center"
+      style={{
+        background: splashPhase === 'green' ? '#0F5138' : '#FFFFFF',
+        transition: 'background 1s ease',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+        <span style={{
+          fontSize: '72px',
+          fontWeight: 800,
+          fontStyle: 'italic',
+          letterSpacing: '-1px',
+          color: splashPhase === 'green' ? '#FFFFFF' : '#0F5138',
+          transition: 'color 1s ease',
+          fontFamily: '"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif',
+          lineHeight: 1,
+        }}>Tiak</span>
+        <span style={{
+          fontSize: '72px',
+          fontWeight: 800,
+          fontStyle: 'italic',
+          letterSpacing: '-1px',
+          color: '#1DB954',
+          fontFamily: '"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif',
+          lineHeight: 1,
+        }}>Tiak</span>
       </div>
-    )
-  }
+    </div>
+  )
 
   // ===== AUTH =====
   if (!user) {
     if (authScreen === 'roles') return (
       <div className="fixed inset-0 flex flex-col bg-white">
         <div className="flex-1 flex flex-col items-center justify-center px-8 gap-8">
-          <img src="/splash-white.png" alt="TIAK TIAK" style={{ width: '180px', height: '180px', objectFit: 'contain' }} />
+          <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: '48px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#0F5138', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
+            <span style={{ fontSize: '48px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#1DB954', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
+          </div>
           <p className="text-gray-400 text-sm text-center">Transport moto rapide à votre service</p>
         </div>
         <div className="px-8 pb-10 space-y-3">
@@ -1051,6 +1039,12 @@ export default function TiakTiak() {
                   <input value={formEmergencyName} onChange={e => setFormEmergencyName(e.target.value)} placeholder="Nom du contact" className="w-full px-4 py-3 bg-gray-100 rounded-xl outline-none text-sm" />
                   <input value={formEmergencyPhone} onChange={e => setFormEmergencyPhone(e.target.value)} placeholder="Telephone du contact" className="w-full px-4 py-3 bg-gray-100 rounded-xl outline-none text-sm" />
                 </div>
+              </div>
+              <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
+                <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>📋 Commission</p>
+                <p className="text-xs text-gray-600">Moto &lt; 2000F → 100F · 2000-4999F → 200F · ≥5000F → 400F</p>
+                <p className="text-xs text-gray-600">Livraison &lt; 3000F → 200F · ≥3000F → 500F</p>
+                <p className="text-xs text-gray-600">Premium → 100F moto / 200F livraison fixe</p>
               </div>
               {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
               <button onClick={() => { setAuthMode('login'); setAuthError('') }} className="w-full text-center text-sm" style={{ color: '#0F5138' }}>Deja inscrit ? Se connecter</button>
@@ -1139,24 +1133,33 @@ export default function TiakTiak() {
             <p className="font-bold text-sm" style={{ color: '#0F5138' }}>👤 Client</p>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Nom</span><span className="text-sm font-bold">{selectedRide.client_name || 'Inconnu'}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Telephone</span><span className="text-sm font-bold">{selectedRide.client_phone || 'Inconnu'}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">ID Client</span><span className="text-xs font-mono">{selectedRide.client_id || '-'}</span></div>
+          </div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>🛵 Chauffeur</p>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">ID Chauffeur</span><span className="text-xs font-mono">{selectedRide.driver_id || 'Non assigné'}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">PIN verifie</span><span className="text-sm font-bold">{selectedRide.pin_verified ? '✅ Oui' : '❌ Non'}</span></div>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
             <p className="font-bold text-sm" style={{ color: '#0F5138' }}>📍 Trajet</p>
             <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: '#1DB954' }} /><span className="text-sm">{selectedRide.from_address}</span></div>
             <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-400" /><span className="text-sm">{selectedRide.to_address}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Distance</span><span className="text-sm font-bold">{selectedRide.distance_km} km</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">Coordonnees depart</span><span className="text-xs font-mono">{selectedRide.from_lat?.toFixed(5)}, {selectedRide.from_lng?.toFixed(5)}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">Coordonnees arrivee</span><span className="text-xs font-mono">{selectedRide.to_lat?.toFixed(5)}, {selectedRide.to_lng?.toFixed(5)}</span></div>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
             <p className="font-bold text-sm" style={{ color: '#0F5138' }}>💰 Financier</p>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">Service</span><span className="text-sm font-bold">{selectedRide.service_type === 'moto' ? '🏍️ Moto-taxi' : '📦 Livraison'}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Prix</span><span className="text-sm font-bold" style={{ color: '#0F5138' }}>{formatPrice(selectedRide.price)}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Commission</span><span className="text-sm font-bold text-orange-500">{formatPrice(selectedRide.commission || 0)}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Paiement</span><span className="text-sm font-bold">{paymentLabel(selectedRide.payment_method || 'cash').name}</span></div>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
             <p className="font-bold text-sm" style={{ color: '#0F5138' }}>ℹ️ Statut</p>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">ID Course</span><span className="text-xs font-mono">{selectedRide.id}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Statut</span><span className="text-sm font-bold">{statusLabel(selectedRide.status).text}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Date</span><span className="text-sm font-bold">{formatDate(selectedRide.created_at)}</span></div>
-            <div className="flex justify-between"><span className="text-sm text-gray-500">PIN verifie</span><span className="text-sm font-bold">{selectedRide.pin_verified ? '✅ Oui' : '❌ Non'}</span></div>
             {selectedRide.cancel_reason && <div className="flex justify-between"><span className="text-sm text-gray-500">Annulation</span><span className="text-sm font-bold text-red-500">{selectedRide.cancel_reason}</span></div>}
           </div>
           {selectedRide.client_rating && (
@@ -1164,6 +1167,7 @@ export default function TiakTiak() {
               <p className="font-bold text-sm" style={{ color: '#0F5138' }}>⭐ Évaluation</p>
               <div className="flex items-center gap-1">{[1,2,3,4,5].map(s => <Star key={s} size={16} color="#F59E0B" fill={s <= selectedRide.client_rating! ? '#F59E0B' : 'none'} />)}</div>
               {selectedRide.client_comment && <p className="text-sm text-gray-600 italic">&quot;{selectedRide.client_comment}&quot;</p>}
+              {selectedRide.client_report && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">{REPORT_OPTIONS.find(r => r.id === selectedRide.client_report)?.label}</span>}
             </div>
           )}
         </div>
@@ -1191,12 +1195,15 @@ export default function TiakTiak() {
             </div>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Informations</p>
+            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Informations complètes</p>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">ID</span><span className="text-xs font-mono">{selectedDriver.id}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Telephone</span><span className="text-sm font-bold">{selectedDriver.phone}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Domicile</span><span className="text-sm font-bold text-right flex-1 ml-4">{selectedDriver.home_address || 'Non renseigne'}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Moto</span><span className="text-sm font-bold">{selectedDriver.moto_type} • {selectedDriver.moto_color}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Inscrit le</span><span className="text-sm font-bold">{formatDate(selectedDriver.created_at)}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Statut</span><span className="text-sm font-bold">{selectedDriver.is_suspended ? '🔴 Suspendu' : selectedDriver.is_validated ? '🟢 Valide' : '🟡 En attente'}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">En ligne</span><span className="text-sm font-bold">{selectedDriver.is_online ? '🟢 Oui' : '⚫ Non'}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">3J Gratuits</span><span className="text-sm font-bold">{selectedDriver.free_trial_used ? (selectedDriver.free_trial_end && new Date(selectedDriver.free_trial_end) > new Date() ? `✅ Actif — ${formatCountdown(selectedDriver.free_trial_end)}` : '✅ Utilisé') : '❌ Non utilisé'}</span></div>
             {selectedDriver.is_premium && selectedDriver.premium_expires_at && <div className="flex justify-between"><span className="text-sm text-gray-500">Premium expire</span><span className="text-sm font-bold text-blue-500">{new Date(selectedDriver.premium_expires_at).toLocaleDateString('fr-FR')}</span></div>}
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
@@ -1225,7 +1232,8 @@ export default function TiakTiak() {
         </header>
         <div className="bg-white px-3 pb-3 flex gap-1.5 border-b border-gray-100">
           {[{ key: 'stats', label: 'Stats', icon: TrendingUp }, { key: 'chauffeurs', label: 'Chauffeurs', icon: Users }, { key: 'courses', label: 'Courses', icon: List }, { key: 'evaluations', label: 'Avis', icon: Star }].map(tab => (
-            <button key={tab.key} onClick={() => { setAdminTab(tab.key as any); loadAdminData() }} className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl font-bold text-xs" style={{ background: adminTab === tab.key ? '#0F5138' : '#F5F5F5', color: adminTab === tab.key ? 'white' : '#9CA3AF' }}>
+            <button key={tab
+              .key} onClick={() => { setAdminTab(tab.key as any); loadAdminData() }} className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl font-bold text-xs" style={{ background: adminTab === tab.key ? '#0F5138' : '#F5F5F5', color: adminTab === tab.key ? 'white' : '#9CA3AF' }}>
               <tab.icon size={13} /> {tab.label}
             </button>
           ))}
@@ -1324,7 +1332,6 @@ export default function TiakTiak() {
       </div>
     )
   }
-
   // ===== CHAUFFEUR =====
   if (user && user.role === 'chauffeur') {
 
@@ -1461,13 +1468,13 @@ export default function TiakTiak() {
         <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6">
           <div className="relative flex items-center justify-center">
             <div className="absolute rounded-full" style={{ width: '140px', height: '140px', background: 'rgba(29,185,84,0.2)', animation: 'ping 1s cubic-bezier(0,0,0.2,1) infinite' }} />
-            <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}><span className="text-5xl">🛵</span></div>
+            <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}><span className="text-5xl">{incomingRide.service_type === 'livraison' ? '📦' : '🛵'}</span></div>
           </div>
           <div className="text-center">
-            <p className="text-green-200 text-sm font-semibold mb-1">NOUVELLE COURSE !</p>
+            <p className="text-green-200 text-sm font-semibold mb-1">NOUVELLE {incomingRide.service_type === 'livraison' ? 'LIVRAISON' : 'COURSE'} !</p>
             <h2 className="text-2xl font-black text-white mb-1">{formatPrice(incomingRide.price)}</h2>
             <p className="text-green-200 text-sm">{incomingRide.distance_km} km • {incomingRide.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</p>
-            <p className="text-green-300 text-xs mt-1">Commission : {freeTrialActive ? '0 FCFA 🎉' : formatPrice(calculateCommission(incomingRide.price, isPremium))}</p>
+            <p className="text-green-300 text-xs mt-1">Commission : {freeTrialActive ? '0 FCFA 🎉' : formatPrice(calculateCommission(incomingRide.price, isPremium, incomingRide.service_type as 'moto' | 'livraison'))}</p>
           </div>
           <div className="w-full rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.1)' }}>
             <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954' }} /><div><p className="text-green-200 text-xs">Client</p><p className="text-white text-sm font-semibold">{incomingRide.from_address}</p></div></div>
@@ -1483,12 +1490,11 @@ export default function TiakTiak() {
 
     if (screen === 'driver_to_client' && currentDriverRide) return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
-        {/* Banner prochaine course */}
         {showNextRideBanner && nextIncomingRide && (
           <div className="fixed top-0 left-0 right-0 z-50 p-3" style={{ background: '#1DB954' }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white font-black text-sm">🛵 Nouvelle course disponible !</p>
+                <p className="text-white font-black text-sm">{nextIncomingRide.service_type === 'livraison' ? '📦' : '🛵'} Nouvelle {nextIncomingRide.service_type === 'livraison' ? 'livraison' : 'course'} !</p>
                 <p className="text-green-100 text-xs">{formatPrice(nextIncomingRide.price)} • {nextIncomingRide.to_address}</p>
               </div>
               <div className="flex gap-2">
@@ -1499,7 +1505,7 @@ export default function TiakTiak() {
           </div>
         )}
         <header className="px-4 py-3 flex items-center justify-between" style={{ background: '#0F5138', marginTop: showNextRideBanner ? '68px' : '0' }}>
-          <div><p className="text-white font-black">Vers le client 🛵</p><p className="text-green-200 text-xs truncate">{currentDriverRide.from_address}</p></div>
+          <div><p className="text-white font-black">{currentDriverRide.service_type === 'livraison' ? '📦 Vers le client' : '🛵 Vers le client'}</p><p className="text-green-200 text-xs truncate">{currentDriverRide.from_address}</p></div>
           <span className="text-green-200 text-sm font-bold">{formatPrice(currentDriverRide.price)}</span>
         </header>
         <div className="flex-1 overflow-y-auto">
@@ -1546,7 +1552,7 @@ export default function TiakTiak() {
           <div className="fixed top-0 left-0 right-0 z-50 p-3" style={{ background: '#1DB954' }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white font-black text-sm">🛵 Prochaine course !</p>
+                <p className="text-white font-black text-sm">{nextIncomingRide.service_type === 'livraison' ? '📦' : '🛵'} Prochaine {nextIncomingRide.service_type === 'livraison' ? 'livraison' : 'course'} !</p>
                 <p className="text-green-100 text-xs">{formatPrice(nextIncomingRide.price)} • {nextIncomingRide.to_address}</p>
               </div>
               <div className="flex gap-2">
@@ -1557,7 +1563,7 @@ export default function TiakTiak() {
           </div>
         )}
         <header className="px-4 py-3 flex items-center justify-between" style={{ background: '#0F5138', marginTop: showNextRideBanner ? '68px' : '0' }}>
-          <div><p className="text-white font-black">Course en cours 🛵</p><p className="text-green-200 text-xs truncate">{currentDriverRide.to_address}</p></div>
+          <div><p className="text-white font-black">{currentDriverRide.service_type === 'livraison' ? '📦 Livraison en cours' : '🛵 Course en cours'}</p><p className="text-green-200 text-xs truncate">{currentDriverRide.to_address}</p></div>
           <span className="text-green-200 text-sm font-bold">{formatPrice(currentDriverRide.price)}</span>
         </header>
         <div className="flex-1 overflow-y-auto">
@@ -1615,13 +1621,14 @@ export default function TiakTiak() {
                     <span className="text-xs text-gray-500 ml-1">{driverStats.rating.toFixed(1)} • {driverStats.totalRides} courses</span>
                   </div>
                   {freeTrialActive && freeTrialEnd && <p className="text-xs font-bold text-orange-500 mt-0.5">🎯 {formatCountdown(freeTrialEnd)} gratuits restants</p>}
+                  {isPremium && <p className="text-xs font-bold mt-0.5" style={{ color: '#1D6BF5' }}>⚡ Priorité 1 min sur les courses</p>}
                 </div>
               </div>
 
               <div className="bg-white rounded-2xl p-5 shadow-sm flex items-center justify-between">
                 <div>
                   <p className="font-bold text-base">{isOnline ? '🟢 En ligne' : '⚫ Hors ligne'}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{isOnline ? 'Tu recois les courses' : 'Active pour recevoir'}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{isOnline ? 'Tu recois moto-taxi et livraisons' : 'Active pour recevoir'}</p>
                 </div>
                 <button onClick={toggleOnline} disabled={onlineLoading} className="w-16 h-8 rounded-full relative flex items-center" style={{ background: isOnline ? '#1DB954' : '#D1D5DB' }}>
                   <div className="absolute w-6 h-6 rounded-full bg-white shadow" style={{ left: isOnline ? '34px' : '2px' }} />
@@ -1631,7 +1638,7 @@ export default function TiakTiak() {
               {isOnline ? (
                 <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
                   <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: '#1DB954' }} />
-                  <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>En attente de courses...</p>
+                  <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>En attente de courses 🛵 et livraisons 📦...</p>
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl p-4 shadow-sm text-center py-8">
@@ -1657,7 +1664,7 @@ export default function TiakTiak() {
                 <Award size={24} color="white" />
                 <div className="flex-1 text-left">
                   <p className="font-black text-white">{isPremium ? '✓ PREMIUM ACTIF' : 'Passe en Premium !'}</p>
-                  <p className="text-blue-100 text-xs">{isPremium ? (premiumExpiresAt ? `Expire le ${new Date(premiumExpiresAt).toLocaleDateString('fr-FR')}` : '') : '5 000 FCFA/mois • Commission 100F fixe'}</p>
+                  <p className="text-blue-100 text-xs">{isPremium ? (premiumExpiresAt ? `Expire le ${new Date(premiumExpiresAt).toLocaleDateString('fr-FR')}` : '') : '5 000 FCFA/mois • Priorité + commission reduite'}</p>
                 </div>
                 <ChevronRight size={20} color="rgba(255,255,255,0.7)" />
               </button>
@@ -1671,13 +1678,11 @@ export default function TiakTiak() {
               <h2 className="font-bold text-gray-700">Mes gains</h2>
               {freeTrialActive && <div className="rounded-2xl p-3" style={{ background: '#E8F5E9' }}><p className="text-sm font-bold" style={{ color: '#0F5138' }}>🎯 Commission 0 FCFA actif !</p></div>}
 
-              {/* Stats aujourd'hui */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{driverStats.todayRides}</p><p className="text-xs text-gray-400">Courses aujourd&apos;hui</p></div>
                 <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(driverStats.todayEarnings)}</p><p className="text-xs text-gray-400">Gains aujourd&apos;hui</p></div>
               </div>
 
-              {/* Tabs semaine/mois */}
               <div className="flex bg-gray-100 rounded-2xl p-1">
                 <button onClick={() => setStatsTab('semaine')} className="flex-1 py-2 rounded-xl font-bold text-sm" style={{ background: statsTab === 'semaine' ? '#0F5138' : 'transparent', color: statsTab === 'semaine' ? 'white' : '#9CA3AF' }}>7 jours</button>
                 <button onClick={() => setStatsTab('mois')} className="flex-1 py-2 rounded-xl font-bold text-sm" style={{ background: statsTab === 'mois' ? '#0F5138' : 'transparent', color: statsTab === 'mois' ? 'white' : '#9CA3AF' }}>30 jours</button>
@@ -1751,7 +1756,6 @@ export default function TiakTiak() {
       </div>
     )
   }
-
   // ===== CLIENT SUIVI =====
   if (screen === 'suivi' && currentClientRide) {
     const pmLabel = paymentLabel(payment)
@@ -1807,7 +1811,7 @@ export default function TiakTiak() {
               <button onClick={() => setShowPinModal(true)} className="py-3 rounded-2xl font-bold flex items-center justify-center gap-2 bg-white border-2" style={{ borderColor: '#0F5138', color: '#0F5138' }}>
                 <Lock size={16} /> Voir PIN
               </button>
-              <button onClick={() => shareTrip(currentClientRide.id, driverName, position.address, currentClientRide.to_address)} className="py-3 rounded-2xl font-bold flex items-center justify-center gap-2 bg-white border-2" style={{ borderColor: '#1DB954', color: '#0F5138' }}>
+              <button onClick={() => shareTrip(driverName, position.address, currentClientRide.to_address)} className="py-3 rounded-2xl font-bold flex items-center justify-center gap-2 bg-white border-2" style={{ borderColor: '#1DB954', color: '#0F5138' }}>
                 <Share2 size={16} /> Partager
               </button>
             </div>
@@ -1933,13 +1937,19 @@ export default function TiakTiak() {
         <div className="relative flex items-center justify-center">
           <div className="absolute rounded-full" style={{ width: '160px', height: '160px', background: 'rgba(29,185,84,0.15)', animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite' }} />
           <div className="absolute rounded-full" style={{ width: '120px', height: '120px', background: 'rgba(29,185,84,0.2)', animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite', animationDelay: '0.5s' }} />
-          <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}><span className="text-5xl">🛵</span></div>
+          <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}><span className="text-5xl">{service === 'livraison' ? '📦' : '🛵'}</span></div>
         </div>
         <div className="text-center"><h2 className="text-2xl font-black text-white mb-2">Recherche en cours...</h2><p className="text-green-200 text-sm">Nous cherchons le chauffeur le plus proche</p></div>
         {selected && (
           <div className="w-full rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.1)' }}>
             <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954' }} /><div><p className="text-green-200 text-xs">Depart</p><p className="text-white text-sm font-semibold">{position.address}</p></div></div>
             <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-red-400" /><div><p className="text-green-200 text-xs">Destination</p><p className="text-white text-sm font-semibold">{selected.name}</p></div></div>
+            {isFirstRide && (
+              <div className="rounded-xl p-2 flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.15)' }}>
+                <span className="text-lg">🎉</span>
+                <span className="text-white text-xs font-bold">-10% appliqué — Première course !</span>
+              </div>
+            )}
             <div className="border-t border-white border-opacity-20 pt-3 flex justify-between"><span className="text-green-200 text-sm">Prix</span><span className="text-white font-black text-lg">{formatPrice(price)}</span></div>
             <div className="flex justify-center gap-3">
               {clientPinCode.split('').map((d, i) => (
@@ -1982,7 +1992,6 @@ export default function TiakTiak() {
       </div>
     </div>
   )
-
   if (screen === 'recherche') return (
     <div className="fixed inset-0 flex flex-col bg-white">
       <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
@@ -1994,7 +2003,6 @@ export default function TiakTiak() {
         </div>
       </header>
       <div className="flex-1 overflow-y-auto">
-        {/* Destinations fréquentes */}
         {!query && freqDests.length > 0 && (
           <div className="p-4">
             <p className="text-xs font-bold text-gray-400 mb-3">DESTINATIONS FRÉQUENTES</p>
@@ -2039,6 +2047,12 @@ export default function TiakTiak() {
                 <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>{nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} dispo • Plus proche : {nearbyDrivers[0].eta} min</p>
               </div>
             )}
+            {isFirstRide && (
+              <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #F59E0B, #1DB954)' }}>
+                <span className="text-lg">🎉</span>
+                <p className="text-sm font-bold text-white">-10% sur ta première course !</p>
+              </div>
+            )}
             <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="flex items-center gap-3 mb-3"><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954' }} /><div><p className="text-xs text-gray-400">Depart</p><p className="text-sm font-semibold">{position.address}</p></div></div>
               <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-red-500" /><div><p className="text-xs text-gray-400">Destination</p><p className="text-sm font-semibold">{selected.name}</p></div></div>
@@ -2054,6 +2068,9 @@ export default function TiakTiak() {
             <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="flex justify-between mb-2"><span className="text-sm text-gray-500">Distance</span><span className="text-sm font-bold">{formatDistance(km)}</span></div>
               <div className="flex justify-between mb-3"><span className="text-sm text-gray-500">Duree estimee</span><span className="text-sm font-bold">{formatETA(eta)}</span></div>
+              {isFirstRide && (
+                <div className="flex justify-between mb-2 text-sm"><span className="text-gray-400 line-through">{formatPrice(basePrice)}</span><span className="font-bold text-green-600">-10%</span></div>
+              )}
               <div className="border-t border-gray-100 pt-3 flex justify-between items-center"><span className="font-bold">Prix total</span><span className="text-2xl font-black" style={{ color: '#0F5138' }}>{formatPrice(price)}</span></div>
             </div>
             <div className="bg-white rounded-2xl p-4 shadow-sm">
@@ -2092,7 +2109,13 @@ export default function TiakTiak() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{clientTotalRides}</p><p className="text-xs text-gray-400">Courses</p></div>
-          <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>5.0 ⭐</p><p className="text-xs text-gray-400">Ma note</p></div>
+          <div className="bg-white rounded-2xl p-4 shadow-sm text-center">
+            {clientTotalRides === 0 ? (
+              <><p className="text-lg font-black" style={{ color: '#1DB954' }}>🎉 -10%</p><p className="text-xs text-gray-400">1ère course</p></>
+            ) : (
+              <><p className="text-2xl font-black" style={{ color: '#0F5138' }}>🛵</p><p className="text-xs text-gray-400">Membre TIAK TIAK</p></>
+            )}
+          </div>
         </div>
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           <button onClick={() => { setScreen('courses'); loadRides() }} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><List size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Mes courses</span><ChevronRight size={18} className="text-gray-300" /></button>
@@ -2156,6 +2179,7 @@ export default function TiakTiak() {
       { q: 'Badge bleu ?', a: 'Le ✓ bleu = chauffeur Premium certifié par TIAK TIAK.' },
       { q: 'Zones couvertes ?', a: 'Tout le Senegal : Dakar, Thies, Touba, Saint-Louis, Kaolack...' },
       { q: 'Comment partager mon trajet ?', a: "Sur l'écran de suivi, appuie sur Partager pour envoyer ta position à un proche." },
+      { q: 'La réduction -10% ?', a: "Automatiquement appliquée sur ta toute première course. Aucun code à entrer." },
     ]
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
@@ -2238,6 +2262,33 @@ export default function TiakTiak() {
     </div>
   )
 
+  if (screen === 'apropos') return (
+    <div className="fixed inset-0 flex flex-col bg-gray-100">
+      <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+        <button onClick={() => setScreen('accueil')}><ArrowLeft size={24} color="#0F5138" /></button>
+        <span className="font-bold text-black">A propos</span>
+      </header>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex flex-col items-center py-6">
+          <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: '40px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#0F5138', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
+            <span style={{ fontSize: '40px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#1DB954', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
+          </div>
+          <p className="text-gray-400 text-sm mt-2">Le Tiak Tiak de ta génération</p>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
+          <p className="font-bold text-sm mb-1" style={{ color: '#0F5138' }}>Ce que nous offrons</p>
+          <p className="text-sm text-gray-600">🏍️ Courses moto-taxi rapides</p>
+          <p className="text-sm text-gray-600">📦 Livraison express</p>
+          <p className="text-sm text-gray-600">💳 Cash, Wave, Orange Money</p>
+          <p className="text-sm text-gray-600">🔵 Chauffeurs Premium certifies</p>
+          <p className="text-sm text-gray-600">🇸🇳 Tout le Senegal</p>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-sm text-gray-600">Fierement senegalais 🇸🇳</p><p className="text-xs text-gray-400 mt-1">Version 1.0.0</p></div>
+      </div>
+    </div>
+  )
+
   if (screen === 'courses') return (
     <div className="fixed inset-0 flex flex-col bg-gray-100">
       <header className="bg-white px-4 py-3 flex items-center justify-center border-b border-gray-100">
@@ -2308,17 +2359,19 @@ export default function TiakTiak() {
       )}
       <header className="bg-white px-4 py-3 flex items-center justify-between border-b border-gray-100">
         <button onClick={() => setMenuOpen(true)} className="w-10 h-10 flex items-center justify-center"><Menu size={24} color="#0F5138" /></button>
-        <img src="/splash-white.png" alt="TIAK TIAK" style={{ height: '32px', objectFit: 'contain' }} />
+        <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '20px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#0F5138', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
+          <span style={{ fontSize: '20px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#1DB954', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
+        </div>
         <button onClick={() => setScreen('profil')} className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><User size={20} className="text-gray-400" /></button>
       </header>
 
-      <div className="h-48 relative">
-        <MapView fromLat={position.lat} fromLng={position.lng} toLat={position.lat} toLng={position.lng} nearbyDrivers={nearbyDrivers} showNearby={true} />
-        <div className="absolute bottom-2 left-2 right-2 bg-white bg-opacity-90 rounded-xl px-3 py-2 flex items-center gap-2">
+      <div className="px-4 pt-3">
+        <div className="bg-white rounded-xl px-3 py-2.5 flex items-center gap-2 shadow-sm">
           {nearbyDrivers.length > 0 ? (
-            <><div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#1DB954' }} /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>{nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} dispo • {nearbyDrivers[0]?.eta} min</span></>
+            <><div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#1DB954' }} /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>{nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} dispo • Plus proche : {nearbyDrivers[0]?.eta} min</span></>
           ) : (
-            <><div className="w-2 h-2 rounded-full bg-gray-300" /><span className="text-xs text-gray-400">Aucun chauffeur disponible</span></>
+            <><div className="w-2 h-2 rounded-full bg-gray-300" /><span className="text-xs text-gray-400">Aucun chauffeur disponible pour le moment</span></>
           )}
         </div>
       </div>
@@ -2336,13 +2389,19 @@ export default function TiakTiak() {
           </div>
         </div>
 
-        <button onClick={() => setScreen('recherche')} className="w-full bg-white rounded-2xl px-4 py-4 flex items-center gap-3 shadow-sm">
+        {isFirstRide && (
+          <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: 'linear-gradient(135deg, #F59E0B, #1DB954)' }}>
+            <span className="text-2xl">🎉</span>
+            <div><p className="font-black text-white text-sm">-10% sur ta première course</p><p className="text-white text-xs opacity-90">Applique automatiquement à la commande</p></div>
+          </div>
+        )}
+
+        <button onClick={() => { checkFirstRide(); setScreen('recherche') }} className="w-full bg-white rounded-2xl px-4 py-4 flex items-center gap-3 shadow-sm">
           <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} />
           <span className="flex-1 text-left text-gray-400">Ou allons-nous ?</span>
           <ChevronRight size={20} color="#0F5138" />
         </button>
 
-        {/* Destinations fréquentes sur l'accueil */}
         {freqDests.length > 0 && (
           <div>
             <p className="text-xs font-bold text-gray-400 mb-2">VOS DESTINATIONS</p>

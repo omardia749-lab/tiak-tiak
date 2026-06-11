@@ -1,66 +1,63 @@
-export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+export const WAVE_PAYMENT_LINK = 'https://pay.wave.com/m/M_sn_E4kXre9QgO9U/c/sn/'
+
+export function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371
   const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLng = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng/2) * Math.sin(dLng/2)
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
 }
 
 export function calculatePrice(km: number, service: 'moto' | 'livraison'): number {
-  const raw = service === 'moto' ? 500 + (200 * km) : 700 + (250 * km)
-  return Math.max(600, Math.ceil(raw / 100) * 100)
+  let price: number
+  if (service === 'livraison') {
+    price = 700 + 250 * km
+  } else {
+    price = 500 + 200 * km
+  }
+  price = Math.max(price, 600)
+  return Math.round(price / 100) * 100
 }
 
-// Commission selon le statut premium et le prix de la course
-export function calculateCommission(price: number, isPremium: boolean = false): number {
-  if (isPremium) return 100
-  if (price >= 5000) return 400
-  if (price >= 2000) return 200
-  return 100
+export function calculateCommission(price: number, isPremium: boolean, serviceType: 'moto' | 'livraison' = 'moto'): number {
+  if (isPremium) {
+    return serviceType === 'livraison' ? 200 : 100
+  }
+  if (serviceType === 'livraison') {
+    return price >= 3000 ? 500 : 200
+  }
+  if (price < 2000) return 100
+  if (price < 5000) return 200
+  return 400
+}
+
+export function applyFirstRideDiscount(price: number, isFirstRide: boolean): number {
+  if (!isFirstRide) return price
+  const discounted = price * 0.9
+  return Math.round(discounted / 50) * 50
 }
 
 export function formatPrice(price: number): string {
-  return `${price.toLocaleString('fr-FR')} FCFA`
+  return new Intl.NumberFormat('fr-FR').format(Math.round(price)) + ' FCFA'
+}
+
+export function formatDistance(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)} m`
+  return `${km.toFixed(1)} km`
 }
 
 export function calculateETA(km: number): number {
-  return Math.ceil((km / 25) * 60)
+  // ~25 km/h moyenne moto en ville
+  return Math.max(2, Math.round((km / 25) * 60))
 }
 
 export function formatETA(minutes: number): string {
   if (minutes < 60) return `${minutes} min`
-  return `${Math.floor(minutes/60)}h${minutes%60 > 0 ? minutes%60 + 'min' : ''}`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return `${h}h${m > 0 ? m + 'min' : ''}`
 }
-
-export function formatDistance(km: number): string {
-  return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`
-}
-
-export const WAVE_PAYMENT_LINK = 'https://pay.wave.com/m/M_sn_E4kXre9QgO9U/c/sn/'
-
-export const DESTINATIONS_SENEGAL = [
-  { name: 'Marche Sandaga', address: 'Plateau, Dakar', lat: 14.6928, lng: -17.4447 },
-  { name: 'Aeroport AIBD', address: 'Diass, Thies', lat: 14.6700, lng: -17.0700 },
-  { name: 'Universite UCAD', address: 'Fann, Dakar', lat: 14.6920, lng: -17.4680 },
-  { name: 'Hopital Principal', address: 'Plateau, Dakar', lat: 14.6870, lng: -17.4440 },
-  { name: 'Gare Routiere Pompiers', address: 'Dakar', lat: 14.7000, lng: -17.4600 },
-  { name: 'Stade LSS', address: 'Leopold, Dakar', lat: 14.7010, lng: -17.4630 },
-  { name: 'Touba', address: 'Diourbel', lat: 14.8500, lng: -15.8800 },
-  { name: 'Thies Centre', address: 'Thies', lat: 14.7886, lng: -16.9260 },
-  { name: 'Saint-Louis', address: 'Saint-Louis', lat: 16.0179, lng: -16.4897 },
-  { name: 'Mbour', address: 'Thies', lat: 14.3800, lng: -16.9700 },
-  { name: 'Kaolack', address: 'Kaolack', lat: 14.1520, lng: -16.0760 },
-  { name: 'Yoff', address: 'Dakar', lat: 14.7480, lng: -17.4920 },
-  { name: 'Almadies', address: 'Dakar', lat: 14.7430, lng: -17.5250 },
-  { name: 'Guediawaye', address: 'Dakar', lat: 14.7700, lng: -17.4000 },
-  { name: 'Pikine', address: 'Dakar', lat: 14.7500, lng: -17.3900 },
-  { name: 'Grand-Yoff', address: 'Dakar', lat: 14.7300, lng: -17.4550 },
-  { name: 'Parcelles Assainies', address: 'Dakar', lat: 14.7600, lng: -17.4200 },
-  { name: 'Mermoz', address: 'Dakar', lat: 14.7050, lng: -17.4850 },
-  { name: 'Liberte 6', address: 'Dakar', lat: 14.7200, lng: -17.4500 },
-  { name: 'HLM', address: 'Dakar', lat: 14.7100, lng: -17.4600 },
-  { name: 'Medina', address: 'Dakar', lat: 14.7000, lng: -17.4500 },
-  { name: 'Rufisque Centre', address: 'Rufisque', lat: 14.7167, lng: -17.2833 },
-  { name: 'Bargny', address: 'Dakar', lat: 14.6960, lng: -17.2250 },
-  { name: 'Ziguinchor', address: 'Ziguinchor', lat: 12.5681, lng: -16.2719 },
-]
