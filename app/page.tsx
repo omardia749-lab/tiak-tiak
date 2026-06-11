@@ -266,6 +266,19 @@ export default function TiakTiak() {
   const [trialActivating, setTrialActivating] = useState(false)
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([])
   const [navStartPos, setNavStartPos] = useState<GpsPosition>(DEFAULT_POS)
+  const [isOffline, setIsOffline] = useState(false)
+
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true)
+    const goOnline = () => setIsOffline(false)
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    setIsOffline(!navigator.onLine)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [])
   const [showNextRideBanner, setShowNextRideBanner] = useState(false)
   const [statsTab, setStatsTab] = useState<'semaine' | 'mois'>('semaine')
 
@@ -468,7 +481,7 @@ export default function TiakTiak() {
         }
       },
       () => {},
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 8000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
     )
     return () => { if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current) }
   }, [isOnline, user, currentDriverRide, driverPhase, clientArrived, routeCoords])
@@ -943,6 +956,12 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     { code: 'ar', flag: '🇸🇦', name: 'Arabe' },
     { code: 'es', flag: '🇪🇸', name: 'Espagnol' },
   ]
+
+const OfflineBanner = () => isOffline ? (
+    <div className="fixed top-0 left-0 right-0 z-[100] py-2 text-center text-xs font-bold text-white" style={{ background: '#EF4444' }}>
+      📡 Connexion perdue — reconnexion en cours...
+    </div>
+  ) : null
 
   // ===== SPLASH =====
   if (!loaded) return (
@@ -1647,6 +1666,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     // Dashboard chauffeur
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
+        <OfflineBanner />
         <header className="px-4 py-3 flex items-center justify-between" style={{ background: '#0F5138' }}>
           <div className="flex items-center gap-2">
             <span className="text-xl font-black italic text-white">TIAK TIAK</span>
@@ -2399,6 +2419,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
   // ===== ACCUEIL CLIENT =====
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-100">
+      <OfflineBanner />
       {menuOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black bg-opacity-40" onClick={() => setMenuOpen(false)} />
