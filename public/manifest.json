@@ -1,4 +1,13 @@
-"icons": [
+{
+  "name": "TIAK TIAK",
+  "short_name": "TIAK TIAK",
+  "description": "Transport moto rapide a votre service",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F5138",
+  "theme_color": "#0F5138",
+  "orientation": "portrait",
+  "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
@@ -12,3 +21,4 @@
       "purpose": "any"
     }
   ]
+}
