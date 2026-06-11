@@ -237,6 +237,7 @@ export default function TiakTiak() {
   const [estimatedArrival, setEstimatedArrival] = useState(0)
   const [distanceToClient, setDistanceToClient] = useState(0)
   const [driverArrived, setDriverArrived] = useState(false)
+  const [driverArrivedAt, setDriverArrivedAt] = useState<number | null>(null)
 
   // Chauffeur
   const [isOnline, setIsOnline] = useState(false)
@@ -561,6 +562,7 @@ export default function TiakTiak() {
         }
         if ((updated as any).driver_arrived_at && !driverArrived) {
           setDriverArrived(true)
+          setDriverArrivedAt(Date.now())
           speak("Votre chauffeur est arrivé. Donnez-lui votre code PIN.")
         }
         if ((updated as any).pin_wrong_attempt) {
@@ -1894,6 +1896,8 @@ export default function TiakTiak() {
     )
   }
 
+ const cancellationFeeApplies = driverArrivedAt ? (Date.now() - driverArrivedAt) > 3 * 60 * 1000 : false
+ 
   if (screen === 'annulation_suivi') return (
     <div className="fixed inset-0 flex flex-col bg-white">
       <header className="px-4 py-4 flex items-center gap-3 border-b border-gray-100">
@@ -1902,6 +1906,12 @@ export default function TiakTiak() {
       </header>
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         <div className="text-center mb-2"><XCircle size={48} color="#EF4444" className="mx-auto mb-3" /><p className="font-bold text-gray-800">Pourquoi veux-tu annuler ?</p></div>
+        {cancellationFeeApplies && (
+          <div className="rounded-2xl p-4" style={{ background: '#FEF3C7' }}>
+            <p className="text-sm font-bold text-orange-700">⚠️ Frais d&apos;annulation</p>
+            <p className="text-xs text-orange-600 mt-1">Ton chauffeur attend depuis plus de 3 minutes. En cas d&apos;annulation, merci de lui donner 200 FCFA en especes pour le deplacement.</p>
+          </div>
+        )}
         <div className="space-y-3">
           {CANCEL_REASONS.map(reason => (
             <button key={reason} onClick={() => setCancelReason(reason)} className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left" style={{ borderColor: cancelReason === reason ? '#1DB954' : '#F3F4F6', background: cancelReason === reason ? '#E8F5E9' : 'white' }}>
