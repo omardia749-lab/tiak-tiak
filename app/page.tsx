@@ -176,6 +176,10 @@ export default function TiakTiak() {
 
   const [position, setPosition] = useState<GpsPosition>(DEFAULT_POS)
 
+  const [gpsReady, setGpsReady] = useState(false)
+  const [gpsLoading, setGpsLoading] = useState(false)
+  const [gpsDenied, setGpsDenied] = useState(false)
+
   const [formName, setFormName] = useState('')
   const [formPhone, setFormPhone] = useState('')
   const [formMoto, setFormMoto] = useState('')
@@ -293,24 +297,35 @@ export default function TiakTiak() {
       const savedLang = localStorage.getItem('tiaktiak_lang')
       if (savedLang) setLang(savedLang)
       setLoaded(true)
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const { latitude, longitude } = pos.coords
-          try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`)
-            const data = await res.json()
-            const address = data.address?.suburb || data.address?.neighbourhood || data.address?.city || data.address?.town || 'Ma position'
-            setPosition({ lat: latitude, lng: longitude, address })
-          } catch {
-            setPosition({ lat: latitude, lng: longitude, address: 'Ma position' })
-          }
-        },
-        () => {},
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      )
     }, 8000)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
+
+  const activerGPS = () => {
+    setGpsLoading(true); setGpsDenied(false)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`)
+          const data = await res.json()
+          const address = data.address?.suburb || data.address?.neighbourhood || data.address?.city || data.address?.town || 'Ma position'
+          setPosition({ lat: latitude, lng: longitude, address })
+          if (user?.role === 'chauffeur') setDriverPosition({ lat: latitude, lng: longitude, address })
+        } catch {
+          setPosition({ lat: latitude, lng: longitude, address: 'Ma position' })
+          if (user?.role === 'chauffeur') setDriverPosition({ lat: latitude, lng: longitude, address: 'Ma position' })
+        }
+        setGpsReady(true); setGpsLoading(false)
+      },
+      () => { setGpsDenied(true); setGpsLoading(false) },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    )
+  }
+
+  useEffect(() => {
+    if (loaded && user) activerGPS()
+  }, [loaded, user])
 
   useEffect(() => {
     if (!user || user.role !== 'client') return
@@ -957,7 +972,35 @@ export default function TiakTiak() {
     </div>
   )
 
-  // ===== AUTH =====
+ // ===== GPS OBLIGATOIRE =====
+  if (user && !gpsReady) return (
+    <div className="fixed inset-0 flex flex-col bg-white">
+      <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
+        <div className="relative flex items-center justify-center">
+          <div className="absolute rounded-full animate-pulse" style={{ background: '#1DB954', opacity: 0.15, width: '140px', height: '140px' }} />
+          <div className="relative w-28 h-28 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}>
+            <Navigation size={48} color="white" fill="white" style={{ transform: 'rotate(45deg)' }} />
+          </div>
+        </div>
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Active ta localisation</h2>
+          <p className="text-gray-400 text-sm">TIAK TIAK a besoin de ta position exacte pour calculer le prix et trouver les chauffeurs proches de toi.</p>
+        </div>
+        {gpsDenied && (
+          <div className="rounded-2xl p-4 text-center" style={{ background: '#FEE2E2' }}>
+            <p className="text-red-600 text-sm font-bold">Localisation refusée !</p>
+            <p className="text-red-500 text-xs mt-1">Va dans les paramètres de ton telephone et autorise la localisation pour ce site, puis reessaie.</p>
+          </div>
+        )}
+      </div>
+      <div className="px-8 pb-10">
+        <button onClick={activerGPS} disabled={gpsLoading} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: gpsLoading ? '#7aaa94' : '#0F5138' }}>
+          <Navigation size={20} color="white" />{gpsLoading ? 'Localisation...' : 'Activer ma localisation'}
+        </button>
+      </div>
+    </div>
+  )
+   // ===== AUTH =====
   if (!user) {
     if (authScreen === 'roles') return (
       <div className="fixed inset-0 flex flex-col bg-white">
