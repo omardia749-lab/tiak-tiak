@@ -265,6 +265,7 @@ export default function TiakTiak() {
   const [showPinEntry, setShowPinEntry] = useState(false)
   const [trialActivating, setTrialActivating] = useState(false)
   const [routeCoords, setRouteCoords] = useState<[number, number][]>([])
+  const [navStartPos, setNavStartPos] = useState<GpsPosition>(DEFAULT_POS)
   const [showNextRideBanner, setShowNextRideBanner] = useState(false)
   const [statsTab, setStatsTab] = useState<'semaine' | 'mois'>('semaine')
 
@@ -457,10 +458,6 @@ export default function TiakTiak() {
               await supabase.from('rides').update({ driver_arrived_at: new Date().toISOString() } as any).eq('id', currentDriverRide.id)
               setShowPinEntry(true)
             }
-            if (routeCoords.length > 0) {
-              const minDist = Math.min(...routeCoords.map(c => haversineDistance(latitude, longitude, c[0], c[1]) * 1000))
-              if (minDist > 50) speak("Recalcul de l'itinéraire...")
-            }
           } else {
             const distToDest = haversineDistance(latitude, longitude, currentDriverRide.to_lat, currentDriverRide.to_lng)
             if (distToDest * 1000 < 10) {
@@ -482,6 +479,9 @@ export default function TiakTiak() {
       .channel('driver-rides-' + user.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rides', filter: 'status=eq.pending' }, (payload) => {
         const newRide = payload.new as Ride
+
+const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, newRide.from_lat, newRide.from_lng)
+        if (distToPickup > 7) return
 
         const showRide = () => {
           if (!currentDriverRide) {
@@ -835,6 +835,7 @@ export default function TiakTiak() {
     if (error || !data) { alert('Course déjà prise !'); setIncomingRide(null) }
     else {
       setCurrentDriverRide(data as Ride); setIncomingRide(null)
+      setNavStartPos(driverPosition)
       setDriverPhase('to_client'); setClientArrived(false); setRideCancelled(false)
       setShowPinEntry(false); setPinInput('')
       setScreen('driver_to_client')
@@ -861,6 +862,7 @@ export default function TiakTiak() {
   const demarrerCourse = async () => {
     if (!currentDriverRide?.id) return
     await supabase.from('rides').update({ status: 'in_progress', started_at: new Date().toISOString() } as any).eq('id', currentDriverRide.id)
+    setNavStartPos(driverPosition)
     setDriverPhase('with_client'); setScreen('driver_course')
     speak(`Course démarrée. Direction ${currentDriverRide.to_address}`)
   }
@@ -876,6 +878,7 @@ export default function TiakTiak() {
     if (nextIncomingRide && (nextIncomingRide as any).status === 'accepted') {
       setCurrentDriverRide(nextIncomingRide as Ride)
       setNextIncomingRide(null)
+      setNavStartPos(driverPosition)
       setDriverPhase('to_client'); setClientArrived(false)
       setShowPinEntry(false); setPinInput('')
       setScreen('driver_to_client')
@@ -975,33 +978,41 @@ export default function TiakTiak() {
   )
 
  // ===== GPS OBLIGATOIRE =====
-  if (user && !gpsReady) return (
-    <div className="fixed inset-0 flex flex-col bg-white">
-      <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
-        <div className="relative flex items-center justify-center">
-          <div className="absolute rounded-full animate-pulse" style={{ background: '#1DB954', opacity: 0.15, width: '140px', height: '140px' }} />
-          <div className="relative w-28 h-28 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}>
-            <Navigation size={48} color="white" fill="white" style={{ transform: 'rotate(45deg)' }} />
+  if (user && !gpsReady) {
+    if (gpsDenied) return (
+      <div className="fixed inset-0 flex flex-col bg-white">
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
+          <div className="relative flex items-center justify-center">
+            <div className="absolute rounded-full animate-pulse" style={{ background: '#1DB954', opacity: 0.15, width: '140px', height: '140px' }} />
+            <div className="relative w-28 h-28 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}>
+              <Navigation size={48} color="white" fill="white" style={{ transform: 'rotate(45deg)' }} />
+            </div>
           </div>
-        </div>
-        <div className="text-center">
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Active ta localisation</h2>
-          <p className="text-gray-400 text-sm">TIAK TIAK a besoin de ta position exacte pour calculer le prix et trouver les chauffeurs proches de toi.</p>
-        </div>
-        {gpsDenied && (
+          <div className="text-center">
+            <h2 className="text-xl font-bold text-gray-800 mb-2">Active ta localisation</h2>
+            <p className="text-gray-400 text-sm">TIAK TIAK a besoin de ta position exacte pour calculer le prix et trouver les chauffeurs proches de toi.</p>
+          </div>
           <div className="rounded-2xl p-4 text-center" style={{ background: '#FEE2E2' }}>
             <p className="text-red-600 text-sm font-bold">Localisation refusée !</p>
             <p className="text-red-500 text-xs mt-1">Va dans les paramètres de ton telephone et autorise la localisation pour ce site, puis reessaie.</p>
           </div>
-        )}
+        </div>
+        <div className="px-8 pb-10">
+          <button onClick={activerGPS} disabled={gpsLoading} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: gpsLoading ? '#7aaa94' : '#0F5138' }}>
+            <Navigation size={20} color="white" />{gpsLoading ? 'Localisation...' : 'Reessayer'}
+          </button>
+        </div>
       </div>
-      <div className="px-8 pb-10">
-        <button onClick={activerGPS} disabled={gpsLoading} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: gpsLoading ? '#7aaa94' : '#0F5138' }}>
-          <Navigation size={20} color="white" />{gpsLoading ? 'Localisation...' : 'Activer ma localisation'}
-        </button>
+    )
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-white">
+        <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '48px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#0F5138', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
+          <span style={{ fontSize: '48px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#1DB954', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
    // ===== AUTH =====
   if (!user) {
     if (authScreen === 'roles') return (
@@ -1555,7 +1566,7 @@ export default function TiakTiak() {
         </header>
         <div className="flex-1 overflow-y-auto">
           <div className="h-64 relative">
-            <MapView fromLat={driverPosition.lat} fromLng={driverPosition.lng} toLat={currentDriverRide.from_lat} toLng={currentDriverRide.from_lng} mode="driver" onRouteCoords={setRouteCoords} />
+            <MapView fromLat={navStartPos.lat} fromLng={navStartPos.lng} toLat={currentDriverRide.from_lat} toLng={currentDriverRide.from_lng} driverLat={driverPosition.lat} driverLng={driverPosition.lng} showDriver={true} mode="driver" onRouteCoords={setRouteCoords} />
           </div>
           <div className="p-4 space-y-3">
             <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">

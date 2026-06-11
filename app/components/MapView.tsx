@@ -32,6 +32,7 @@ export default function MapView({
   nearbyDrivers = [],
   showNearby = false,
   onRouteCoords,
+  mode = 'client',
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
@@ -180,6 +181,8 @@ export default function MapView({
     }
   }, [fromLat, fromLng, toLat, toLng, showNearby])
 
+  const lastRouteUpdateRef = useRef<number>(0)
+
   useEffect(() => {
     if (!mapRef.current || !LRef.current || !showDriver || !driverLat || !driverLng) return
     const L = LRef.current
@@ -190,7 +193,17 @@ export default function MapView({
         icon: createMotoIcon(L, undefined, true)
       }).addTo(mapRef.current)
     }
-  }, [driverLat, driverLng, showDriver, createMotoIcon])
+
+    if (mode === 'driver') {
+      mapRef.current.setView([driverLat, driverLng], 17, { animate: true })
+
+      const now = Date.now()
+      if (now - lastRouteUpdateRef.current > 15000) {
+        lastRouteUpdateRef.current = now
+        drawRoute(L, mapRef.current, [driverLat, driverLng], [toLat, toLng])
+      }
+    }
+  }, [driverLat, driverLng, showDriver, createMotoIcon, mode, toLat, toLng, drawRoute])
 
   useEffect(() => {
     if (!mapRef.current || !LRef.current || !showNearby) return
