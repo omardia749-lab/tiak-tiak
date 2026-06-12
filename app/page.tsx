@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase'
 import dynamic from 'next/dynamic'
 
 const MapView = dynamic(() => import('./components/MapView'), { ssr: false })
+import { LogoIcon, LogoWordmark } from './components/logo'
 
 interface AppUser {
   id?: string
@@ -965,34 +966,9 @@ const OfflineBanner = () => isOffline ? (
 
   // ===== SPLASH =====
   if (!loaded) return (
-    <div
-      className="fixed inset-0 flex items-center justify-center"
-      style={{
-        background: splashPhase === 'green' ? '#0F5138' : '#FFFFFF',
-        transition: 'background 1s ease',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-        <span style={{
-          fontSize: '72px',
-          fontWeight: 800,
-          fontStyle: 'italic',
-          letterSpacing: '-1px',
-          color: splashPhase === 'green' ? '#FFFFFF' : '#0F5138',
-          transition: 'color 1s ease',
-          fontFamily: '"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif',
-          lineHeight: 1,
-        }}>Tiak</span>
-        <span style={{
-          fontSize: '72px',
-          fontWeight: 800,
-          fontStyle: 'italic',
-          letterSpacing: '-1px',
-          color: '#1DB954',
-          fontFamily: '"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif',
-          lineHeight: 1,
-        }}>Tiak</span>
-      </div>
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-5" style={{ background: '#0F5138' }}>
+      <LogoIcon size={96} />
+      <LogoWordmark size={42} onDark={true} />
     </div>
   )
 
@@ -2282,7 +2258,7 @@ const OfflineBanner = () => isOffline ? (
             </div>
           ))}
           <a href={SUPPORT_WHATSAPP} target="_blank" rel="noreferrer" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><MessageCircle size={20} color="#1DB954" /><span className="flex-1 text-sm font-medium">WhatsApp Support</span><ChevronRight size={18} className="text-gray-300" /></a>
-          <a href="tel:+221770970100" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><Phone size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Appeler</span><ChevronRight size={18} className="text-gray-300" /></a>
+          <a href="tel:+221755535030" className="bg-white rounded-2xl shadow-sm flex items-center gap-3 px-4 py-3.5"><Phone size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Appeler</span><ChevronRight size={18} className="text-gray-300" /></a>
         </div>
       </div>
     )
