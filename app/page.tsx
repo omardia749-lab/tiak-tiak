@@ -1012,11 +1012,9 @@ const OfflineBanner = () => isOffline ? (
   if (!user) {
     if (authScreen === 'roles') return (
       <div className="fixed inset-0 flex flex-col bg-white">
-        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-8">
-          <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-            <span style={{ fontSize: '48px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#0F5138', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
-            <span style={{ fontSize: '48px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#1DB954', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-5">
+          <LogoIcon size={88} />
+          <LogoWordmark size={38} onDark={false} />
           <p className="text-gray-400 text-sm text-center">Transport moto rapide à votre service</p>
         </div>
         <div className="px-8 pb-10 space-y-3">
@@ -2329,12 +2327,10 @@ const OfflineBanner = () => isOffline ? (
         <span className="font-bold text-black">A propos</span>
       </header>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <div className="flex flex-col items-center py-6">
-          <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-            <span style={{ fontSize: '40px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#0F5138', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
-            <span style={{ fontSize: '40px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#1DB954', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
-          </div>
-          <p className="text-gray-400 text-sm mt-2">Le Tiak Tiak de ta génération</p>
+        <div className="flex flex-col items-center py-6 gap-3">
+          <LogoIcon size={72} />
+          <LogoWordmark size={32} onDark={false} />
+          <p className="text-gray-400 text-sm mt-1">Le Tiak Tiak de ta génération</p>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
           <p className="font-bold text-sm mb-1" style={{ color: '#0F5138' }}>Ce que nous offrons</p>
@@ -2420,9 +2416,9 @@ const OfflineBanner = () => isOffline ? (
       )}
       <header className="bg-white px-4 py-3 flex items-center justify-between border-b border-gray-100">
         <button onClick={() => setMenuOpen(true)} className="w-10 h-10 flex items-center justify-center"><Menu size={24} color="#0F5138" /></button>
-        <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-          <span style={{ fontSize: '20px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#0F5138', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
-          <span style={{ fontSize: '20px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#1DB954', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
+      <div className="flex items-center gap-2">
+          <LogoIcon size={28} />
+          <LogoWordmark size={18} onDark={false} />
         </div>
         <button onClick={() => setScreen('profil')} className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><User size={20} className="text-gray-400" /></button>
       </header>
