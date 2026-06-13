@@ -121,9 +121,10 @@ export default function MapView({
       mapRef.current = map
 
       // Tuiles claires/beiges style Yango — CartoDB Voyager (gratuit, sans cle)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      L.tileLayer(`https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${process.env.NEXT_PUBLIC_MAPTILER_KEY}`, {
         maxZoom: 20,
-        subdomains: 'abcd',
+        tileSize: 512,
+        zoomOffset: -1,
       }).addTo(map)
 
       // Marqueur depart — rond vert simple
