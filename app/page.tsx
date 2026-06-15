@@ -787,12 +787,12 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
             setAuthError('Photo trop sombre. Améliore l\'éclairage.')
             return
           }
-          if (score < 8) {
-            setAuthError('Photo floue. Reprends la photo en tenant le téléphone stable.')
+          if (score < 3) {
+            setAuthError('Photo trop floue. Reprends en tenant le téléphone stable.')
             return
           }
-          if (score < 15) {
-            setAuthError('Photo acceptable mais essaie d\'avoir plus de lumière.')
+          if (score < 6) {
+            setAuthError('Photo un peu floue mais acceptée. Essaie d\'avoir plus de lumière.')
           } else {
             setAuthError('')
           }
@@ -885,7 +885,16 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
           uploadPhoto(formIdBack, `${data.id}/id_back.jpg`),
           uploadPhoto(formProfilePhoto, `${data.id}/profile.jpg`),
         ])
-        await supabase.from('users').update({ id_card_front: frontUrl, id_card_back: backUrl, profile_photo: profileUrl }).eq('id', data.id)
+        const { error: updateError } = await supabase.from('users').update({ 
+          id_card_front: frontUrl, 
+          id_card_back: backUrl, 
+          profile_photo: profileUrl 
+        }).eq('id', data.id)
+        if (updateError) {
+          setAuthError('Erreur sauvegarde photos. Réessaie.')
+          setAuthLoading(false)
+          return
+        }
         saveUser({ id: data.id, role: 'chauffeur', name: formName.trim(), phone: formPhone.trim() })
       } catch { setAuthError('Erreur upload photos.') }
       setAuthLoading(false)
