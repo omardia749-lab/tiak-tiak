@@ -303,6 +303,7 @@ export default function TiakTiak() {
   const gpsWatchRef = useRef<number | null>(null)
   const nearbyInterval = useRef<NodeJS.Timeout | null>(null)
   const priorityTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  const gpsRetryRef = useRef(false)
 
   // ===== SPLASH + GPS AUTO =====
   useEffect(() => {
@@ -319,8 +320,12 @@ export default function TiakTiak() {
 
   const activerGPS = () => {
     setGpsLoading(true); setGpsDenied(false)
-    navigator.geolocation.getCurrentPosition(
+    let resolved = false
+    const watchId = navigator.geolocation.watchPosition(
       async (pos) => {
+        if (resolved) return
+        resolved = true
+        navigator.geolocation.clearWatch(watchId)
         const { latitude, longitude } = pos.coords
         try {
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=fr`)
@@ -334,9 +339,21 @@ export default function TiakTiak() {
         }
         setGpsReady(true); setGpsLoading(false)
       },
-      () => { setGpsDenied(true); setGpsLoading(false) },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      () => {
+        if (resolved) return
+        resolved = true
+        navigator.geolocation.clearWatch(watchId)
+        setGpsDenied(true); setGpsLoading(false)
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     )
+    setTimeout(() => {
+      if (!resolved && !gpsRetryRef.current) {
+        gpsRetryRef.current = true
+        navigator.geolocation.clearWatch(watchId)
+        activerGPS()
+      }
+    }, 4000)
   }
 
   useEffect(() => {
@@ -973,41 +990,7 @@ const OfflineBanner = () => isOffline ? (
   )
 
  // ===== GPS OBLIGATOIRE =====
-  if (user && !gpsReady) {
-    if (gpsDenied) return (
-      <div className="fixed inset-0 flex flex-col bg-white">
-        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-6">
-          <div className="relative flex items-center justify-center">
-            <div className="absolute rounded-full animate-pulse" style={{ background: '#1DB954', opacity: 0.15, width: '140px', height: '140px' }} />
-            <div className="relative w-28 h-28 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}>
-              <Navigation size={48} color="white" fill="white" style={{ transform: 'rotate(45deg)' }} />
-            </div>
-          </div>
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-gray-800 mb-2">Active ta localisation</h2>
-            <p className="text-gray-400 text-sm">TIAK TIAK a besoin de ta position exacte pour calculer le prix et trouver les chauffeurs proches de toi.</p>
-          </div>
-          <div className="rounded-2xl p-4 text-center" style={{ background: '#FEE2E2' }}>
-            <p className="text-red-600 text-sm font-bold">Localisation refusée !</p>
-            <p className="text-red-500 text-xs mt-1">Va dans les paramètres de ton telephone et autorise la localisation pour ce site, puis reessaie.</p>
-          </div>
-        </div>
-        <div className="px-8 pb-10">
-          <button onClick={activerGPS} disabled={gpsLoading} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: gpsLoading ? '#7aaa94' : '#0F5138' }}>
-            <Navigation size={20} color="white" />{gpsLoading ? 'Localisation...' : 'Reessayer'}
-          </button>
-        </div>
-      </div>
-    )
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-white">
-        <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-          <span style={{ fontSize: '48px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#0F5138', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
-          <span style={{ fontSize: '48px', fontWeight: 800, fontStyle: 'italic', letterSpacing: '-1px', color: '#1DB954', fontFamily: '"Segoe UI", system-ui, sans-serif', lineHeight: 1 }}>Tiak</span>
-        </div>
-      </div>
-    )
-  }
+  
    // ===== AUTH =====
   if (!user) {
     if (authScreen === 'roles') return (
@@ -1414,7 +1397,7 @@ const OfflineBanner = () => isOffline ? (
             </div>
             {isPremium && !freeTrialUsed && (
               <div className="rounded-2xl p-4 space-y-3" style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}>
-                <div className="flex items-center gap-2"><span className="text-2xl">🎯</span><div><p className="font-black text-white">3 Jours GRATUITS</p><p className="text-yellow-100 text-xs">Activer une seule fois</p></div></div>
+                <div className="flex items-center gap-2"><span className="text-2xl">🎯</span><div><p className="font-black text-white">3 Jours GRATUITS</p><p className="text-yellow-100 text-xs">Activer une seule fois </p></div></div>
                 <button onClick={activerFreeTrial} disabled={trialActivating} className="w-full py-3 rounded-xl font-black text-orange-600 bg-white">
                   {trialActivating ? 'Activation...' : '🚀 Activer mes 3 jours gratuits'}
                 </button>
@@ -2422,6 +2405,18 @@ const OfflineBanner = () => isOffline ? (
         </div>
         <button onClick={() => setScreen('profil')} className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><User size={20} className="text-gray-400" /></button>
       </header>
+
+      {!position && (
+        <div className="fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between gap-2" style={{ background: '#0F5138' }}>
+          <span className="text-white text-xs font-medium flex-1">Active ta position pour voir les chauffeurs proches</span>
+          <button onClick={activerGPS} disabled={gpsLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap" style={{ background: '#1DB954', color: 'white' }}>
+            {gpsLoading ? '...' : 'Activer'}
+          </button>
+          <button className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap bg-white" style={{ color: '#0F5138' }}>
+            Saisir adresse
+          </button>
+        </div>
+      )}
 
       <div className="px-4 pt-3">
         <div className="bg-white rounded-xl px-3 py-2.5 flex items-center gap-2 shadow-sm">
