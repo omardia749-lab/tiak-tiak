@@ -697,18 +697,120 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     return urlData.publicUrl
   }
 
-  const capturePhoto = (setter: (v: string) => void, useGallery = false) => {
+  const analyzeImageQuality = (base64: string): Promise<{ score: number; dark: boolean; tooSmall: boolean }> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const MAX = 400
+        const scale = Math.min(MAX / img.width, MAX / img.height)
+        canvas.width = img.width * scale
+        canvas.height = img.height * scale
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return resolve({ score: 100, dark: false, tooSmall: false })
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const pixels = imageData.data
+        const grays: number[] = []
+        let totalBrightness = 0
+        for (let i = 0; i < pixels.length; i += 4) {
+          const gray = 0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2]
+          grays.push(gray)
+          totalBrightness += gray
+        }
+        const avgBrightness = totalBrightness / grays.length
+        const dark = avgBrightness < 60
+        // Laplacian variance pour netteté
+        let laplacianSum = 0
+        const w = canvas.width
+        for (let i = 1; i < canvas.height - 1; i++) {
+          for (let j = 1; j < w - 1; j++) {
+            const idx = (i * w + j)
+            const lap = Math.abs(4 * grays[idx] - grays[idx-1] - grays[idx+1] - grays[idx-w] - grays[idx+w])
+            laplacianSum += lap
+          }
+        }
+        const score = laplacianSum / grays.length
+        const tooSmall = base64.length < 50000
+        resolve({ score, dark, tooSmall })
+      }
+      img.src = base64
+    })
+  }
+
+  const compressImage = (base64: string, quality = 0.8): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const MAX = 1200
+        const scale = Math.min(MAX / img.width, MAX / img.height, 1)
+        canvas.width = img.width * scale
+        canvas.height = img.height * scale
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return resolve(base64)
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.src = base64
+    })
+  }
+
+  const capturePhoto = (setter: (v: string) => void, useGallery = false, isIdCard = false) => {
     const input = document.createElement('input')
-    input.type = 'file'; input.accept = 'image/*'
+    input.type = 'file'
+    input.accept = 'image/*'
     if (!useGallery) input.capture = 'environment'
-    input.onchange = (e) => {
+    input.style.position = 'fixed'
+    input.style.top = '-1000px'
+    input.style.opacity = '0'
+    document.body.appendChild(input)
+    input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
-      if (!file) return
+      if (!file) {
+        if (document.body.contains(input)) document.body.removeChild(input)
+        return
+      }
       const reader = new FileReader()
-      reader.onload = () => setter(reader.result as string)
+      reader.onload = async () => {
+        const base64 = reader.result as string
+        if (document.body.contains(input)) document.body.removeChild(input)
+        if (isIdCard) {
+          setAuthError('Analyse en cours...')
+          const compressed = await compressImage(base64)
+          const { score, dark, tooSmall } = await analyzeImageQuality(compressed)
+          if (tooSmall) {
+            setAuthError('Photo trop petite. Rapproche-toi de la CNI.')
+            return
+          }
+          if (dark) {
+            setAuthError('Photo trop sombre. Améliore l\'éclairage.')
+            return
+          }
+          if (score < 8) {
+            setAuthError('Photo floue. Reprends la photo en tenant le téléphone stable.')
+            return
+          }
+          if (score < 15) {
+            setAuthError('Photo acceptable mais essaie d\'avoir plus de lumière.')
+          } else {
+            setAuthError('')
+          }
+          setter(compressed)
+        } else {
+          const compressed = await compressImage(base64)
+          setter(compressed)
+        }
+      }
+      reader.onerror = () => {
+        if (document.body.contains(input)) document.body.removeChild(input)
+      }
       reader.readAsDataURL(file)
     }
-    input.click()
+    input.addEventListener('cancel', () => {
+      if (document.body.contains(input)) document.body.removeChild(input)
+    })
+    setTimeout(() => input.click(), 100)
   }
 
   const saveUser = (u: AppUser) => { localStorage.setItem('tiaktiak_user', JSON.stringify(u)); setUser(u) }
@@ -801,8 +903,8 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     if (val.length < 2) { setResults([]); return }
     setLoading(true)
    searchTimeout.current = setTimeout(async () => {
-      const places = await searchPlacesAutocomplete(val, position.lat, position.lng)
-      setResults(places.length > 0 ? places : await searchPlaces(val, position.lat, position.lng))
+      const places = await searchPlaces(val, position.lat, position.lng)
+      setResults(places)
       setLoading(false)
     }, 300)
   }
@@ -1102,7 +1204,7 @@ const OfflineBanner = () => isOffline ? (
                 {formIdFront ? (
                   <div className="relative"><img src={formIdFront} alt="CNI recto" className="w-full h-40 object-cover rounded-2xl" /><button onClick={() => setFormIdFront('')} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button></div>
                 ) : (
-                  <button onClick={() => capturePhoto(setFormIdFront)} className="w-full h-36 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2"><Camera size={28} color="#9CA3AF" /><span className="text-sm text-gray-400">Prendre une photo</span></button>
+                  <button onClick={() => capturePhoto(setFormIdFront, false, true)} className="w-full h-36 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2"><Camera size={28} color="#9CA3AF" /><span className="text-sm text-gray-400">Prendre une photo</span></button>
                 )}
               </div>
               <div>
@@ -1110,7 +1212,7 @@ const OfflineBanner = () => isOffline ? (
                 {formIdBack ? (
                   <div className="relative"><img src={formIdBack} alt="CNI verso" className="w-full h-40 object-cover rounded-2xl" /><button onClick={() => setFormIdBack('')} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button></div>
                 ) : (
-                  <button onClick={() => capturePhoto(setFormIdBack)} className="w-full h-36 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2"><Camera size={28} color="#9CA3AF" /><span className="text-sm text-gray-400">Prendre une photo</span></button>
+                  <button onClick={() => capturePhoto(setFormIdBack, false, true)} className="w-full h-36 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2"><Camera size={28} color="#9CA3AF" /><span className="text-sm text-gray-400">Prendre une photo</span></button>
                 )}
               </div>
               {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
