@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText, Clock, XCircle, Power, Users, TrendingUp, CheckCircle, Ban, AlertTriangle, Star, Award, Wallet, AlertCircle, Camera, Play, Lock } from 'lucide-react'
+import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText, Clock, XCircle, Power, Users, TrendingUp, CheckCircle, Ban, AlertTriangle, Star, Award, Wallet, AlertCircle, Camera, Play, Lock, Package } from 'lucide-react'
 import { searchPlaces, Place } from '../lib/search'
 import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, haversineDistance, calculateCommission, applyFirstRideDiscount, WAVE_PAYMENT_LINK } from '../lib/utils'
 import { CONDITIONS_UTILISATION, POLITIQUE_CONFIDENTIALITE } from '../lib/legal'
@@ -1033,7 +1033,7 @@ const OfflineBanner = () => isOffline ? (
           </div>
         </div>
         <div className="flex-1 p-6 space-y-4">
-          <div className="text-center mb-2"><span className="text-5xl">🧑</span></div>
+         <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2" style={{ background: '#E8F5E9' }}><User size={28} color="#0F5138" /></div>
           {authMode === 'signup' && <div><label className="text-sm font-semibold text-gray-600">Nom complet</label><input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Omar Ngalla" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>}
           <div><label className="text-sm font-semibold text-gray-600">Telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 097 01 00" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
           {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
@@ -1058,7 +1058,7 @@ const OfflineBanner = () => isOffline ? (
         {authMode === 'login' ? (
           <>
             <div className="flex-1 p-6 space-y-4">
-              <div className="text-center"><span className="text-5xl">🛵</span></div>
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ background: '#E8F5E9' }}><Zap size={28} color="#0F5138" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
               <button onClick={() => { setAuthMode('signup'); setSignupStep(1); setAuthError('') }} className="w-full text-center text-sm" style={{ color: '#0F5138' }}>Pas encore inscrit ?</button>
@@ -1127,7 +1127,7 @@ const OfflineBanner = () => isOffline ? (
               ) : (
                 <div className="space-y-3">
                   <button onClick={() => capturePhoto(setFormProfilePhoto)} className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center gap-3"><Camera size={24} color="#9CA3AF" /><span className="text-sm text-gray-500 font-semibold">Prendre une photo</span></button>
-                  <button onClick={() => capturePhoto(setFormProfilePhoto, true)} className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center gap-3"><span className="text-lg">🖼️</span><span className="text-sm text-gray-500 font-semibold">Choisir depuis la galerie</span></button>
+                  <button onClick={() => capturePhoto(setFormProfilePhoto, true)} className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center gap-3"><Globe size={22} color="#9CA3AF" /><span className="text-sm text-gray-500 font-semibold">Choisir depuis la galerie</span></button>
                 </div>
               )}
               {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
@@ -1149,7 +1149,7 @@ const OfflineBanner = () => isOffline ? (
           <span className="font-bold text-black">Connexion Admin</span>
         </header>
         <div className="flex-1 p-6 space-y-4">
-          <div className="text-center"><span className="text-5xl">👑</span></div>
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2" style={{ background: '#E8F5E9' }}><Shield size={28} color="#0F5138" /></div>
           <div><label className="text-sm font-semibold text-gray-600">Mot de passe</label><input type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="Mot de passe admin" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
           {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
         </div>
@@ -2335,11 +2335,11 @@ const OfflineBanner = () => isOffline ? (
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
           <p className="font-bold text-sm mb-1" style={{ color: '#0F5138' }}>Ce que nous offrons</p>
-          <p className="text-sm text-gray-600">🏍️ Courses moto-taxi rapides</p>
-          <p className="text-sm text-gray-600">📦 Livraison express</p>
-          <p className="text-sm text-gray-600">💳 Cash, Wave, Orange Money</p>
-          <p className="text-sm text-gray-600">🔵 Chauffeurs Premium certifies</p>
-          <p className="text-sm text-gray-600">🇸🇳 Tout le Senegal</p>
+         <div className="flex items-center gap-2 text-sm text-gray-600"><Zap size={16} color="#0F5138" /><span>Courses moto-taxi rapides</span></div>
+          <div className="flex items-center gap-2 text-sm text-gray-600"><Package size={16} color="#0F5138" /><span>Livraison express</span></div>
+          <div className="flex items-center gap-2 text-sm text-gray-600"><CreditCard size={16} color="#0F5138" /><span>Cash, Wave, Orange Money</span></div>
+          <div className="flex items-center gap-2 text-sm text-gray-600"><Award size={16} color="#0F5138" /><span>Chauffeurs Premium certifies</span></div>
+          <div className="flex items-center gap-2 text-sm text-gray-600"><MapPin size={16} color="#0F5138" /><span>Tout le Senegal</span></div>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-sm text-gray-600">Fierement senegalais 🇸🇳</p><p className="text-xs text-gray-400 mt-1">Version 1.0.0</p></div>
       </div>
@@ -2354,7 +2354,7 @@ const OfflineBanner = () => isOffline ? (
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {ridesLoading ? <div className="text-center py-16 text-gray-400 text-sm">Chargement...</div> : rides.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-sm text-center py-16 px-6">
-            <span className="text-5xl block mb-4">🛵</span>
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: '#E8F5E9' }}><Zap size={28} color="#0F5138" /></div>
             <p className="font-bold text-gray-700 mb-1">Aucune course</p>
             <button onClick={() => setScreen('accueil')} className="px-6 py-3 rounded-full font-bold text-white text-sm mt-4" style={{ background: '#0F5138' }}>Commander</button>
           </div>
