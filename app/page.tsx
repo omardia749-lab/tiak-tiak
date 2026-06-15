@@ -363,12 +363,12 @@ export default function TiakTiak() {
   useEffect(() => {
     if (!user || user.role !== 'client') return
     const loadNearby = async () => {
-      const { data } = await supabase.from('users').select('id, name, current_lat, current_lng').eq('role', 'chauffeur').eq('is_online', true).eq('is_validated', true).not('current_lat', 'is', null)
+      const { data } = await supabase.from('users').select('id, name, current_lat, current_lng').eq('role', 'chauffeur').eq('is_online', true).eq('is_validated', true).eq('is_busy', false).not('current_lat', 'is', null)
       if (data && position.lat !== DEFAULT_POS.lat) {
         const drivers = data.filter(d => d.current_lat && d.current_lng).map(d => {
           const dist = haversineDistance(position.lat, position.lng, d.current_lat, d.current_lng)
-          return { id: d.id, lat: d.current_lat, lng: d.current_lng, name: d.name, eta: Math.max(1, Math.round(dist * 3)) }
-        }).sort((a, b) => a.eta - b.eta).slice(0, 5)
+          return { id: d.id, lat: d.current_lat, lng: d.current_lng, name: d.name, eta: Math.max(1, Math.round(dist * 3)), dist }
+        }).filter(d => d.dist <= 7).sort((a, b) => a.eta - b.eta).slice(0, 5)
         setNearbyDrivers(drivers)
       }
     }
