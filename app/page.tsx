@@ -2067,8 +2067,18 @@ const OfflineBanner = () => isOffline ? (
         {loading && <div className="p-4 text-center text-gray-400 text-sm">Recherche en cours...</div>}
         {!loading && results.map((place, i) => (
           <button key={i} onClick={() => selectPlace(place)} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#E8F5E9' }}><MapPin size={18} color="#1DB954" /></div>
-            <div className="flex-1 min-w-0"><p className="font-semibold text-sm text-black truncate">{place.name}</p><p className="text-xs text-gray-400 truncate">{place.address}</p></div>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl" style={{ background: '#F3F4F6' }}>
+              {place.icon || '📍'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-black truncate">{place.name}</p>
+              <p className="text-xs text-gray-400 truncate">{place.category ? `${place.category} · ` : ''}{place.address}</p>
+            </div>
+            {place.distance !== undefined && (
+              <span className="text-xs text-gray-400 font-medium flex-shrink-0">
+                {place.distance < 1 ? `${Math.round(place.distance * 1000)} m` : `${place.distance} km`}
+              </span>
+            )}
           </button>
         ))}
         {!loading && query.length >= 2 && results.length === 0 && <div className="p-4 text-center text-gray-400 text-sm">Aucun lieu trouve</div>}
