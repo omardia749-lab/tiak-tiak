@@ -217,6 +217,10 @@ export default function TiakTiak() {
   const [nearbyDrivers, setNearbyDrivers] = useState<NearbyDriver[]>([])
   const [freqDests, setFreqDests] = useState<FreqDest[]>([])
   const [isFirstRide, setIsFirstRide] = useState(false)
+  const [showAddressInput, setShowAddressInput] = useState(false)
+  const [addressQuery, setAddressQuery] = useState('')
+  const [addressResults, setAddressResults] = useState<Place[]>([])
+  const [addressLoading, setAddressLoading] = useState(false)
 
   // Client PIN
   const [clientPinCode, setClientPinCode] = useState('')
@@ -823,6 +827,10 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
 
   const commanderCourse = async () => {
     if (!selected || !user) return
+    if (position.lat === DEFAULT_POS.lat && position.lng === DEFAULT_POS.lng) {
+      alert('Active ta position en haut de l\'écran avant de commander.')
+      return
+    }
     setCommandLoading(true)
     const pin = generatePIN()
     const { data: rideData, error } = await supabase.from('rides').insert({
@@ -2406,15 +2414,57 @@ const OfflineBanner = () => isOffline ? (
         <button onClick={() => setScreen('profil')} className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><User size={20} className="text-gray-400" /></button>
       </header>
 
-      {!position && (
-        <div className="fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between gap-2" style={{ background: '#0F5138' }}>
-          <span className="text-white text-xs font-medium flex-1">Active ta position pour voir les chauffeurs proches</span>
-          <button onClick={activerGPS} disabled={gpsLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap" style={{ background: '#1DB954', color: 'white' }}>
-            {gpsLoading ? '...' : 'Activer'}
-          </button>
-          <button className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap bg-white" style={{ color: '#0F5138' }}>
-            Saisir adresse
-          </button>
+      {position.lat === DEFAULT_POS.lat && position.lng === DEFAULT_POS.lng && (
+        <div className="fixed top-0 left-0 right-0 z-50" style={{ background: '#0F5138' }}>
+          <div className="px-4 py-3 flex items-center justify-between gap-2">
+            <span className="text-white text-xs font-medium flex-1">Active ta position pour voir les chauffeurs proches</span>
+            <button onClick={activerGPS} disabled={gpsLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap" style={{ background: '#1DB954', color: 'white' }}>
+              {gpsLoading ? '...' : 'Activer'}
+            </button>
+            <button onClick={() => setShowAddressInput(!showAddressInput)} className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap bg-white" style={{ color: '#0F5138' }}>
+              Saisir adresse
+            </button>
+          </div>
+          {showAddressInput && (
+            <div className="px-4 pb-3 space-y-2">
+              <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2">
+                <Search size={16} color="#9CA3AF" />
+                <input
+                  autoFocus
+                  value={addressQuery}
+                  onChange={async (e) => {
+                    setAddressQuery(e.target.value)
+                    if (e.target.value.length < 2) { setAddressResults([]); return }
+                    setAddressLoading(true)
+                    const places = await searchPlaces(e.target.value)
+                    setAddressResults(places)
+                    setAddressLoading(false)
+                  }}
+                  placeholder="Ex: Pikine, Dakar..."
+                  className="flex-1 outline-none text-sm text-gray-700"
+                />
+                {addressLoading && <span className="text-xs text-gray-400">...</span>}
+              </div>
+              {addressResults.length > 0 && (
+                <div className="bg-white rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                  {addressResults.slice(0, 5).map((place, i) => (
+                    <button key={i} onClick={() => {
+                      setPosition({ lat: place.lat, lng: place.lng, address: place.name })
+                      setShowAddressInput(false)
+                      setAddressQuery('')
+                      setAddressResults([])
+                    }} className="w-full flex items-center gap-3 px-3 py-2.5 border-b border-gray-50 text-left">
+                      <MapPin size={14} color="#1DB954" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{place.name}</p>
+                        <p className="text-xs text-gray-400 truncate">{place.address}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
