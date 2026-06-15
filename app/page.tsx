@@ -2414,20 +2414,30 @@ const OfflineBanner = () => isOffline ? (
         <button onClick={() => setScreen('profil')} className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><User size={20} className="text-gray-400" /></button>
       </header>
 
-      {position.lat === DEFAULT_POS.lat && position.lng === DEFAULT_POS.lng && (
-        <div className="fixed top-0 left-0 right-0 z-50" style={{ background: '#0F5138' }}>
-          <div className="px-4 py-3 flex items-center justify-between gap-2">
-            <span className="text-white text-xs font-medium flex-1">Active ta position pour voir les chauffeurs proches</span>
-            <button onClick={activerGPS} disabled={gpsLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap" style={{ background: '#1DB954', color: 'white' }}>
-              {gpsLoading ? '...' : 'Activer'}
-            </button>
-            <button onClick={() => setShowAddressInput(!showAddressInput)} className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap bg-white" style={{ color: '#0F5138' }}>
-              Saisir adresse
-            </button>
+      {!gpsReady && (
+        <div className="mx-4 mt-3 rounded-2xl overflow-hidden shadow-lg" style={{ background: 'white', border: '1px solid #e5e7eb' }}>
+          <div className="px-4 pt-4 pb-3">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f3f4f6' }}>
+                <Navigation size={20} color="#0F5138" />
+              </div>
+              <div>
+                <p className="font-black text-base text-gray-900">Activez les services de géolocalisation</p>
+                <p className="text-gray-400 text-xs mt-0.5">Nous ne savons pas où vous êtes</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowAddressInput(!showAddressInput)} className="flex-1 py-3 rounded-xl font-bold text-sm" style={{ background: '#f3f4f6', color: '#111' }}>
+                Saisir une adresse
+              </button>
+              <button onClick={activerGPS} disabled={gpsLoading} className="flex-1 py-3 rounded-xl font-bold text-white text-sm" style={{ background: '#0F5138' }}>
+                {gpsLoading ? 'Localisation...' : 'Activer'}
+              </button>
+            </div>
           </div>
           {showAddressInput && (
-            <div className="px-4 pb-3 space-y-2">
-              <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2">
+            <div className="px-4 pb-4 space-y-2 border-t border-gray-100 pt-3">
+              <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
                 <Search size={16} color="#9CA3AF" />
                 <input
                   autoFocus
@@ -2441,15 +2451,16 @@ const OfflineBanner = () => isOffline ? (
                     setAddressLoading(false)
                   }}
                   placeholder="Ex: Pikine, Dakar..."
-                  className="flex-1 outline-none text-sm text-gray-700"
+                  className="flex-1 outline-none text-sm text-gray-700 bg-transparent"
                 />
                 {addressLoading && <span className="text-xs text-gray-400">...</span>}
               </div>
               {addressResults.length > 0 && (
-                <div className="bg-white rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                <div className="bg-white rounded-xl overflow-hidden border border-gray-100 max-h-48 overflow-y-auto">
                   {addressResults.slice(0, 5).map((place, i) => (
                     <button key={i} onClick={() => {
                       setPosition({ lat: place.lat, lng: place.lng, address: place.name })
+                      setGpsReady(true)
                       setShowAddressInput(false)
                       setAddressQuery('')
                       setAddressResults([])
