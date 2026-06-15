@@ -12,22 +12,52 @@ export async function GET(request: NextRequest) {
   if (!input) return NextResponse.json({ results: [] })
 
   try {
-    let url = ''
-    if (type === 'autocomplete') {
-      const locationBias = lat && lng ? `&location=${lat},${lng}&radius=50000` : '&location=14.7167,-17.2833&radius=500000'
-      url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&language=fr&components=country:sn${locationBias}&key=${GOOGLE_KEY}`
-    } else if (type === 'textsearch') {
-      const locationBias = lat && lng ? `&location=${lat},${lng}&radius=50000` : '&location=14.7167,-17.2833&radius=500000'
-      url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(input + ' Sénégal')}&language=fr&region=sn${locationBias}&key=${GOOGLE_KEY}`
-    } else if (type === 'details') {
-      url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${input}&fields=geometry&key=${GOOGLE_KEY}`
-    } else if (type === 'geocode') {
-      url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${input}&language=fr&key=${GOOGLE_KEY}`
+    if (type === 'autocomplete' || type === 'textsearch') {
+      const body: any = {
+        textQuery: input.includes('Sénégal') ? input : `${input} Sénégal`,
+        languageCode: 'fr',
+        regionCode: 'SN',
+        maxResultCount: 8,
+      }
+      if (lat && lng) {
+        body.locationBias = {
+          circle: {
+            center: { latitude: parseFloat(lat), longitude: parseFloat(lng) },
+            radius: 50000.0
+          }
+        }
+      }
+      const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': GOOGLE_KEY!,
+          'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.types,places.id'
+        },
+        body: JSON.stringify(body)
+      })
+      const data = await res.json()
+      return NextResponse.json(data)
     }
 
-    const res = await fetch(url)
-    const data = await res.json()
-    return NextResponse.json(data)
+    if (type === 'details') {
+      const res = await fetch(`https://places.googleapis.com/v1/places/${input}`, {
+        headers: {
+          'X-Goog-Api-Key': GOOGLE_KEY!,
+          'X-Goog-FieldMask': 'location'
+        }
+      })
+      const data = await res.json()
+      return NextResponse.json(data)
+    }
+
+    if (type === 'geocode') {
+      const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${input}&language=fr&key=${GOOGLE_KEY}`)
+      const data = await res.json()
+      return NextResponse.json(data)
+    }
+
+    return NextResponse.json({ results: [] })
   } catch (e) {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
