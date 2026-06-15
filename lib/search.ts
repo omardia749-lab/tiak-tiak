@@ -9,7 +9,7 @@ export interface Place {
   placeId?: string
 }
 
-const GOOGLE_KEY = process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY
+const API_BASE = '/api/places'
 
 const getCategoryIcon = (types: string[]): { icon: string; category: string } => {
   if (types.includes('hospital') || types.includes('health') || types.includes('pharmacy') || types.includes('doctor')) return { icon: '🏥', category: 'Santé' }
@@ -47,7 +47,8 @@ export async function searchPlaces(query: string, userLat?: number, userLng?: nu
       ? `&location=${userLat},${userLng}&radius=50000`
       : '&location=14.7167,-17.2833&radius=500000'
 
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query + ' Sénégal')}&language=fr&region=sn${locationBias}&key=${GOOGLE_KEY}`
+    const params = new URLSearchParams({ input: query, type: 'textsearch', ...(userLat && userLng ? { lat: String(userLat), lng: String(userLng) } : {}) })
+    const url = `${API_BASE}?${params}`
 
     const response = await fetch(url)
     if (!response.ok) return []
@@ -90,7 +91,8 @@ export async function searchPlacesAutocomplete(input: string, userLat?: number, 
       ? `&location=${userLat},${userLng}&radius=50000`
       : '&location=14.7167,-17.2833&radius=500000'
 
-    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&language=fr&components=country:sn${locationBias}&key=${GOOGLE_KEY}`
+    const params = new URLSearchParams({ input, type: 'autocomplete', ...(userLat && userLng ? { lat: String(userLat), lng: String(userLng) } : {}) })
+    const url = `${API_BASE}?${params}`
 
     const response = await fetch(url)
     if (!response.ok) return []
@@ -126,7 +128,7 @@ export async function searchPlacesAutocomplete(input: string, userLat?: number, 
 
 async function getPlaceCoords(placeId: string): Promise<{ lat: number; lng: number } | null> {
   try {
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${GOOGLE_KEY}`
+    const url = `${API_BASE}?input=${placeId}&type=details`
     const res = await fetch(url)
     const data = await res.json()
     const loc = data.result?.geometry?.location
@@ -139,7 +141,7 @@ async function getPlaceCoords(placeId: string): Promise<{ lat: number; lng: numb
 
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&language=fr&key=${GOOGLE_KEY}`
+    const url = `${API_BASE}?input=${lat},${lng}&type=geocode`
     const response = await fetch(url)
     if (!response.ok) return 'Position actuelle'
     const data = await response.json()
