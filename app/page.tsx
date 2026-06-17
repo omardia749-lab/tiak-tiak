@@ -261,7 +261,7 @@ export default function TiakTiak() {
   const [freeTrialActive, setFreeTrialActive] = useState(false)
   const [driverStats, setDriverStats] = useState({ todayRides: 0, todayEarnings: 0, todayCommission: 0, weekEarnings: 0, weekRides: 0, monthEarnings: 0, monthRides: 0, totalRides: 0, rating: 5.0 })
   const [driverHistory, setDriverHistory] = useState<Ride[]>([])
-  const [driverTab, setDriverTab] = useState<'accueil' | 'gains' | 'historique'>('accueil')
+  const [driverTab, setDriverTab] = useState<'accueil' | 'gains' | 'historique' | 'avis'>('accueil')
   const [driverPhase, setDriverPhase] = useState<'to_client' | 'with_client'>('to_client')
   const [clientArrived, setClientArrived] = useState(false)
   const [rideCancelled, setRideCancelled] = useState(false)
@@ -856,49 +856,36 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     setAuthLoading(false)
   }
 
-  const signupDriver = async () => {
-    if (signupStep === 1) {
-      if (!formName || !formPhone || !formMoto || !formColor || !formAddress) { setAuthError('Remplis tous les champs'); return }
-      setSignupStep(2); setAuthError(''); return
+ const signupDriver = async () => {
+    if (!formName || !formPhone || !formMoto || !formColor || !formAddress) {
+      setAuthError('Remplis tous les champs')
+      return
     }
-    if (signupStep === 2) {
-      if (!formIdFront || !formIdBack) { setAuthError('Les photos CNI sont obligatoires'); return }
-      setSignupStep(3); setAuthError(''); return
-    }
-    if (signupStep === 3) {
-      if (!formProfilePhoto) { setAuthError('La photo de profil est obligatoire'); return }
-      setAuthLoading(true); setAuthError('')
-      try {
-        const { data, error } = await supabase.from('users').insert({
-          name: formName.trim(), phone: formPhone.trim(), role: 'chauffeur',
-          moto_type: formMoto.trim(), moto_color: formColor.trim(), home_address: formAddress.trim(),
-          emergency_contact_name: formEmergencyName.trim() || null,
-          emergency_contact_phone: formEmergencyPhone.trim() || null,
-        }).select('id').single()
-        if (error) {
-          if (error.code === '23505') { setAuthError('Ce numero est deja utilise.'); setAuthMode('login') }
-          else setAuthError('Erreur de connexion.')
-          setAuthLoading(false); setSignupStep(1); return
+    setAuthLoading(true); setAuthError('')
+    try {
+      const { data, error } = await supabase.from('users').insert({
+        name: formName.trim(),
+        phone: formPhone.trim(),
+        role: 'chauffeur',
+        moto_type: formMoto.trim(),
+        moto_color: formColor.trim(),
+        home_address: formAddress.trim(),
+      }).select('id').single()
+      if (error) {
+        if (error.code === '23505') {
+          setAuthError('Ce numéro est déjà utilisé. Connecte-toi.')
+          setAuthMode('login')
+        } else {
+          setAuthError('Erreur de connexion. Réessaie.')
         }
-        const [frontUrl, backUrl, profileUrl] = await Promise.all([
-          uploadPhoto(formIdFront, `${data.id}/id_front.jpg`),
-          uploadPhoto(formIdBack, `${data.id}/id_back.jpg`),
-          uploadPhoto(formProfilePhoto, `${data.id}/profile.jpg`),
-        ])
-        const { error: updateError } = await supabase.from('users').update({ 
-          id_card_front: frontUrl, 
-          id_card_back: backUrl, 
-          profile_photo: profileUrl 
-        }).eq('id', data.id)
-        if (updateError) {
-          setAuthError('Erreur sauvegarde photos. Réessaie.')
-          setAuthLoading(false)
-          return
-        }
-        saveUser({ id: data.id, role: 'chauffeur', name: formName.trim(), phone: formPhone.trim() })
-      } catch { setAuthError('Erreur upload photos.') }
-      setAuthLoading(false)
+        setAuthLoading(false)
+        return
+      }
+      saveUser({ id: data.id, role: 'chauffeur', name: formName.trim(), phone: formPhone.trim() })
+    } catch {
+      setAuthError('Erreur. Vérifie ta connexion et réessaie.')
     }
+    setAuthLoading(false)
   }
 
   const loginAdmin = () => {
@@ -1162,11 +1149,8 @@ const OfflineBanner = () => isOffline ? (
     if (authScreen === 'chauffeur') return (
       <div className="fixed inset-0 flex flex-col bg-white">
         <header className="px-4 py-4 flex items-center gap-3 border-b border-gray-100">
-          <button onClick={() => { if (signupStep > 1 && authMode === 'signup') setSignupStep(signupStep - 1); else setAuthScreen('roles') }}><ArrowLeft size={24} color="#0F5138" /></button>
-          <div className="flex-1">
-            <span className="font-bold text-black">{authMode === 'signup' ? `Inscription (${signupStep}/3)` : 'Connexion Chauffeur'}</span>
-            {authMode === 'signup' && <div className="flex gap-1 mt-1">{[1,2,3].map(s => <div key={s} className="h-1 flex-1 rounded-full" style={{ background: s <= signupStep ? '#0F5138' : '#E5E7EB' }} />)}</div>}
-          </div>
+          <button onClick={() => { setAuthScreen('roles'); setAuthError('') }}><ArrowLeft size={24} color="#0F5138" /></button>
+          <span className="font-bold text-black">{authMode === 'signup' ? 'Inscription Chauffeur' : 'Connexion Chauffeur'}</span>
         </header>
         {authMode === 'login' ? (
           <>
@@ -1174,27 +1158,21 @@ const OfflineBanner = () => isOffline ? (
               <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ background: '#E8F5E9' }}><Zap size={28} color="#0F5138" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
-              <button onClick={() => { setAuthMode('signup'); setSignupStep(1); setAuthError('') }} className="w-full text-center text-sm" style={{ color: '#0F5138' }}>Pas encore inscrit ?</button>
+              <button onClick={() => { setAuthMode('signup'); setAuthError('') }} className="w-full text-center text-sm" style={{ color: '#0F5138' }}>Pas encore inscrit ?</button>
             </div>
             <div className="p-4 border-t border-gray-100"><button onClick={loginDriver} disabled={authLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#111111' }}>{authLoading ? 'Chargement...' : 'Se connecter'}</button></div>
           </>
-        ) : signupStep === 1 ? (
+        ) : (
           <>
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ background: '#E8F5E9' }}><Zap size={28} color="#0F5138" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Nom complet</label><input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Moussa Diallo" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Adresse domicile</label><input value={formAddress} onChange={e => setFormAddress(e.target.value)} placeholder="Ex: Pikine, Dakar" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Type de moto</label><input value={formMoto} onChange={e => setFormMoto(e.target.value)} placeholder="Ex: Jakarta 125cc" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Couleur moto</label><input value={formColor} onChange={e => setFormColor(e.target.value)} placeholder="Ex: Rouge" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
-              <div className="border-t border-gray-100 pt-4">
-                <p className="text-sm font-semibold text-gray-600 mb-2">Contact d&apos;urgence (optionnel)</p>
-                <div className="space-y-2">
-                  <input value={formEmergencyName} onChange={e => setFormEmergencyName(e.target.value)} placeholder="Nom du contact" className="w-full px-4 py-3 bg-gray-100 rounded-xl outline-none text-sm" />
-                  <input value={formEmergencyPhone} onChange={e => setFormEmergencyPhone(e.target.value)} placeholder="Telephone du contact" className="w-full px-4 py-3 bg-gray-100 rounded-xl outline-none text-sm" />
-                </div>
-              </div>
               <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
-                <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>📋 Commission</p>
+                <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>Commission</p>
                 <p className="text-xs text-gray-600">Moto &lt; 2000F → 100F · 2000-4999F → 200F · ≥5000F → 400F</p>
                 <p className="text-xs text-gray-600">Livraison &lt; 3000F → 200F · ≥3000F → 500F</p>
                 <p className="text-xs text-gray-600">Premium → 100F moto / 200F livraison fixe</p>
@@ -1202,52 +1180,9 @@ const OfflineBanner = () => isOffline ? (
               {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
               <button onClick={() => { setAuthMode('login'); setAuthError('') }} className="w-full text-center text-sm" style={{ color: '#0F5138' }}>Deja inscrit ? Se connecter</button>
             </div>
-            <div className="p-4 border-t border-gray-100"><button onClick={signupDriver} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#111111' }}>Suivant →</button></div>
-          </>
-        ) : signupStep === 2 ? (
-          <>
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <p className="font-bold text-sm text-gray-500">Photos CNI</p>
-              <div>
-                <p className="text-sm font-semibold text-gray-600 mb-2">Recto ✱</p>
-                {formIdFront ? (
-                  <div className="relative"><img src={formIdFront} alt="CNI recto" className="w-full h-40 object-cover rounded-2xl" /><button onClick={() => setFormIdFront('')} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button></div>
-                ) : (
-                  <button onClick={() => capturePhoto(setFormIdFront, false, true)} className="w-full h-36 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2"><Camera size={28} color="#9CA3AF" /><span className="text-sm text-gray-400">Prendre une photo</span></button>
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-600 mb-2">Verso ✱</p>
-                {formIdBack ? (
-                  <div className="relative"><img src={formIdBack} alt="CNI verso" className="w-full h-40 object-cover rounded-2xl" /><button onClick={() => setFormIdBack('')} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button></div>
-                ) : (
-                  <button onClick={() => capturePhoto(setFormIdBack, false, true)} className="w-full h-36 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2"><Camera size={28} color="#9CA3AF" /><span className="text-sm text-gray-400">Prendre une photo</span></button>
-                )}
-              </div>
-              {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
-            </div>
-            <div className="p-4 border-t border-gray-100"><button onClick={signupDriver} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#111111' }}>Suivant →</button></div>
-          </>
-        ) : (
-          <>
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <p className="font-bold text-sm text-gray-500">Photo de profil</p>
-              {formProfilePhoto ? (
-                <div className="relative flex justify-center">
-                  <img src={formProfilePhoto} alt="Profil" className="w-40 h-40 object-cover rounded-full border-4" style={{ borderColor: '#0F5138' }} />
-                  <button onClick={() => setFormProfilePhoto('')} className="absolute top-0 right-12 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <button onClick={() => capturePhoto(setFormProfilePhoto)} className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center gap-3"><Camera size={24} color="#9CA3AF" /><span className="text-sm text-gray-500 font-semibold">Prendre une photo</span></button>
-                  <button onClick={() => capturePhoto(setFormProfilePhoto, true)} className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center gap-3"><Globe size={22} color="#9CA3AF" /><span className="text-sm text-gray-500 font-semibold">Choisir depuis la galerie</span></button>
-                </div>
-              )}
-              {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
-            </div>
             <div className="p-4 border-t border-gray-100">
-              <button onClick={signupDriver} disabled={authLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: authLoading ? '#7aaa94' : '#0F5138' }}>
-                {authLoading ? 'Inscription...' : "J'accepte et je rejoins TIAK TIAK"}
+              <button onClick={signupDriver} disabled={authLoading} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: authLoading ? '#7aaa94' : '#111111' }}>
+                {authLoading ? 'Inscription...' : "S'inscrire"}
               </button>
             </div>
           </>
@@ -1468,17 +1403,30 @@ const OfflineBanner = () => isOffline ? (
                 <h2 className="font-bold text-gray-700">Avis clients</h2>
                 <button onClick={loadAdminData} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: '#E8F5E9', color: '#0F5138' }}>Actualiser</button>
               </div>
-              {adminEvals.map(eval_ => (
-                <div key={eval_.id} className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">{[1,2,3,4,5].map(s => <Star key={s} size={14} color="#F59E0B" fill={s <= (eval_.client_rating || 0) ? '#F59E0B' : 'none'} />)}</div>
-                    <span className="text-xs text-gray-400">{formatDate(eval_.created_at)}</span>
+              {adminEvals.map(eval_ => {
+                const driver = adminDrivers.find(d => d.id === eval_.driver_id)
+                return (
+                  <div key={eval_.id} className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+                    {driver && (
+                      <button onClick={() => setSelectedDriver(driver)} className="w-full flex items-center gap-3 pb-3 border-b border-gray-50 text-left">
+                        {driver.profile_photo ? <img src={driver.profile_photo} alt="" className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}><Zap size={16} color="white" /></div>}
+                        <div className="flex-1">
+                          <p className="font-bold text-sm">{driver.name}</p>
+                          <p className="text-xs text-gray-400">{driver.phone} • {driver.moto_type}</p>
+                        </div>
+                        <ChevronRight size={16} color="#D1D5DB" />
+                      </button>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">{[1,2,3,4,5].map(s => <Star key={s} size={14} color="#F59E0B" fill={s <= (eval_.client_rating || 0) ? '#F59E0B' : 'none'} />)}<span className="text-xs font-bold ml-1" style={{ color: '#0F5138' }}>{eval_.client_rating}/5</span></div>
+                      <span className="text-xs text-gray-400">{formatDate(eval_.created_at)}</span>
+                    </div>
+                    <p className="text-xs text-gray-500">{eval_.from_address} → {eval_.to_address}</p>
+                    {eval_.client_comment && <div className="rounded-xl p-3" style={{ background: '#F9FAFB' }}><p className="text-sm text-gray-700 italic">&quot;{eval_.client_comment}&quot;</p></div>}
+                    {eval_.client_report && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">{REPORT_OPTIONS.find(r => r.id === eval_.client_report)?.label}</span>}
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{eval_.from_address} → {eval_.to_address}</p>
-                  {eval_.client_comment && <p className="text-sm text-gray-700 italic">&quot;{eval_.client_comment}&quot;</p>}
-                  {eval_.client_report && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">{REPORT_OPTIONS.find(r => r.id === eval_.client_report)?.label}</span>}
-                </div>
-              ))}
+                )
+              })}
             </>
           )}
         </div>
@@ -1596,6 +1544,116 @@ const OfflineBanner = () => isOffline ? (
       </div>
     )
 
+    if (!isValidated && !isSuspended) {
+      const dossierComplet = !!(formIdFront && formIdBack && formProfilePhoto)
+      return (
+        <div className="fixed inset-0 flex flex-col bg-gray-100">
+          <header className="px-4 py-4 flex items-center justify-between" style={{ background: '#0F5138' }}>
+            <span className="text-xl font-black italic text-white">TIAK TIAK</span>
+            <button onClick={logout} className="flex items-center gap-1 text-green-200 text-sm"><LogOut size={16} /> Quitter</button>
+          </header>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="bg-white rounded-2xl p-5 shadow-sm text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: '#E8F5E9' }}><FileText size={28} color="#0F5138" /></div>
+              <p className="font-black text-lg" style={{ color: '#0F5138' }}>Complete ton dossier</p>
+              <p className="text-gray-400 text-sm mt-1">Uploade tes documents pour être validé</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 shadow-sm space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold text-gray-600">CNI Recto</p>
+                  {formIdFront && <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' }}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>Approuvé</span></div>}
+                </div>
+                {formIdFront ? (
+                  <div className="relative">
+                    <img src={formIdFront} alt="CNI recto" className="w-full h-44 object-cover rounded-2xl" style={{ border: '2px solid #1DB954' }} />
+                    <div className="absolute top-2 right-2 flex gap-1">
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: '#1DB954' }}><CheckCircle size={16} color="white" /></div>
+                      <button onClick={() => setFormIdFront('')} className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center"><X size={14} color="white" /></button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => capturePhoto(setFormIdFront, false, true)} className="w-full h-44 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-3 relative" style={{ background: '#FAFAFA' }}>
+                    <Camera size={28} color="#9CA3AF" />
+                    <span className="text-sm text-gray-400 font-medium">Prendre la photo recto</span>
+                    <span className="text-xs text-gray-300">Place la CNI dans le cadre</span>
+                  </button>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold text-gray-600">CNI Verso</p>
+                  {formIdBack && <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' }}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>Approuvé</span></div>}
+                </div>
+                {formIdBack ? (
+                  <div className="relative">
+                    <img src={formIdBack} alt="CNI verso" className="w-full h-44 object-cover rounded-2xl" style={{ border: '2px solid #1DB954' }} />
+                    <div className="absolute top-2 right-2 flex gap-1">
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: '#1DB954' }}><CheckCircle size={16} color="white" /></div>
+                      <button onClick={() => setFormIdBack('')} className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center"><X size={14} color="white" /></button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => capturePhoto(setFormIdBack, false, true)} className="w-full h-44 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-3" style={{ background: '#FAFAFA' }}>
+                    <Camera size={28} color="#9CA3AF" />
+                    <span className="text-sm text-gray-400 font-medium">Prendre la photo verso</span>
+                    <span className="text-xs text-gray-300">Place la CNI dans le cadre</span>
+                  </button>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold text-gray-600">Photo de profil</p>
+                  {formProfilePhoto && <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' }}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>Approuvé</span></div>}
+                </div>
+                {formProfilePhoto ? (
+                  <div className="relative flex justify-center">
+                    <img src={formProfilePhoto} alt="Profil" className="w-40 h-40 object-cover rounded-full border-4" style={{ borderColor: '#0F5138' }} />
+                    <button onClick={() => setFormProfilePhoto('')} className="absolute top-0 right-12 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <button onClick={() => capturePhoto(setFormProfilePhoto)} className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center gap-3"><Camera size={24} color="#9CA3AF" /><span className="text-sm text-gray-500 font-semibold">Prendre une photo</span></button>
+                    <button onClick={() => capturePhoto(setFormProfilePhoto, true)} className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center gap-3"><Globe size={22} color="#9CA3AF" /><span className="text-sm text-gray-500 font-semibold">Choisir depuis la galerie</span></button>
+                  </div>
+                )}
+              </div>
+              {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
+            </div>
+          </div>
+          <div className="p-4 bg-white border-t border-gray-100">
+            <button
+              onClick={async () => {
+                if (!dossierComplet) { setAuthError('Uploade les 3 documents'); return }
+                setAuthLoading(true); setAuthError('')
+                try {
+                  const [frontUrl, backUrl, profileUrl] = await Promise.all([
+                    uploadPhoto(formIdFront, `${user.id}/id_front.jpg`),
+                    uploadPhoto(formIdBack, `${user.id}/id_back.jpg`),
+                    uploadPhoto(formProfilePhoto, `${user.id}/profile.jpg`),
+                  ])
+                  await supabase.from('users').update({
+                    id_card_front: frontUrl,
+                    id_card_back: backUrl,
+                    profile_photo: profileUrl
+                  }).eq('id', user.id!)
+                  setScreen('chauffeur_accueil')
+                } catch {
+                  setAuthError('Erreur upload. Vérifie ta connexion.')
+                }
+                setAuthLoading(false)
+              }}
+              disabled={!dossierComplet || authLoading}
+              className="w-full py-4 rounded-2xl font-bold text-white"
+              style={{ background: !dossierComplet || authLoading ? '#D1D5DB' : '#0F5138' }}
+            >
+              {authLoading ? 'Upload en cours...' : 'Soumettre mon dossier'}
+            </button>
+          </div>
+        </div>
+      )
+    }
+    
     if (!isValidated) return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
         <header className="px-4 py-4 flex items-center justify-between" style={{ background: '#0F5138' }}>
@@ -1754,7 +1812,7 @@ const OfflineBanner = () => isOffline ? (
           <button onClick={logout} className="flex items-center gap-1 text-green-200 text-sm"><LogOut size={16} /> Quitter</button>
         </header>
         <div className="bg-white flex border-b border-gray-100">
-          {[{ key: 'accueil', label: 'Accueil', icon: Home }, { key: 'gains', label: 'Gains', icon: Wallet }, { key: 'historique', label: 'Historique', icon: List }].map(tab => (
+          {[{ key: 'accueil', label: 'Accueil', icon: Home }, { key: 'gains', label: 'Gains', icon: Wallet }, { key: 'historique', label: 'Historique', icon: List }, { key: 'avis', label: 'Mes avis', icon: Star }].map(tab => ( 
             <button key={tab.key} onClick={() => { setDriverTab(tab.key as any); if (tab.key === 'historique') loadDriverHistory(); if (tab.key === 'gains') loadDriverStats() }} className="flex-1 flex items-center justify-center gap-1 py-3 font-bold text-xs border-b-2" style={{ borderBottomColor: driverTab === tab.key ? '#0F5138' : 'transparent', color: driverTab === tab.key ? '#0F5138' : '#9CA3AF' }}>
               <tab.icon size={15} /> {tab.label}
             </button>
@@ -1904,6 +1962,46 @@ const OfflineBanner = () => isOffline ? (
                   </div>
                 )
               })}
+            </>
+          )}
+       {driverTab === 'avis' && (
+            <>
+              <h2 className="font-bold text-gray-700">Avis de mes clients</h2>
+              {driverHistory.filter(r => r.client_rating).length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center">
+                  <Star size={36} color="#D1D5DB" className="mx-auto mb-2" />
+                  <p className="text-gray-400 text-sm">Aucun avis pour le moment</p>
+                </div>
+              ) : driverHistory.filter(r => r.client_rating).map(ride => (
+                <div key={ride.id} className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      {[1,2,3,4,5].map(s => <Star key={s} size={16} color="#F59E0B" fill={s <= (ride.client_rating || 0) ? '#F59E0B' : 'none'} />)}
+                      <span className="text-sm font-bold ml-1" style={{ color: '#0F5138' }}>{ride.client_rating}/5</span>
+                    </div>
+                    <span className="text-xs text-gray-400">{formatDate(ride.created_at)}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: '#1DB954' }} /><span className="text-xs text-gray-500 truncate">{ride.from_address}</span></div>
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-400" /><span className="text-xs text-gray-500 truncate">{ride.to_address}</span></div>
+                  </div>
+                  {ride.client_comment && (
+                    <div className="rounded-xl p-3" style={{ background: '#F9FAFB' }}>
+                      <p className="text-sm text-gray-700 italic">&quot;{ride.client_comment}&quot;</p>
+                    </div>
+                  )}
+                  {ride.client_report && ride.client_report !== 'perfect' && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">
+                      {REPORT_OPTIONS.find(r => r.id === ride.client_report)?.label}
+                    </span>
+                  )}
+                  {ride.client_report === 'perfect' && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600">
+                      Tout etait parfait
+                    </span>
+                  )}
+                </div>
+              ))}
             </>
           )}
         </div>
