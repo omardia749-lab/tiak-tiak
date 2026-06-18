@@ -1044,6 +1044,21 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     setClientRating(0); setClientComment(''); setClientReport(''); setEvalLoading(false); setDriverArrived(false)
   }
 
+const [emergencyName, setEmergencyName] = useState('')
+  const [emergencyPhone, setEmergencyPhone] = useState('')
+
+  const loadEmergencyContact = useCallback(async () => {
+    if (!user?.id) return
+    const { data } = await supabase.from('users').select('emergency_contact_name, emergency_contact_phone').eq('id', user.id).single()
+    if (data) {
+      setEmergencyName(data.emergency_contact_name || '')
+      setEmergencyPhone(data.emergency_contact_phone || '')
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (user?.role === 'client') loadEmergencyContact()
+  }, [user, loadEmergencyContact])
   const loadRides = async () => {
     if (!user?.id) return
     setRidesLoading(true)
@@ -2386,6 +2401,21 @@ const OfflineBanner = () => isOffline ? (
               <><p className="text-2xl font-black" style={{ color: '#0F5138' }}>🛵</p><p className="text-xs text-gray-400">Membre TIAK TIAK</p></>
             )}
           </div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Shield size={18} color="#0F5138" />
+            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Contact d&apos;urgence SOS</p>
+          </div>
+          <input value={emergencyName} onChange={e => setEmergencyName(e.target.value)} placeholder="Nom du contact" className="w-full px-4 py-3 bg-gray-100 rounded-xl outline-none text-sm" />
+          <input value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)} placeholder="Téléphone (ex: 77 123 45 67)" className="w-full px-4 py-3 bg-gray-100 rounded-xl outline-none text-sm" />
+          <button onClick={async () => {
+            if (!user?.id) return
+            await supabase.from('users').update({ emergency_contact_name: emergencyName.trim(), emergency_contact_phone: emergencyPhone.trim() }).eq('id', user.id)
+            alert('Contact d\'urgence sauvegardé !')
+          }} className="w-full py-3 rounded-2xl font-bold text-white text-sm" style={{ background: '#0F5138' }}>
+            Sauvegarder
+          </button>
         </div>
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           <button onClick={() => { setScreen('courses'); loadRides() }} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left"><List size={20} color="#0F5138" /><span className="flex-1 text-sm font-medium">Mes courses</span><ChevronRight size={18} className="text-gray-300" /></button>
