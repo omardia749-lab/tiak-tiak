@@ -372,7 +372,7 @@ export default function TiakTiak() {
         const drivers = data.filter(d => d.current_lat && d.current_lng).map(d => {
           const dist = haversineDistance(position.lat, position.lng, d.current_lat, d.current_lng)
           return { id: d.id, lat: d.current_lat, lng: d.current_lng, name: d.name, eta: Math.max(1, Math.round(dist * 3)), dist }
-        }).filter(d => d.dist <= 7).sort((a, b) => a.eta - b.eta).slice(0, 5)
+        }).filter(d => d.dist <= 5).sort((a, b) => a.eta - b.eta).slice(0, 5)
         setNearbyDrivers(drivers)
       }
     }
@@ -516,7 +516,7 @@ export default function TiakTiak() {
         const newRide = payload.new as Ride
 
 const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, newRide.from_lat, newRide.from_lng)
-        if (distToPickup > 7) return
+        if (distToPickup > 5) return
 
         const showRide = () => {
           if (!currentDriverRide) {
@@ -914,7 +914,9 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
   const goTo = (s: string) => { setScreen(s); setMenuOpen(false) }
 
   const km = selected ? haversineDistance(position.lat, position.lng, selected.lat, selected.lng) : 0
-  const basePrice = selected ? calculatePrice(km, service as 'moto' | 'livraison') : 0
+  const demandLevel: 'low' | 'medium' | 'high' = nearbyDrivers.length === 0 ? 'high' : nearbyDrivers.length <= 2 ? 'medium' : 'low'
+  const demandMultiplier = demandLevel === 'high' ? 1.15 : 1
+  const basePrice = selected ? Math.round(calculatePrice(km, service as 'moto' | 'livraison') * demandMultiplier) : 0
   const price = isFirstRide ? applyFirstRideDiscount(basePrice, true) : basePrice
   const eta = selected ? calculateETA(km) : 0
   const referralCode = user ? 'TIAK-' + (user.phone.replace(/[^0-9]/g, '').slice(-4) || '0000') : 'TIAK-0000'
@@ -2356,6 +2358,18 @@ const OfflineBanner = () => isOffline ? (
               <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#E8F5E9' }}>
                 <span className="text-lg">🛵</span>
                 <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>{nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} dispo • Plus proche : {nearbyDrivers[0].eta} min</p>
+              </div>
+            )}
+            {demandLevel === 'high' && (
+              <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#FEE2E2' }}>
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
+                <p className="text-sm font-semibold text-red-600">Forte demande dans ta zone — prix légèrement ajusté</p>
+              </div>
+            )}
+            {demandLevel === 'medium' && (
+              <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#FEF3C7' }}>
+                <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0" />
+                <p className="text-sm font-semibold text-yellow-700">Demande modérée — prix normal</p>
               </div>
             )}
             {isFirstRide && (
