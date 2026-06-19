@@ -609,7 +609,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
         if (updated.status === 'completed') {
           setCurrentClientRide(updated)
           speak("Vous êtes arrivé à destination. Merci d'avoir utilisé TIAK TIAK")
-          setScreen('evaluation')
+          setScreen('checkin')
           loadFreqDests()
         }
       })
@@ -2150,6 +2150,32 @@ const OfflineBanner = () => isOffline ? (
           {cancelLoading ? 'Annulation...' : "Confirmer l'annulation"}
         </button>
         <button onClick={() => setScreen('suivi')} className="w-full py-3 text-sm text-gray-400 font-medium">Retour</button>
+      </div>
+    </div>
+  )
+
+  if (screen === 'checkin') return (
+    <div className="fixed inset-0 flex flex-col items-center justify-center px-8 gap-6" style={{ background: '#0F5138' }}>
+      <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+        <CheckCircle size={48} color="white" />
+      </div>
+      <div className="text-center">
+        <h2 className="text-2xl font-black text-white mb-2">Tu es arrivé(e) !</h2>
+        <p className="text-green-200 text-sm">Es-tu bien arrivé(e) en sécurité ?</p>
+      </div>
+      <div className="w-full space-y-3">
+        <button
+          onClick={() => setScreen('evaluation')}
+          className="w-full py-4 rounded-2xl font-black text-lg"
+          style={{ background: '#1DB954', color: '#0F5138' }}
+        >
+          Oui, tout va bien
+        </button>
+       {emergencyPhone && (
+          <a href={`https://wa.me/${emergencyPhone.replace(/\s/g, '').replace(/^0/, '221')}?text=${encodeURIComponent(`⚠️ J'ai un problème, je viens d'arriver avec un TIAK TIAK à ${currentClientRide?.to_address || 'destination'}. Appelle-moi !`)}`} target="_blank" rel="noreferrer" className="w-full py-4 rounded-2xl font-bold text-white border-2 flex items-center justify-center" style={{ borderColor: 'rgba(255,255,255,0.3)' }}>
+            J&apos;ai un problème
+          </a>
+        )}
       </div>
     </div>
   )

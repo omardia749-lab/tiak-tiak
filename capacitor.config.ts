@@ -1,6 +1,6 @@
-import { CapacitorConfig } from '@capacitor/cli';
+/// <reference types="@capacitor/cli" />
 
-const config: CapacitorConfig = {
+const config = {
   appId: 'com.tiaktiak.app',
   appName: 'Tiak Tiak',
   webDir: 'out',
@@ -8,9 +8,6 @@ const config: CapacitorConfig = {
     url: 'https://tiak-tiak-zeta.vercel.app',
     cleartext: false,
   },
-  android: {
-    allowMixedContent: false,
-  },
 };
 
-export default config;
+module.exports = config;
