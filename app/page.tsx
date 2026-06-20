@@ -219,6 +219,7 @@ export default function TiakTiak() {
   const [freqDests, setFreqDests] = useState<FreqDest[]>([])
   const [isFirstRide, setIsFirstRide] = useState(false)
   const [showAddressInput, setShowAddressInput] = useState(false)
+  const [showDemandSheet, setShowDemandSheet] = useState(false)
   const [addressQuery, setAddressQuery] = useState('')
   const [addressResults, setAddressResults] = useState<Place[]>([])
   const [addressLoading, setAddressLoading] = useState(false)
@@ -2362,10 +2363,13 @@ const OfflineBanner = () => isOffline ? (
               </div>
             )}
             {demandLevel === 'high' && (
-              <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#FEE2E2' }}>
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
-                <p className="text-sm font-semibold text-red-600">Forte demande dans ta zone — prix légèrement ajusté</p>
-              </div>
+              <button onClick={() => setShowDemandSheet(true)} className="w-full rounded-2xl p-3 flex items-center gap-3" style={{ background: '#FEE2E2' }}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#F59E0B' }}>
+                  <Zap size={16} color="white" fill="white" />
+                </div>
+                <p className="text-sm font-semibold text-red-600 flex-1 text-left">Forte demande dans ta zone — prix légèrement ajusté</p>
+                <ChevronRight size={16} color="#EF4444" />
+              </button>
             )}
             {demandLevel === 'medium' && (
               <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#FEF3C7' }}>
@@ -2417,6 +2421,39 @@ const OfflineBanner = () => isOffline ? (
             {commandLoading ? 'Envoi...' : `Commander — ${paymentLabel(payment).icon} ${paymentLabel(payment).name}`}
           </button>
         </div>
+        {showDemandSheet && (
+          <div className="fixed inset-0 z-50 flex items-end" onClick={() => setShowDemandSheet(false)}>
+            <div className="absolute inset-0 bg-black bg-opacity-40" />
+            <div className="relative bg-white w-full rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: '#F59E0B' }}>
+                  <Zap size={22} color="white" fill="white" />
+                </div>
+                <button onClick={() => setShowDemandSheet(false)}><X size={22} color="#9CA3AF" /></button>
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-gray-900 mb-2">Prix un peu plus élevé</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">Il y a actuellement plus de commandes que de chauffeurs disponibles dans cette zone. Les prix augmentent légèrement pour inciter plus de chauffeurs à se rendre disponibles, afin que tout le monde puisse se déplacer.</p>
+              </div>
+              <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
+                <p className="text-xs font-bold text-gray-400 text-center">À proximité</p>
+                <p className="text-sm font-bold text-orange-500 text-center">Davantage de commandes que de chauffeurs</p>
+                <div className="relative h-2 rounded-full bg-gradient-to-r from-green-400 via-yellow-400 to-red-500 mt-2">
+                  <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border-2 flex items-center justify-center" style={{ borderColor: '#F59E0B', left: '75%' }}>
+                    <Zap size={10} color="#F59E0B" fill="#F59E0B" />
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 pt-1">
+                  <span>Chauffeurs</span>
+                  <span>Clients</span>
+                </div>
+              </div>
+              <button onClick={() => setShowDemandSheet(false)} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>
+                J&apos;ai compris
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
