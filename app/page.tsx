@@ -918,7 +918,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
   const km = selected ? haversineDistance(position.lat, position.lng, selected.lat, selected.lng) : 0
   const demandLevel: 'low' | 'medium' | 'high' = nearbyDrivers.length === 0 ? 'high' : nearbyDrivers.length <= 2 ? 'medium' : 'low'
   const demandMultiplier = demandLevel === 'high' ? 1.15 : 1
-  const basePrice = selected ? Math.round(calculatePrice(km, service as 'moto' | 'livraison') * demandMultiplier) : 0
+  const basePrice = selected ? Math.round((calculatePrice(km, service as 'moto' | 'livraison') * demandMultiplier) / 100) * 100 : 0
   const price = isFirstRide ? applyFirstRideDiscount(basePrice, true) : basePrice
   const eta = selected ? calculateETA(km) : 0
   const referralCode = user ? 'TIAK-' + (user.phone.replace(/[^0-9]/g, '').slice(-4) || '0000') : 'TIAK-0000'
@@ -2354,6 +2354,11 @@ const OfflineBanner = () => isOffline ? (
         <div className="flex-1 overflow-y-auto">
           <div className="h-52 relative">
             <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} nearbyDrivers={nearbyDrivers} showNearby={true} />
+            {demandLevel === 'high' && (
+              <button onClick={() => setShowDemandSheet(true)} className="absolute top-3 left-3 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center z-[400]" style={{ border: '1.5px solid #FEE2E2' }}>
+                <Zap size={16} color="#F59E0B" fill="#F59E0B" />
+              </button>
+            )}
           </div>
           <div className="p-4 space-y-3">
             {nearbyDrivers.length > 0 && (
@@ -2435,17 +2440,17 @@ const OfflineBanner = () => isOffline ? (
                 <h3 className="text-xl font-black text-gray-900 mb-2">Prix un peu plus élevé</h3>
                 <p className="text-sm text-gray-500 leading-relaxed">Il y a actuellement plus de commandes que de chauffeurs disponibles dans cette zone. Les prix augmentent légèrement pour inciter plus de chauffeurs à se rendre disponibles, afin que tout le monde puisse se déplacer.</p>
               </div>
-              <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
-                <p className="text-xs font-bold text-gray-400 text-center">À proximité</p>
+              <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+                <p className="text-xs font-bold text-gray-400 text-center uppercase tracking-wide">À proximité</p>
                 <p className="text-sm font-bold text-orange-500 text-center">Davantage de commandes que de chauffeurs</p>
-                <div className="relative h-2 rounded-full bg-gradient-to-r from-green-400 via-yellow-400 to-red-500 mt-2">
-                  <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border-2 flex items-center justify-center" style={{ borderColor: '#F59E0B', left: '75%' }}>
-                    <Zap size={10} color="#F59E0B" fill="#F59E0B" />
+                <div className="flex items-center gap-3 pt-1">
+                  <Zap size={18} color="#9CA3AF" />
+                  <div className="relative h-1.5 rounded-full flex-1" style={{ background: 'linear-gradient(90deg, #1DB954 0%, #F59E0B 50%, #EF4444 100%)' }}>
+                    <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border-2 flex items-center justify-center shadow" style={{ borderColor: '#F59E0B', left: '75%', transform: 'translate(-50%, -50%)' }}>
+                      <Zap size={9} color="#F59E0B" fill="#F59E0B" />
+                    </div>
                   </div>
-                </div>
-                <div className="flex justify-between text-xs text-gray-400 pt-1">
-                  <span>Chauffeurs</span>
-                  <span>Clients</span>
+                  <User size={18} color="#9CA3AF" />
                 </div>
               </div>
               <button onClick={() => setShowDemandSheet(false)} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>
