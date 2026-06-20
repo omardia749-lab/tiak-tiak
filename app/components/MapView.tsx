@@ -9,6 +9,7 @@ interface NearbyDriver {
   lng: number
   name: string
   eta: number
+  motoColor?: string
 }
 
 interface MapViewProps {
@@ -18,6 +19,7 @@ interface MapViewProps {
   toLng: number
   driverLat?: number
   driverLng?: number
+  driverMotoColor?: string
   showDriver?: boolean
   mode?: 'client' | 'driver'
   nearbyDrivers?: NearbyDriver[]
@@ -25,9 +27,35 @@ interface MapViewProps {
   onRouteCoords?: (coords: [number, number][]) => void
 }
 
+const MOTO_COLOR_MAP: Record<string, string> = {
+  'rouge': '#E53935', 'noir': '#212121', 'noire': '#212121', 'bleu': '#1E88E5', 'bleue': '#1E88E5',
+  'vert': '#1DB954', 'verte': '#1DB954', 'blanc': '#F5F5F5', 'blanche': '#F5F5F5',
+  'gris': '#757575', 'grise': '#757575', 'jaune': '#FBC02D', 'orange': '#FB8C00',
+  'marron': '#6D4C41', 'violet': '#8E24AA', 'violette': '#8E24AA', 'rose': '#EC407A',
+}
+
+const getMotoColor = (colorName?: string): string => {
+  if (!colorName) return '#0F5138'
+  const key = colorName.trim().toLowerCase()
+  return MOTO_COLOR_MAP[key] || '#0F5138'
+}
+
+const calculateHeading = (lat1: number, lng1: number, lat2: number, lng2: number): number | null => {
+  const dist = Math.sqrt(Math.pow(lat2 - lat1, 2) + Math.pow(lng2 - lng1, 2))
+  if (dist < 0.000005) return null
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const lat1Rad = lat1 * Math.PI / 180
+  const lat2Rad = lat2 * Math.PI / 180
+  const y = Math.sin(dLng) * Math.cos(lat2Rad)
+  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng)
+  const bearing = Math.atan2(y, x) * 180 / Math.PI
+  return (bearing + 360) % 360
+}
+
 export default function MapView({
   fromLat, fromLng, toLat, toLng,
   driverLat, driverLng,
+  driverMotoColor,
   showDriver = false,
   nearbyDrivers = [],
   showNearby = false,
@@ -41,15 +69,30 @@ export default function MapView({
   const LRef = useRef<any>(null)
   const routeLayersRef = useRef<any[]>([])
 
-  const createMotoIcon = useCallback((L: any, eta?: number, isAssigned = false) => L.divIcon({
-    className: '',
-    html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-      <div style="width:34px;height:34px;border-radius:50%;background:${isAssigned ? '#0F5138' : '#FFFFFF'};border:2px solid ${isAssigned ? 'white' : '#1DB954'};box-shadow:0 2px 6px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;font-size:17px;">🛵</div>
-      ${eta !== undefined ? `<div style="background:#1DB954;color:white;font-size:10px;font-weight:800;padding:2px 6px;border-radius:8px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.2);">${eta} min</div>` : ''}
-    </div>`,
-    iconSize: [34, eta !== undefined ? 50 : 34],
-    iconAnchor: [17, eta !== undefined ? 50 : 34],
-  }), [])
+  const createMotoIcon = useCallback((L: any, eta?: number, isAssigned = false, color?: string, heading = 0) => {
+    const motoColor = getMotoColor(color)
+    const ringColor = isAssigned ? '#0F5138' : 'white'
+    return L.divIcon({
+      className: '',
+      html: `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <div style="width:38px;height:38px;border-radius:50%;background:white;border:3px solid ${ringColor};box-shadow:0 2px 8px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;position:relative;">
+          <div style="transform:rotate(${heading}deg);transition:transform 0.4s ease;width:26px;height:26px;display:flex;align-items:center;justify-content:center;">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+              <ellipse cx="13" cy="6" rx="3.2" ry="3.6" fill="${motoColor}"/>
+              <rect x="11" y="9" width="4" height="9" rx="2" fill="${motoColor}"/>
+              <path d="M13 17 L8 23 M13 17 L18 23" stroke="${motoColor}" stroke-width="2.4" stroke-linecap="round"/>
+              <circle cx="7" cy="24" r="2" fill="#1a1a1a"/>
+              <circle cx="19" cy="24" r="2" fill="#1a1a1a"/>
+              <path d="M9 11 L4 9 M17 11 L22 9" stroke="${motoColor}" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        ${eta !== undefined ? `<div style="background:#1DB954;color:white;font-size:10px;font-weight:800;padding:2px 7px;border-radius:8px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.2);">${eta} min</div>` : ''}
+      </div>`,
+      iconSize: [38, eta !== undefined ? 56 : 38],
+      iconAnchor: [19, eta !== undefined ? 56 : 38],
+    })
+  }, [])
 
   const drawRoute = useCallback(async (L: any, map: any, from: [number, number], to: [number, number]) => {
     routeLayersRef.current.forEach(l => { try { map.removeLayer(l) } catch {} })
@@ -71,7 +114,6 @@ export default function MapView({
 
       if (onRouteCoords) onRouteCoords(coords)
 
-      // Trait vert épais simple, style Yango — sans animation
       const mainLine = L.polyline(coords, {
         color: '#1DB954',
         weight: 5,
@@ -120,21 +162,18 @@ export default function MapView({
       })
       mapRef.current = map
 
-      // Tuiles claires/beiges style Yango — CartoDB Voyager (gratuit, sans cle)
       L.tileLayer(`https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${process.env.NEXT_PUBLIC_MAPTILER_KEY}`, {
         maxZoom: 20,
         tileSize: 512,
         zoomOffset: -1,
       }).addTo(map)
 
-      // Marqueur depart — rond vert simple
       const fromIcon = L.divIcon({
         className: '',
         html: `<div style="width:18px;height:18px;border-radius:50%;background:#1DB954;border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>`,
         iconSize: [18, 18], iconAnchor: [9, 9],
       })
 
-      // Marqueur destination — pin rouge simple
       const toIcon = L.divIcon({
         className: '',
         html: `<div style="width:22px;height:30px;">
@@ -153,14 +192,14 @@ export default function MapView({
 
       if (showNearby && nearbyDrivers.length > 0) {
         nearbyDrivers.forEach(d => {
-          const m = L.marker([d.lat, d.lng], { icon: createMotoIcon(L, d.eta, false) }).addTo(map)
+          const m = L.marker([d.lat, d.lng], { icon: createMotoIcon(L, d.eta, false, d.motoColor) }).addTo(map)
           nearbyMarkersRef.current.push(m)
         })
       }
 
       if (showDriver && driverLat && driverLng) {
         driverMarkerRef.current = L.marker([driverLat, driverLng], {
-          icon: createMotoIcon(L, undefined, true)
+          icon: createMotoIcon(L, undefined, true, driverMotoColor)
         }).addTo(map)
       }
 
@@ -188,10 +227,15 @@ export default function MapView({
     if (!mapRef.current || !LRef.current || !showDriver || !driverLat || !driverLng) return
     const L = LRef.current
     if (driverMarkerRef.current) {
+      const prevPos = driverMarkerRef.current.getLatLng()
+      const heading = calculateHeading(prevPos.lat, prevPos.lng, driverLat, driverLng)
       driverMarkerRef.current.setLatLng([driverLat, driverLng])
+      if (heading !== null) {
+        driverMarkerRef.current.setIcon(createMotoIcon(L, undefined, true, driverMotoColor, heading))
+      }
     } else {
       driverMarkerRef.current = L.marker([driverLat, driverLng], {
-        icon: createMotoIcon(L, undefined, true)
+        icon: createMotoIcon(L, undefined, true, driverMotoColor)
       }).addTo(mapRef.current)
     }
 
@@ -204,7 +248,7 @@ export default function MapView({
         drawRoute(L, mapRef.current, [driverLat, driverLng], [toLat, toLng])
       }
     }
-  }, [driverLat, driverLng, showDriver, createMotoIcon, mode, toLat, toLng, drawRoute])
+  }, [driverLat, driverLng, showDriver, createMotoIcon, mode, toLat, toLng, drawRoute, driverMotoColor])
 
   useEffect(() => {
     if (!mapRef.current || !LRef.current || !showNearby) return
@@ -212,7 +256,7 @@ export default function MapView({
     nearbyMarkersRef.current.forEach(m => { try { m.remove() } catch {} })
     nearbyMarkersRef.current = []
     nearbyDrivers.forEach(d => {
-      const m = L.marker([d.lat, d.lng], { icon: createMotoIcon(L, d.eta, false) }).addTo(mapRef.current)
+      const m = L.marker([d.lat, d.lng], { icon: createMotoIcon(L, d.eta, false, d.motoColor) }).addTo(mapRef.current)
       nearbyMarkersRef.current.push(m)
     })
   }, [nearbyDrivers, showNearby, createMotoIcon])
