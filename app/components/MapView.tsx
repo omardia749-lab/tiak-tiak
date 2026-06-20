@@ -142,7 +142,7 @@ export default function MapView({
       if (showNearby) nearbyDrivers.forEach(d => bounds.push([d.lat, d.lng]))
 
       map.fitBounds(L.latLngBounds(bounds), {
-        padding: [50, 50], maxZoom: 16, animate: true, duration: 0.5
+        padding: [60, 90], maxZoom: showNearby ? 15 : 16, animate: true, duration: 0.6
       })
     } catch {
       const fallback = L.polyline([from, to], {
@@ -221,7 +221,7 @@ export default function MapView({
       } else {
         if (showNearby && nearbyDrivers.length > 0) {
           const pts: [number, number][] = [[fromLat, fromLng], ...nearbyDrivers.map(d => [d.lat, d.lng] as [number, number])]
-          map.fitBounds(L.latLngBounds(pts), { padding: [50, 50], maxZoom: 15 })
+          map.fitBounds(L.latLngBounds(pts), { padding: [60, 90], maxZoom: 15 })
         } else {
           map.setView([fromLat, fromLng], 15)
         }
