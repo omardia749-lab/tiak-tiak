@@ -2355,7 +2355,13 @@ const OfflineBanner = () => isOffline ? (
           <div className="h-52 relative">
             <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} nearbyDrivers={nearbyDrivers} showNearby={true} />
             <button onClick={() => setShowDemandSheet(true)} className="absolute top-3 left-3 bg-white rounded-full shadow-lg flex items-center gap-2 px-3 py-2 z-[400]">
-              <Zap size={16} color="#111" fill="#111" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <ellipse cx="12" cy="6" rx="3" ry="3.3" fill="#111"/>
+                <rect x="10.2" y="8.5" width="3.6" height="8" rx="1.8" fill="#111"/>
+                <path d="M12 16 L7.5 21.5 M12 16 L16.5 21.5" stroke="#111" strokeWidth="2.1" strokeLinecap="round"/>
+                <circle cx="6.8" cy="22.3" r="1.7" fill="#111"/>
+                <circle cx="17.2" cy="22.3" r="1.7" fill="#111"/>
+              </svg>
               <div className="w-4 h-0.5 rounded-full" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }} />
               <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }}>
                 <Zap size={12} color="white" fill="white" />
@@ -2370,15 +2376,6 @@ const OfflineBanner = () => isOffline ? (
                 <span className="text-lg">🛵</span>
                 <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>{nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} dispo • Plus proche : {nearbyDrivers[0].eta} min</p>
               </div>
-            )}
-            {demandLevel === 'high' && (
-              <button onClick={() => setShowDemandSheet(true)} className="w-full rounded-2xl p-3 flex items-center gap-3" style={{ background: '#FEE2E2' }}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#F59E0B' }}>
-                  <Zap size={16} color="white" fill="white" />
-                </div>
-                <p className="text-sm font-semibold text-red-600 flex-1 text-left">Forte demande dans ta zone — prix légèrement ajusté</p>
-                <ChevronRight size={16} color="#EF4444" />
-              </button>
             )}
             {demandLevel === 'medium' && (
               <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#FEF3C7' }}>
