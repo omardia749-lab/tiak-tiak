@@ -2354,11 +2354,15 @@ const OfflineBanner = () => isOffline ? (
         <div className="flex-1 overflow-y-auto">
           <div className="h-52 relative">
             <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} nearbyDrivers={nearbyDrivers} showNearby={true} />
-            {demandLevel === 'high' && (
-              <button onClick={() => setShowDemandSheet(true)} className="absolute top-3 left-3 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center z-[400]" style={{ border: '1.5px solid #FEE2E2' }}>
-                <Zap size={16} color="#F59E0B" fill="#F59E0B" />
-              </button>
-            )}
+            <button onClick={() => setShowDemandSheet(true)} className="absolute top-3 left-3 bg-white rounded-full shadow-lg flex items-center gap-2 px-3 py-2 z-[400]">
+              <Zap size={16} color="#111" fill="#111" />
+              <div className="w-4 h-0.5 rounded-full" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }} />
+              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }}>
+                <Zap size={12} color="white" fill="white" />
+              </div>
+              <div className="w-4 h-0.5 rounded-full" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }} />
+              <User size={16} color="#111" fill="#111" />
+            </button>
           </div>
           <div className="p-4 space-y-3">
             {nearbyDrivers.length > 0 && (
