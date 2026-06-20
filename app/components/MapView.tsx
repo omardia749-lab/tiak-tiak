@@ -127,6 +127,17 @@ export default function MapView({
       })
       arrivalMarkerRef.current = L.marker(to, { icon: arrivalIcon, zIndexOffset: 1000 }).addTo(map)
 
+      const etaMin = Math.max(1, Math.round(durationSec / 60))
+      const midIdx = Math.floor(coords.length / 2)
+      const midPoint = coords[midIdx] || coords[0]
+      const etaIcon = L.divIcon({
+        className: '',
+        html: `<div style="background:#E53935;color:white;font-size:13px;font-weight:800;padding:5px 11px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${etaMin} min</div>`,
+        iconSize: [60, 28], iconAnchor: [30, 14],
+      })
+      const etaMarker = L.marker(midPoint, { icon: etaIcon, zIndexOffset: 999 }).addTo(map)
+      routeLayersRef.current.push(etaMarker)
+
       const mainLine = L.polyline(coords, {
         color: '#1DB954',
         weight: 5,
