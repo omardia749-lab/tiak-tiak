@@ -94,9 +94,12 @@ export default function MapView({
     })
   }, [])
 
+  const arrivalMarkerRef = useRef<any>(null)
+
   const drawRoute = useCallback(async (L: any, map: any, from: [number, number], to: [number, number]) => {
     routeLayersRef.current.forEach(l => { try { map.removeLayer(l) } catch {} })
     routeLayersRef.current = []
+    if (arrivalMarkerRef.current) { try { map.removeLayer(arrivalMarkerRef.current) } catch {}; arrivalMarkerRef.current = null }
 
     const samePoint = Math.abs(from[0] - to[0]) < 0.0001 && Math.abs(from[1] - to[1]) < 0.0001
     if (samePoint) return
@@ -113,6 +116,16 @@ export default function MapView({
       )
 
       if (onRouteCoords) onRouteCoords(coords)
+
+      const durationSec = data.routes[0].duration || 0
+      const arrivalDate = new Date(Date.now() + durationSec * 1000)
+      const arrivalStr = arrivalDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      const arrivalIcon = L.divIcon({
+        className: '',
+        html: `<div style="background:white;color:#111;font-size:12px;font-weight:700;padding:6px 12px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.25);border:1px solid #eee;">arrivée à ${arrivalStr}</div>`,
+        iconSize: [120, 30], iconAnchor: [60, 45],
+      })
+      arrivalMarkerRef.current = L.marker(to, { icon: arrivalIcon, zIndexOffset: 1000 }).addTo(map)
 
       const mainLine = L.polyline(coords, {
         color: '#1DB954',
