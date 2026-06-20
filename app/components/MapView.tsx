@@ -132,7 +132,7 @@ export default function MapView({
       const midPoint = coords[midIdx] || coords[0]
       const etaIcon = L.divIcon({
         className: '',
-        html: `<div style="background:#E53935;color:white;font-size:13px;font-weight:800;padding:5px 11px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${etaMin} min</div>`,
+        html: `<div style="background:#1DB954;color:white;font-size:13px;font-weight:800;padding:5px 11px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${etaMin} min</div>`,
         iconSize: [60, 28], iconAnchor: [30, 14],
       })
       const etaMarker = L.marker(midPoint, { icon: etaIcon, zIndexOffset: 999 }).addTo(map)

@@ -2347,15 +2347,14 @@ const OfflineBanner = () => isOffline ? (
     const methods = [{ id: 'cash', icon: '💵', name: 'Especes' }, { id: 'wave', icon: '📱', name: 'Wave' }, { id: 'orange', icon: '🟠', name: 'Orange Money' }]
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
-        <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
-          <button onClick={() => setScreen('recherche')}><ArrowLeft size={24} color="#0F5138" /></button>
-          <span className="font-bold text-black">Confirmer la course</span>
-        </header>
         <div className="flex-1 overflow-y-auto">
           <div className="h-52 relative">
             <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} nearbyDrivers={nearbyDrivers} showNearby={true} />
-            <button onClick={() => setShowDemandSheet(true)} className="absolute top-3 left-3 bg-white rounded-full shadow-lg flex items-center gap-2 px-3 py-2 z-[400]">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <button onClick={() => setScreen('recherche')} className="absolute bottom-3 left-3 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center z-[400]">
+              <ArrowLeft size={18} color="#0F5138" />
+            </button>
+            <button onClick={() => setShowDemandSheet(true)} className="absolute top-3 left-3 bg-white rounded-full shadow-lg flex items-center gap-1.5 px-2.5 py-1.5 z-[400]">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                 <line x1="3" y1="6" x2="9" y2="6" stroke="#111" strokeWidth="2" strokeLinecap="round"/>
                 <line x1="15" y1="6" x2="21" y2="6" stroke="#111" strokeWidth="2" strokeLinecap="round"/>
                 <circle cx="12" cy="6" r="2" fill="white" stroke="#111" strokeWidth="1.5"/>
@@ -2366,12 +2365,12 @@ const OfflineBanner = () => isOffline ? (
                 <rect x="16" y="9" width="2.5" height="5" rx="1" fill="white"/>
                 <rect x="10.5" y="17" width="3" height="4" fill="white"/>
               </svg>
-              <div className="w-4 h-0.5 rounded-full" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }} />
-              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }}>
-                <Zap size={12} color="white" fill="white" />
+              <div className="w-3 h-0.5 rounded-full" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }} />
+              <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }}>
+                <Zap size={10} color="white" fill="white" />
               </div>
-              <div className="w-4 h-0.5 rounded-full" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }} />
-              <User size={16} color="#111" fill="#111" />
+              <div className="w-3 h-0.5 rounded-full" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }} />
+              <User size={13} color="#111" fill="#111" />
             </button>
           </div>
           <div className="p-4 space-y-3">
