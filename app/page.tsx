@@ -2355,12 +2355,16 @@ const OfflineBanner = () => isOffline ? (
           <div className="h-52 relative">
             <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} nearbyDrivers={nearbyDrivers} showNearby={true} />
             <button onClick={() => setShowDemandSheet(true)} className="absolute top-3 left-3 bg-white rounded-full shadow-lg flex items-center gap-2 px-3 py-2 z-[400]">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <ellipse cx="12" cy="6" rx="3" ry="3.3" fill="#111"/>
-                <rect x="10.2" y="8.5" width="3.6" height="8" rx="1.8" fill="#111"/>
-                <path d="M12 16 L7.5 21.5 M12 16 L16.5 21.5" stroke="#111" strokeWidth="2.1" strokeLinecap="round"/>
-                <circle cx="6.8" cy="22.3" r="1.7" fill="#111"/>
-                <circle cx="17.2" cy="22.3" r="1.7" fill="#111"/>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                <line x1="3" y1="6" x2="9" y2="6" stroke="#111" strokeWidth="2" strokeLinecap="round"/>
+                <line x1="15" y1="6" x2="21" y2="6" stroke="#111" strokeWidth="2" strokeLinecap="round"/>
+                <circle cx="12" cy="6" r="2" fill="white" stroke="#111" strokeWidth="1.5"/>
+                <path d="M4 9 C4 9 5 7.5 8 7.5 L11 7.5 L11 21 L4 21 C2.5 21 2.5 19 2.5 18 L2.5 13 C2.5 10.5 3 9.5 4 9Z" fill="#111"/>
+                <path d="M20 9 C20 9 19 7.5 16 7.5 L13 7.5 L13 21 L20 21 C21.5 21 21.5 19 21.5 18 L21.5 13 C21.5 10.5 21 9.5 20 9Z" fill="#111"/>
+                <rect x="11.3" y="7.5" width="1.4" height="13.5" fill="white"/>
+                <rect x="5.5" y="9" width="2.5" height="5" rx="1" fill="white"/>
+                <rect x="16" y="9" width="2.5" height="5" rx="1" fill="white"/>
+                <rect x="10.5" y="17" width="3" height="4" fill="white"/>
               </svg>
               <div className="w-4 h-0.5 rounded-full" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }} />
               <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }}>
