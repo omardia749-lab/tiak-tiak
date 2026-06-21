@@ -6,28 +6,47 @@ export interface Place {
   category?: string
   icon?: string
   distance?: number
-  placeId?: string
 }
 
-const API_BASE = '/api/places'
+const searchCache = new Map<string, { data: Place[]; timestamp: number }>()
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
-const getCategoryIcon = (types: string[]): { icon: string; category: string } => {
-  if (types.some(t => ['hospital', 'health', 'pharmacy', 'doctor', 'medical_lab'].includes(t))) return { icon: '🏥', category: 'Santé' }
-  if (types.some(t => ['school', 'university', 'primary_school', 'secondary_school'].includes(t))) return { icon: '🏫', category: 'École' }
-  if (types.some(t => ['restaurant', 'cafe', 'food', 'bakery', 'meal_takeaway'].includes(t))) return { icon: '🍽️', category: 'Restaurant' }
-  if (types.some(t => ['mosque', 'church', 'place_of_worship'].includes(t))) return { icon: '🕌', category: 'Lieu de culte' }
-  if (types.some(t => ['bank', 'atm'].includes(t))) return { icon: '🏦', category: 'Banque' }
-  if (types.includes('gas_station')) return { icon: '⛽', category: 'Station' }
-  if (types.some(t => ['supermarket', 'grocery_or_supermarket', 'store', 'shopping_mall', 'market'].includes(t))) return { icon: '🛒', category: 'Marché' }
-  if (types.some(t => ['stadium', 'sports_complex', 'sports_activity_location'].includes(t))) return { icon: '🏟️', category: 'Stade' }
-  if (types.includes('police')) return { icon: '🚔', category: 'Police' }
-  if (types.some(t => ['bus_station', 'transit_station', 'taxi_stand'].includes(t))) return { icon: '🚌', category: 'Transport' }
-  if (types.some(t => ['lodging', 'hotel'].includes(t))) return { icon: '🏨', category: 'Hôtel' }
-  if (types.includes('airport')) return { icon: '✈️', category: 'Aéroport' }
-  if (types.some(t => ['neighborhood', 'sublocality', 'sublocality_level_1'].includes(t))) return { icon: '📍', category: 'Quartier' }
-  if (types.some(t => ['locality', 'administrative_area_level_2'].includes(t))) return { icon: '🏙️', category: 'Ville' }
-  if (types.some(t => ['route', 'street_address'].includes(t))) return { icon: '🛣️', category: 'Rue' }
+const getCategoryIcon = (type: string, classType: string): { icon: string; category: string } => {
+  if (classType === 'amenity') {
+    if (type === 'hospital' || type === 'clinic' || type === 'pharmacy' || type === 'doctors') return { icon: '🏥', category: 'Santé' }
+    if (type === 'school' || type === 'university' || type === 'college') return { icon: '🏫', category: 'École' }
+    if (type === 'restaurant' || type === 'cafe' || type === 'fast_food' || type === 'bar') return { icon: '🍽️', category: 'Restaurant' }
+    if (type === 'place_of_worship') return { icon: '🕌', category: 'Lieu de culte' }
+    if (type === 'bank' || type === 'atm') return { icon: '🏦', category: 'Banque' }
+    if (type === 'fuel') return { icon: '⛽', category: 'Station' }
+    if (type === 'marketplace') return { icon: '🛒', category: 'Marché' }
+    if (type === 'police') return { icon: '🚔', category: 'Police' }
+    if (type === 'post_office') return { icon: '📮', category: 'Poste' }
+    if (type === 'bus_station' || type === 'taxi') return { icon: '🚌', category: 'Transport' }
+  }
+  if (classType === 'shop') return { icon: '🛍️', category: 'Magasin' }
+  if (classType === 'tourism') {
+    if (type === 'hotel' || type === 'guest_house') return { icon: '🏨', category: 'Hôtel' }
+  }
+  if (classType === 'leisure') {
+    if (type === 'stadium') return { icon: '🏟️', category: 'Stade' }
+  }
+  if (classType === 'place') {
+    if (type === 'suburb' || type === 'neighbourhood' || type === 'quarter') return { icon: '📍', category: 'Quartier' }
+    if (type === 'city' || type === 'town' || type === 'village') return { icon: '🏙️', category: 'Ville' }
+  }
+  if (classType === 'highway') return { icon: '🛣️', category: 'Rue' }
+  if (classType === 'aeroway') return { icon: '✈️', category: 'Aéroport' }
   return { icon: '📍', category: 'Lieu' }
+}
+
+const formatAddress = (a: any): string => {
+  const parts = []
+  if (a.suburb) parts.push(a.suburb)
+  else if (a.neighbourhood) parts.push(a.neighbourhood)
+  if (a.city || a.town || a.village) parts.push(a.city || a.town || a.village)
+  if (a.state) parts.push(a.state)
+  return parts.join(', ') || 'Sénégal'
 }
 
 const haversine = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -38,65 +57,83 @@ const haversine = (lat1: number, lng1: number, lat2: number, lng2: number): numb
   return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * 10) / 10
 }
 
+async function fetchNominatim(query: string): Promise<any[]> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=sn&format=json&addressdetails=1&extratags=1&limit=10&accept-language=fr`
+    const response = await fetch(url, { headers: { 'Accept-Language': 'fr' } })
+    if (!response.ok) return []
+    return await response.json()
+  } catch {
+    return []
+  }
+}
+
 export async function searchPlaces(query: string, userLat?: number, userLng?: number): Promise<Place[]> {
-  if (query.length < 1) return []
-  try {
-    const params = new URLSearchParams({
-      input: query,
-      type: 'textsearch',
-      ...(userLat && userLng ? { lat: String(userLat), lng: String(userLng) } : {})
-    })
-    const res = await fetch(`${API_BASE}?${params}`)
-    const data = await res.json()
-    return parsePlacesResponse(data, userLat, userLng)
-  } catch {
-    return []
-  }
-}
+  if (query.length < 2) return []
 
-export async function searchPlacesAutocomplete(input: string, userLat?: number, userLng?: number): Promise<Place[]> {
-  if (input.length < 1) return []
-  try {
-    const params = new URLSearchParams({
-      input,
-      type: 'autocomplete',
-      ...(userLat && userLng ? { lat: String(userLat), lng: String(userLng) } : {})
-    })
-    const res = await fetch(`${API_BASE}?${params}`)
-    const data = await res.json()
-    return parsePlacesResponse(data, userLat, userLng)
-  } catch {
-    return []
+  const cacheKey = query.toLowerCase().trim()
+  const cached = searchCache.get(cacheKey)
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data
   }
-}
 
-function parsePlacesResponse(data: any, userLat?: number, userLng?: number): Place[] {
-  const places = data.places || data.results || []
-  return places.slice(0, 8).map((item: any) => {
-    const types = item.types || []
-    const { icon, category } = getCategoryIcon(types)
-    const lat = item.location?.latitude || item.geometry?.location?.lat || 0
-    const lng = item.location?.longitude || item.geometry?.location?.lng || 0
-    const name = item.displayName?.text || item.name || item.formatted_address?.split(',')[0] || ''
-    const address = item.formattedAddress || item.formatted_address || ''
-    const distance = userLat && userLng && lat && lng ? haversine(userLat, userLng, lat, lng) : undefined
-    return { name, address, lat, lng, category, icon, distance, placeId: item.id || item.place_id }
+  let raw = await fetchNominatim(`${query} Sénégal`)
+
+  if (raw.length === 0) {
+    raw = await fetchNominatim(query)
+  }
+
+  if (raw.length === 0) {
+    const simplified = query.split(' ')[0]
+    if (simplified.length >= 3 && simplified !== query) {
+      raw = await fetchNominatim(`${simplified} Sénégal`)
+    }
+  }
+
+  const places: Place[] = raw.map((item: any) => {
+    const a = item.address || {}
+    const { icon, category } = getCategoryIcon(item.type, item.class)
+    const name = item.name || item.display_name.split(',')[0].trim()
+    const address = formatAddress(a)
+    const lat = parseFloat(item.lat)
+    const lng = parseFloat(item.lon)
+    const distance = userLat && userLng ? haversine(userLat, userLng, lat, lng) : undefined
+
+    return { name, address, lat, lng, category, icon, distance }
   })
+
+  const seen = new Set<string>()
+  const deduped = places.filter(p => {
+    const key = `${p.name}-${p.lat.toFixed(3)}-${p.lng.toFixed(3)}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  if (userLat && userLng) {
+    deduped.sort((a, b) => (a.distance || 999) - (b.distance || 999))
+  }
+
+  searchCache.set(cacheKey, { data: deduped, timestamp: Date.now() })
+
+  if (searchCache.size > 50) {
+    const firstKey = searchCache.keys().next().value
+    if (firstKey) searchCache.delete(firstKey)
+  }
+
+  return deduped
 }
 
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
-    const params = new URLSearchParams({ input: `${lat},${lng}`, type: 'geocode' })
-    const res = await fetch(`${API_BASE}?${params}`)
-    const data = await res.json()
-    if (data.status !== 'OK') return 'Position actuelle'
-    const result = data.results?.[0]
-    if (!result) return 'Position actuelle'
-    const components = result.address_components || []
-    const neighbourhood = components.find((c: any) => c.types.includes('neighborhood') || c.types.includes('sublocality'))?.long_name
-    const city = components.find((c: any) => c.types.includes('locality'))?.long_name
-    if (neighbourhood && city) return `${neighbourhood}, ${city}`
-    return city || result.formatted_address?.split(',')[0] || 'Position actuelle'
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`
+    const response = await fetch(url, { headers: { 'Accept-Language': 'fr' } })
+    if (!response.ok) return 'Position actuelle'
+    const data = await response.json()
+    const a = data.address || {}
+    const quartier = a.suburb || a.neighbourhood || a.road || ''
+    const ville = a.city || a.town || a.village || 'Sénégal'
+    return quartier ? `${quartier}, ${ville}` : ville
   } catch {
     return 'Position actuelle'
   }
