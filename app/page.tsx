@@ -81,6 +81,8 @@ interface NearbyDriver {
   name: string
   eta: number
   motoColor?: string
+  rating?: number
+  totalRides?: number
 }
 
 interface FreqDest {
@@ -369,11 +371,11 @@ export default function TiakTiak() {
   useEffect(() => {
     if (!user || user.role !== 'client') return
     const loadNearby = async () => {
-      const { data } = await supabase.from('users').select('id, name, current_lat, current_lng, moto_color').eq('role', 'chauffeur').eq('is_online', true).eq('is_validated', true).eq('is_busy', false).not('current_lat', 'is', null)
+      const { data } = await supabase.from('users').select('id, name, current_lat, current_lng, moto_color, rating, total_rides').eq('role', 'chauffeur').eq('is_online', true).eq('is_validated', true).eq('is_busy', false).not('current_lat', 'is', null)
       if (data && position.lat !== DEFAULT_POS.lat) {
         const drivers = data.filter(d => d.current_lat && d.current_lng).map(d => {
           const dist = haversineDistance(position.lat, position.lng, d.current_lat, d.current_lng)
-          return { id: d.id, lat: d.current_lat, lng: d.current_lng, name: d.name, eta: Math.max(1, Math.round(dist * 3)), dist, motoColor: d.moto_color }
+          return { id: d.id, lat: d.current_lat, lng: d.current_lng, name: d.name, eta: Math.max(1, Math.round(dist * 3)), dist, motoColor: d.moto_color, rating: d.rating, totalRides: d.total_rides }
         }).filter(d => d.dist <= 5).sort((a, b) => a.eta - b.eta).slice(0, 5)
         setNearbyDrivers(drivers)
       }
@@ -2374,6 +2376,14 @@ const OfflineBanner = () => isOffline ? (
             </button>
           </div>
           <div className="p-4 space-y-3">
+            {nearbyDrivers.length > 0 && nearbyDrivers[0].rating !== undefined && (
+              <div className="rounded-xl px-3 py-2 flex items-center gap-2" style={{ background: '#E8F5E9' }}>
+                <Shield size={15} color="#0F5138" />
+                <p className="text-xs font-semibold" style={{ color: '#0F5138' }}>
+                  {nearbyDrivers[0].name?.split(' ')[0]} {nearbyDrivers[0].name?.split(' ')[1]?.[0]}. · {(nearbyDrivers[0].rating || 5).toFixed(1)} étoiles · {nearbyDrivers[0].totalRides || 0} courses
+                </p>
+              </div>
+            )}
             {nearbyDrivers.length > 0 && (
               <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#E8F5E9' }}>
                 <span className="text-lg">🛵</span>
