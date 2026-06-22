@@ -144,6 +144,7 @@ export default function MapView({
         opacity: 1,
         lineCap: 'round',
         lineJoin: 'round',
+        dashArray: '10, 8',
       }).addTo(map)
 
       routeLayersRef.current = [mainLine]
