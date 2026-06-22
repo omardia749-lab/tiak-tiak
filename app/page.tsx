@@ -2417,8 +2417,14 @@ const OfflineBanner = () => isOffline ? (
               <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-red-500" /><div><p className="text-xs text-gray-400">Destination</p><p className="text-sm font-semibold">{selected.name}</p></div></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setService('moto')} className="bg-white rounded-2xl p-3 flex items-center gap-2 shadow-sm" style={{ border: service === 'moto' ? '2px solid #1DB954' : '2px solid white' }}>
-                <Zap size={22} color={service === 'moto' ? '#0F5138' : '#9CA3AF'} /><span className="font-bold text-sm" style={{ color: service === 'moto' ? '#0F5138' : '#9CA3AF' }}>Moto-taxi</span>
+              <button onClick={() => setService('moto')} className="bg-white rounded-2xl p-3 flex flex-col items-center gap-1 shadow-sm" style={{ border: service === 'moto' ? '2px solid #1DB954' : '2px solid white' }}>
+                <div className="flex items-center gap-2">
+                  <Zap size={22} color={service === 'moto' ? '#0F5138' : '#9CA3AF'} />
+                  <span className="font-bold text-sm" style={{ color: service === 'moto' ? '#0F5138' : '#9CA3AF' }}>Moto-taxi</span>
+                </div>
+                {nearbyDrivers.length > 0 && nearbyDrivers[0].eta <= 3 && (
+                  <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#1DB954' }}>⚡ RAPIDE • {nearbyDrivers[0].eta} min</span>
+                )}
               </button>
               <button onClick={() => setService('livraison')} className="bg-white rounded-2xl p-3 flex items-center gap-2 shadow-sm" style={{ border: service === 'livraison' ? '2px solid #1DB954' : '2px solid white' }}>
                 <Package size={22} color={service === 'livraison' ? '#0F5138' : '#9CA3AF'} /><span className="font-bold text-sm" style={{ color: service === 'livraison' ? '#0F5138' : '#9CA3AF' }}>Livraison</span>
