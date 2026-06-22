@@ -2452,8 +2452,20 @@ const OfflineBanner = () => isOffline ? (
           </div>
         </div>
         <div className="p-4 bg-white border-t border-gray-100">
-          <button onClick={commanderCourse} disabled={commandLoading} className="w-full py-4 rounded-2xl font-bold text-white text-base" style={{ background: commandLoading ? '#7aaa94' : '#0F5138' }}>
-            {commandLoading ? 'Envoi...' : `Commander — ${paymentLabel(payment).icon} ${paymentLabel(payment).name}`}
+          <button onClick={commanderCourse} disabled={commandLoading} className="w-full py-4 rounded-2xl font-bold text-white text-base flex items-center justify-center gap-2" style={{ background: commandLoading ? '#7aaa94' : '#0F5138' }}>
+            {commandLoading ? 'Envoi...' : (
+              <>
+                <svg width="22" height="22" viewBox="0 0 26 26" fill="none">
+                  <ellipse cx="13" cy="6" rx="3.2" ry="3.6" fill="white"/>
+                  <rect x="11" y="9" width="4" height="9" rx="2" fill="white"/>
+                  <path d="M13 17 L8 23 M13 17 L18 23" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
+                  <circle cx="7" cy="24" r="2" fill="rgba(255,255,255,0.7)"/>
+                  <circle cx="19" cy="24" r="2" fill="rgba(255,255,255,0.7)"/>
+                  <path d="M9 11 L4 9 M17 11 L22 9" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                Commander — {paymentLabel(payment).icon} {paymentLabel(payment).name}
+              </>
+            )}
           </button>
         </div>
         {showDemandSheet && (
