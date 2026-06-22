@@ -9,7 +9,9 @@ export interface Place {
 }
 
 const searchCache = new Map<string, { data: Place[]; timestamp: number }>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000
+
+const LOCATIONIQ_KEY = 'pk.fc8026e3cfa56ab9ca71bb367d600101'
 
 const getCategoryIcon = (type: string, classType: string): { icon: string; category: string } => {
   if (classType === 'amenity') {
@@ -57,39 +59,7 @@ const haversine = (lat1: number, lng1: number, lat2: number, lng2: number): numb
   return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * 10) / 10
 }
 
-async function fetchNominatim(query: string): Promise<any[]> {
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=sn&format=json&addressdetails=1&extratags=1&limit=10&accept-language=fr`
-    const response = await fetch(url, { headers: { 'Accept-Language': 'fr' } })
-    if (!response.ok) return []
-    return await response.json()
-  } catch {
-    return []
-  }
-}
-
-export async function searchPlaces(query: string, userLat?: number, userLng?: number): Promise<Place[]> {
-  if (query.length < 2) return []
-
-  const cacheKey = query.toLowerCase().trim()
-  const cached = searchCache.get(cacheKey)
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    return cached.data
-  }
-
-  let raw = await fetchNominatim(`${query} Sénégal`)
-
-  if (raw.length === 0) {
-    raw = await fetchNominatim(query)
-  }
-
-  if (raw.length === 0) {
-    const simplified = query.split(' ')[0]
-    if (simplified.length >= 3 && simplified !== query) {
-      raw = await fetchNominatim(`${simplified} Sénégal`)
-    }
-  }
-
+const parseResults = (raw: any[], userLat?: number, userLng?: number): Place[] => {
   const places: Place[] = raw.map((item: any) => {
     const a = item.address || {}
     const { icon, category } = getCategoryIcon(item.type, item.class)
@@ -98,7 +68,6 @@ export async function searchPlaces(query: string, userLat?: number, userLng?: nu
     const lat = parseFloat(item.lat)
     const lng = parseFloat(item.lon)
     const distance = userLat && userLng ? haversine(userLat, userLng, lat, lng) : undefined
-
     return { name, address, lat, lng, category, icon, distance }
   })
 
@@ -114,17 +83,97 @@ export async function searchPlaces(query: string, userLat?: number, userLng?: nu
     deduped.sort((a, b) => (a.distance || 999) - (b.distance || 999))
   }
 
-  searchCache.set(cacheKey, { data: deduped, timestamp: Date.now() })
+  return deduped
+}
+
+async function fetchLocationIQ(query: string): Promise<any[]> {
+  try {
+    const url = `https://us1.locationiq.com/v1/search?key=${LOCATIONIQ_KEY}&q=${encodeURIComponent(query)}&countrycodes=sn&format=json&addressdetails=1&extratags=1&limit=10&accept-language=fr`
+    const response = await fetch(url)
+    if (!response.ok) return []
+    const data = await response.json()
+    if (!Array.isArray(data)) return []
+    return data
+  } catch {
+    return []
+  }
+}
+
+async function fetchNominatim(query: string): Promise<any[]> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=sn&format=json&addressdetails=1&extratags=1&limit=10&accept-language=fr`
+    const response = await fetch(url, { headers: { 'Accept-Language': 'fr' } })
+    if (!response.ok) return []
+    return await response.json()
+  } catch {
+    return []
+  }
+}
+
+async function fetchWithFallback(query: string): Promise<any[]> {
+  // Essaie LocationIQ en priorité
+  let raw = await fetchLocationIQ(query)
+  
+  // Si LocationIQ échoue ou retourne rien → Nominatim en fallback
+  if (raw.length === 0) {
+    raw = await fetchNominatim(query)
+  }
+  
+  return raw
+}
+
+export async function searchPlaces(query: string, userLat?: number, userLng?: number): Promise<Place[]> {
+  if (query.length < 2) return []
+
+  const cacheKey = query.toLowerCase().trim()
+  const cached = searchCache.get(cacheKey)
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data
+  }
+
+  // Essai 1 : query + Sénégal
+  let raw = await fetchWithFallback(`${query} Sénégal`)
+
+  // Essai 2 : query brute
+  if (raw.length === 0) {
+    raw = await fetchWithFallback(query)
+  }
+
+  // Essai 3 : premier mot seulement
+  if (raw.length === 0) {
+    const simplified = query.split(' ')[0]
+    if (simplified.length >= 3 && simplified !== query) {
+      raw = await fetchWithFallback(`${simplified} Sénégal`)
+    }
+  }
+
+  const result = parseResults(raw, userLat, userLng)
+
+  searchCache.set(cacheKey, { data: result, timestamp: Date.now() })
 
   if (searchCache.size > 50) {
     const firstKey = searchCache.keys().next().value
     if (firstKey) searchCache.delete(firstKey)
   }
 
-  return deduped
+  return result
 }
 
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    // LocationIQ en priorité pour le reverse geocoding
+    const url = `https://us1.locationiq.com/v1/reverse?key=${LOCATIONIQ_KEY}&lat=${lat}&lon=${lng}&format=json&addressdetails=1`
+    const response = await fetch(url)
+    if (response.ok) {
+      const data = await response.json()
+      const a = data.address || {}
+      const quartier = a.suburb || a.neighbourhood || a.road || ''
+      const ville = a.city || a.town || a.village || 'Sénégal'
+      return quartier ? `${quartier}, ${ville}` : ville
+    }
+  } catch {}
+
+  // Fallback Nominatim
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`
     const response = await fetch(url, { headers: { 'Accept-Language': 'fr' } })
