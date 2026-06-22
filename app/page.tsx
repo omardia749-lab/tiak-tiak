@@ -387,16 +387,9 @@ export default function TiakTiak() {
 
   const loadFreqDests = useCallback(async () => {
     if (!user?.id) return
-    const { data } = await supabase.from('rides').select('to_address, to_lat, to_lng').eq('client_id', user.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(30)
+    const { data } = await supabase.from('destination_history').select('to_address, to_lat, to_lng, visit_count').eq('client_id', user.id).order('updated_at', { ascending: false }).limit(4)
     if (!data) return
-    const map = new Map<string, FreqDest>()
-    data.forEach(r => {
-      if (!r.to_address) return
-      const key = r.to_address
-      if (map.has(key)) { map.get(key)!.count++ }
-      else map.set(key, { name: r.to_address.split(',')[0], address: r.to_address, lat: r.to_lat, lng: r.to_lng, count: 1 })
-    })
-    const sorted = Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 3)
+    const sorted = data.map(r => ({ name: r.to_address.split(',')[0], address: r.to_address, lat: r.to_lat, lng: r.to_lng, count: r.visit_count || 1 }))
     setFreqDests(sorted)
   }, [user?.id])
 
@@ -909,10 +902,27 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     }, 300)
   }
 
-  const selectPlace = (place: Place) => { setSelected(place); setQuery(''); setResults([]); checkFirstRide(); setScreen('confirm') }
+  const saveToHistory = async (place: Place) => {
+    if (!user?.id) return
+    const existing = await supabase.from('destination_history').select('id, visit_count').eq('client_id', user.id).eq('to_address', place.name).single()
+    if (existing.data) {
+      await supabase.from('destination_history').update({ visit_count: (existing.data.visit_count || 1) + 1, updated_at: new Date().toISOString() }).eq('id', existing.data.id)
+    } else {
+      const { data: count } = await supabase.from('destination_history').select('id', { count: 'exact' }).eq('client_id', user.id)
+      if ((count?.length || 0) >= 4) {
+        const { data: oldest } = await supabase.from('destination_history').select('id').eq('client_id', user.id).order('updated_at', { ascending: true }).limit(1).single()
+        if (oldest) await supabase.from('destination_history').delete().eq('id', oldest.id)
+      }
+      await supabase.from('destination_history').insert({ client_id: user.id, to_address: place.name, to_lat: place.lat, to_lng: place.lng, visit_count: 1, updated_at: new Date().toISOString() })
+    }
+    loadFreqDests()
+  }
+
+  const selectPlace = (place: Place) => { setSelected(place); setQuery(''); setResults([]); checkFirstRide(); saveToHistory(place); setScreen('confirm') }
   const selectFreqDest = (dest: FreqDest) => {
     setSelected({ name: dest.address, lat: dest.lat, lng: dest.lng, address: dest.address })
     checkFirstRide()
+    saveToHistory({ name: dest.address, lat: dest.lat, lng: dest.lng, address: dest.address })
     setScreen('confirm')
   }
   const goTo = (s: string) => { setScreen(s); setMenuOpen(false) }

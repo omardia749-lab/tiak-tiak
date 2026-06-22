@@ -11,7 +11,7 @@ export interface Place {
 const searchCache = new Map<string, { data: Place[]; timestamp: number }>()
 const CACHE_DURATION = 5 * 60 * 1000
 
-const LOCATIONIQ_KEY = 'pk.fc8026e3cfa56ab9ca71bb367d600101'
+const LOCATIONIQ_KEY = process.env.NEXT_PUBLIC_LOCATIONIQ_KEY || ''
 
 const getCategoryIcon = (type: string, classType: string): { icon: string; category: string } => {
   if (classType === 'amenity') {
