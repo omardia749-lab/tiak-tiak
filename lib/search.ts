@@ -10,8 +10,27 @@ export interface Place {
 
 const searchCache = new Map<string, { data: Place[]; timestamp: number }>()
 const CACHE_DURATION = 5 * 60 * 1000
-
 const LOCATIONIQ_KEY = process.env.NEXT_PUBLIC_LOCATIONIQ_KEY || ''
+
+const getGoogleIcon = (types: string[]): { icon: string; category: string } => {
+  if (types.includes('hospital') || types.includes('pharmacy') || types.includes('doctor')) return { icon: '🏥', category: 'Santé' }
+  if (types.includes('school') || types.includes('university')) return { icon: '🏫', category: 'École' }
+  if (types.includes('restaurant') || types.includes('cafe') || types.includes('food')) return { icon: '🍽️', category: 'Restaurant' }
+  if (types.includes('mosque') || types.includes('church') || types.includes('place_of_worship')) return { icon: '🕌', category: 'Lieu de culte' }
+  if (types.includes('bank') || types.includes('atm')) return { icon: '🏦', category: 'Banque' }
+  if (types.includes('gas_station')) return { icon: '⛽', category: 'Station' }
+  if (types.includes('shopping_mall') || types.includes('store') || types.includes('supermarket')) return { icon: '🛍️', category: 'Magasin' }
+  if (types.includes('police')) return { icon: '🚔', category: 'Police' }
+  if (types.includes('bus_station') || types.includes('transit_station')) return { icon: '🚌', category: 'Transport' }
+  if (types.includes('hotel') || types.includes('lodging')) return { icon: '🏨', category: 'Hôtel' }
+  if (types.includes('stadium') || types.includes('sports_complex')) return { icon: '🏟️', category: 'Stade' }
+  if (types.includes('airport')) return { icon: '✈️', category: 'Aéroport' }
+  if (types.includes('neighborhood') || types.includes('sublocality')) return { icon: '📍', category: 'Quartier' }
+  if (types.includes('locality') || types.includes('city')) return { icon: '🏙️', category: 'Ville' }
+  if (types.includes('route') || types.includes('street_address')) return { icon: '🛣️', category: 'Rue' }
+  if (types.includes('market')) return { icon: '🛒', category: 'Marché' }
+  return { icon: '📍', category: 'Lieu' }
+}
 
 const getCategoryIcon = (type: string, classType: string): { icon: string; category: string } => {
   if (classType === 'amenity') {
@@ -59,7 +78,64 @@ const haversine = (lat1: number, lng1: number, lat2: number, lng2: number): numb
   return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * 10) / 10
 }
 
-const parseResults = (raw: any[], userLat?: number, userLng?: number): Place[] => {
+// ── GOOGLE PLACES (priorité absolue) ──────────────────────────
+async function fetchGooglePlaces(query: string, userLat?: number, userLng?: number): Promise<Place[]> {
+  try {
+    const location = userLat && userLng ? `&location=${userLat},${userLng}` : ''
+    const url = `/api/places?query=${encodeURIComponent(query)}${location}`
+    const response = await fetch(url)
+    if (!response.ok) return []
+    const data = await response.json()
+    if (!data.results || data.results.length === 0) return []
+    
+    return data.results.map((r: any) => {
+      const { icon, category } = getGoogleIcon(r.types || [])
+      const lat = r.geometry.location.lat
+      const lng = r.geometry.location.lng
+      const distance = userLat && userLng ? haversine(userLat, userLng, lat, lng) : undefined
+      return {
+        name: r.name || r.formatted_address.split(',')[0],
+        address: r.formatted_address || r.vicinity || 'Sénégal',
+        lat,
+        lng,
+        icon,
+        category,
+        distance,
+      }
+    })
+  } catch {
+    return []
+  }
+}
+
+// ── LOCATIONIQ (fallback 1) ────────────────────────────────────
+async function fetchLocationIQ(query: string, userLat?: number, userLng?: number): Promise<Place[]> {
+  try {
+    const url = `https://us1.locationiq.com/v1/search?key=${LOCATIONIQ_KEY}&q=${encodeURIComponent(query)}&countrycodes=sn&format=json&addressdetails=1&extratags=1&limit=10&accept-language=fr`
+    const response = await fetch(url)
+    if (!response.ok) return []
+    const data = await response.json()
+    if (!Array.isArray(data)) return []
+    return parseOSMResults(data, userLat, userLng)
+  } catch {
+    return []
+  }
+}
+
+// ── NOMINATIM (fallback 2) ─────────────────────────────────────
+async function fetchNominatim(query: string, userLat?: number, userLng?: number): Promise<Place[]> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=sn&format=json&addressdetails=1&extratags=1&limit=10&accept-language=fr`
+    const response = await fetch(url, { headers: { 'Accept-Language': 'fr' } })
+    if (!response.ok) return []
+    const data = await response.json()
+    return parseOSMResults(data, userLat, userLng)
+  } catch {
+    return []
+  }
+}
+
+const parseOSMResults = (raw: any[], userLat?: number, userLng?: number): Place[] => {
   const places: Place[] = raw.map((item: any) => {
     const a = item.address || {}
     const { icon, category } = getCategoryIcon(item.type, item.class)
@@ -72,115 +148,49 @@ const parseResults = (raw: any[], userLat?: number, userLng?: number): Place[] =
   })
 
   const seen = new Set<string>()
-  const deduped = places.filter(p => {
+  return places.filter(p => {
     const key = `${p.name}-${p.lat.toFixed(3)}-${p.lng.toFixed(3)}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
   })
-
-  if (userLat && userLng) {
-    deduped.sort((a, b) => (a.distance || 999) - (b.distance || 999))
-  }
-
-  return deduped
 }
 
-async function fetchGooglePlaces(query: string, userLat?: number, userLng?: number): Promise<any[]> {
-  try {
-    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
-    if (!key) return []
-    const location = userLat && userLng ? `&location=${userLat},${userLng}&radius=50000` : ''
-    const url = `/api/places?query=${encodeURIComponent(query)}${location}`
-    const response = await fetch(url)
-    if (!response.ok) return []
-    const data = await response.json()
-    if (!data.results || data.results.length === 0) return []
-    return data.results.map((r: any) => ({
-      lat: r.geometry.location.lat.toString(),
-      lon: r.geometry.location.lng.toString(),
-      display_name: r.formatted_address,
-      name: r.name,
-      type: 'google',
-      class: 'place',
-      address: { suburb: r.vicinity }
-    }))
-  } catch {
-    return []
-  }
-}
-
-async function fetchLocationIQ(query: string): Promise<any[]> {
-  try {
-    const url = `https://us1.locationiq.com/v1/search?key=${LOCATIONIQ_KEY}&q=${encodeURIComponent(query)}&countrycodes=sn&format=json&addressdetails=1&extratags=1&limit=10&accept-language=fr`
-    const response = await fetch(url)
-    if (!response.ok) return []
-    const data = await response.json()
-    if (!Array.isArray(data)) return []
-    return data
-  } catch {
-    return []
-  }
-}
-
-async function fetchNominatim(query: string): Promise<any[]> {
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=sn&format=json&addressdetails=1&extratags=1&limit=10&accept-language=fr`
-    const response = await fetch(url, { headers: { 'Accept-Language': 'fr' } })
-    if (!response.ok) return []
-    return await response.json()
-  } catch {
-    return []
-  }
-}
-
-async function fetchWithFallback(query: string, userLat?: number, userLng?: number): Promise<any[]> {
-  // Google Places en priorité
-  let raw = await fetchGooglePlaces(query, userLat, userLng)
-  
-  // Si Google échoue → LocationIQ
-  if (raw.length === 0) {
-    raw = await fetchLocationIQ(query)
-  }
-  
-  // Si LocationIQ échoue → Nominatim
-  if (raw.length === 0) {
-    raw = await fetchNominatim(query)
-  }
-  
-  return raw
-}
-
+// ── RECHERCHE PRINCIPALE ───────────────────────────────────────
 export async function searchPlaces(query: string, userLat?: number, userLng?: number): Promise<Place[]> {
   if (query.length < 2) return []
 
-  const cacheKey = query.toLowerCase().trim()
+  const cacheKey = `${query.toLowerCase().trim()}-${userLat?.toFixed(2)}-${userLng?.toFixed(2)}`
   const cached = searchCache.get(cacheKey)
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     return cached.data
   }
 
-  // Essai 1 : query + Sénégal
-  let raw = await fetchWithFallback(`${query} Sénégal`)
+  // 1. Google Places en priorité — tous les lieux du Sénégal
+  let result = await fetchGooglePlaces(`${query} Sénégal`, userLat, userLng)
 
-  // Essai 2 : query brute
-  if (raw.length === 0) {
-    raw = await fetchWithFallback(query)
+  // 2. Si Google retourne rien → LocationIQ
+  if (result.length === 0) {
+    result = await fetchLocationIQ(`${query} Sénégal`, userLat, userLng)
   }
 
-  // Essai 3 : premier mot seulement
-  if (raw.length === 0) {
-    const simplified = query.split(' ')[0]
-    if (simplified.length >= 3 && simplified !== query) {
-      raw = await fetchWithFallback(`${simplified} Sénégal`)
-    }
+  // 3. Si LocationIQ retourne rien → Nominatim
+  if (result.length === 0) {
+    result = await fetchNominatim(`${query} Sénégal`, userLat, userLng)
   }
 
-  const result = parseResults(raw, userLat, userLng)
+  // 4. Dernier essai sans "Sénégal"
+  if (result.length === 0) {
+    result = await fetchGooglePlaces(query, userLat, userLng)
+  }
+
+  // Tri par distance
+  if (userLat && userLng) {
+    result.sort((a, b) => (a.distance || 999) - (b.distance || 999))
+  }
 
   searchCache.set(cacheKey, { data: result, timestamp: Date.now() })
-
-  if (searchCache.size > 50) {
+  if (searchCache.size > 100) {
     const firstKey = searchCache.keys().next().value
     if (firstKey) searchCache.delete(firstKey)
   }
@@ -188,9 +198,23 @@ export async function searchPlaces(query: string, userLat?: number, userLng?: nu
   return result
 }
 
+// ── REVERSE GEOCODING ──────────────────────────────────────────
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  // Google Geocoding en priorité
   try {
-    // LocationIQ en priorité pour le reverse geocoding
+    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
+    if (key) {
+      const url = `/api/geocode?lat=${lat}&lng=${lng}`
+      const response = await fetch(url)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.address) return data.address
+      }
+    }
+  } catch {}
+
+  // LocationIQ fallback
+  try {
     const url = `https://us1.locationiq.com/v1/reverse?key=${LOCATIONIQ_KEY}&lat=${lat}&lon=${lng}&format=json&addressdetails=1`
     const response = await fetch(url)
     if (response.ok) {
@@ -202,7 +226,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
     }
   } catch {}
 
-  // Fallback Nominatim
+  // Nominatim dernier recours
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`
     const response = await fetch(url, { headers: { 'Accept-Language': 'fr' } })
