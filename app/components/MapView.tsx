@@ -140,11 +140,11 @@ export default function MapView({
 
       const mainLine = L.polyline(coords, {
         color: '#1DB954',
-        weight: 5,
-        opacity: 1,
+        weight: 3,
+        opacity: 0.85,
         lineCap: 'round',
         lineJoin: 'round',
-        dashArray: '10, 8',
+        dashArray: '6, 4',
       }).addTo(map)
 
       routeLayersRef.current = [mainLine]
@@ -154,7 +154,7 @@ export default function MapView({
       if (showNearby) nearbyDrivers.forEach(d => bounds.push([d.lat, d.lng]))
 
       map.fitBounds(L.latLngBounds(bounds), {
-        padding: [60, 90], maxZoom: showNearby ? 15 : 16, animate: true, duration: 0.6
+        padding: [80, 80], maxZoom: 14, minZoom: 12, animate: true, duration: 0.6
       })
     } catch {
       const fallback = L.polyline([from, to], {
