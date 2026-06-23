@@ -186,10 +186,9 @@ export default function MapView({
       })
       mapRef.current = map
 
-      L.tileLayer(`https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${process.env.NEXT_PUBLIC_MAPTILER_KEY}`, {
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 20,
-        tileSize: 512,
-        zoomOffset: -1,
+        subdomains: 'abcd',
       }).addTo(map)
 
       const fromIcon = L.divIcon({
