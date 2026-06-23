@@ -86,6 +86,30 @@ const parseResults = (raw: any[], userLat?: number, userLng?: number): Place[] =
   return deduped
 }
 
+async function fetchGooglePlaces(query: string, userLat?: number, userLng?: number): Promise<any[]> {
+  try {
+    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
+    if (!key) return []
+    const location = userLat && userLng ? `&location=${userLat},${userLng}&radius=50000` : ''
+    const url = `/api/places?query=${encodeURIComponent(query)}${location}`
+    const response = await fetch(url)
+    if (!response.ok) return []
+    const data = await response.json()
+    if (!data.results || data.results.length === 0) return []
+    return data.results.map((r: any) => ({
+      lat: r.geometry.location.lat.toString(),
+      lon: r.geometry.location.lng.toString(),
+      display_name: r.formatted_address,
+      name: r.name,
+      type: 'google',
+      class: 'place',
+      address: { suburb: r.vicinity }
+    }))
+  } catch {
+    return []
+  }
+}
+
 async function fetchLocationIQ(query: string): Promise<any[]> {
   try {
     const url = `https://us1.locationiq.com/v1/search?key=${LOCATIONIQ_KEY}&q=${encodeURIComponent(query)}&countrycodes=sn&format=json&addressdetails=1&extratags=1&limit=10&accept-language=fr`
@@ -110,11 +134,16 @@ async function fetchNominatim(query: string): Promise<any[]> {
   }
 }
 
-async function fetchWithFallback(query: string): Promise<any[]> {
-  // Essaie LocationIQ en priorité
-  let raw = await fetchLocationIQ(query)
+async function fetchWithFallback(query: string, userLat?: number, userLng?: number): Promise<any[]> {
+  // Google Places en priorité
+  let raw = await fetchGooglePlaces(query, userLat, userLng)
   
-  // Si LocationIQ échoue ou retourne rien → Nominatim en fallback
+  // Si Google échoue → LocationIQ
+  if (raw.length === 0) {
+    raw = await fetchLocationIQ(query)
+  }
+  
+  // Si LocationIQ échoue → Nominatim
   if (raw.length === 0) {
     raw = await fetchNominatim(query)
   }

@@ -186,10 +186,19 @@ export default function MapView({
       })
       mapRef.current = map
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 20,
-        subdomains: 'abcd',
-      }).addTo(map)
+      const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
+      if (googleKey) {
+        L.tileLayer(`https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${googleKey}`, {
+          maxZoom: 20,
+          subdomains: '0123',
+          attribution: '© Google Maps'
+        }).addTo(map)
+      } else {
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          maxZoom: 20,
+          subdomains: 'abcd',
+        }).addTo(map)
+      }
 
       const fromIcon = L.divIcon({
         className: '',
