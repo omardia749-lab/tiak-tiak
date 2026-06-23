@@ -62,31 +62,42 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
       googleMapsCallbacks.length = 0
     }
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry,marker&callback=initGoogleMaps&language=fr&v=beta`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker&callback=initGoogleMaps&language=fr&v=beta`
     script.async = true
     script.defer = true
     document.head.appendChild(script)
   })
 }
 
-// Cacher logo Google globalement
 function hideGoogleLogo() {
-  const style = document.getElementById('hide-google-logo')
-  if (style) return
+  if (document.getElementById('hide-google-logo')) return
   const s = document.createElement('style')
   s.id = 'hide-google-logo'
   s.textContent = `
-    .gmnoprint, .gm-style-cc, 
+    .gmnoprint, .gm-style-cc,
     a[href*="maps.google.com"],
     .gm-style a[target="_blank"],
     .gm-bundled-control,
     .gm-svpc,
-    button[title="Activer/désactiver le mode plein écran"],
-    .gm-fullscreen-control { 
-      display: none !important; 
-    }
+    .gm-fullscreen-control { display: none !important; }
   `
   document.head.appendChild(s)
+}
+
+// Décoder polyline encodé OSRM
+function decodePolyline(encoded: string): { lat: number; lng: number }[] {
+  const points: { lat: number; lng: number }[] = []
+  let index = 0, lat = 0, lng = 0
+  while (index < encoded.length) {
+    let shift = 0, result = 0, b: number
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5 } while (b >= 0x20)
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1)
+    shift = 0; result = 0
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5 } while (b >= 0x20)
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1)
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 })
+  }
+  return points
 }
 
 export default function MapView({
@@ -111,10 +122,7 @@ export default function MapView({
     const motoColor = getMotoColor(color)
     const ringColor = isAssigned ? '#0F5138' : 'white'
     const div = document.createElement('div')
-    div.style.display = 'flex'
-    div.style.flexDirection = 'column'
-    div.style.alignItems = 'center'
-    div.style.gap = '3px'
+    div.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;'
     div.innerHTML = `
       <div style="width:38px;height:38px;border-radius:50%;background:white;border:3px solid ${ringColor};box-shadow:0 2px 8px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;">
         <div style="transform:rotate(${heading}deg);transition:transform 0.4s ease;width:26px;height:26px;display:flex;align-items:center;justify-content:center;">
@@ -133,8 +141,12 @@ export default function MapView({
     return div
   }, [])
 
-  const drawRoute = useCallback(async (map: any, from: {lat: number, lng: number}, to: {lat: number, lng: number}) => {
-    // Nettoyer anciens éléments
+  const drawRoute = useCallback(async (
+    map: any,
+    from: { lat: number; lng: number },
+    to: { lat: number; lng: number }
+  ) => {
+    // Nettoyage
     if (routePolylineRef.current) { routePolylineRef.current.setMap(null); routePolylineRef.current = null }
     if (arrivalMarkerRef.current) { arrivalMarkerRef.current.map = null; arrivalMarkerRef.current = null }
     if (etaMarkerRef.current) { etaMarkerRef.current.map = null; etaMarkerRef.current = null }
@@ -143,38 +155,28 @@ export default function MapView({
     if (samePoint) return
 
     try {
-      const directionsService = new window.google.maps.DirectionsService()
+      // OSRM — routing gratuit et illimité
+      const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=polyline`
+      const res = await fetch(url)
+      const data = await res.json()
 
-      const result = await new Promise<any>((resolve, reject) => {
-        directionsService.route({
-          origin: new window.google.maps.LatLng(from.lat, from.lng),
-          destination: new window.google.maps.LatLng(to.lat, to.lng),
-          travelMode: window.google.maps.TravelMode.DRIVING,
-          region: 'sn',
-        }, (result: any, status: any) => {
-          if (status === 'OK') resolve(result)
-          else reject(new Error(status))
-        })
-      })
+      if (!data.routes?.[0]) throw new Error('no route')
 
-      const route = result.routes[0]
-      const leg = route.legs[0]
-      const path: any[] = []
-      route.legs.forEach((l: any) => {
-        l.steps.forEach((s: any) => {
-          s.path.forEach((p: any) => path.push(p))
-        })
-      })
+      const route = data.routes[0]
+      const durationSec: number = route.duration || 0
+      const distanceM: number = route.distance || 0
 
-      // Callback coords pour le chauffeur
+      // Décoder le polyline OSRM
+      const points = decodePolyline(route.geometry)
+
+      // Callback pour le chauffeur
       if (onRouteCoords) {
-        const coords: [number, number][] = path.map((p: any) => [p.lat(), p.lng()])
-        onRouteCoords(coords)
+        onRouteCoords(points.map(p => [p.lat, p.lng]))
       }
 
-      // Tracé de route vert comme Yango
+      // Tracé vert propre sur la carte Google
       routePolylineRef.current = new window.google.maps.Polyline({
-        path,
+        path: points,
         geodesic: true,
         strokeColor: '#1DB954',
         strokeOpacity: 1.0,
@@ -184,52 +186,48 @@ export default function MapView({
       })
 
       // Badge heure d'arrivée
-      const durationSec = leg.duration?.value || 0
       const arrivalDate = new Date(Date.now() + durationSec * 1000)
       const arrivalStr = arrivalDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
       const etaMin = Math.max(1, Math.round(durationSec / 60))
 
-      const arrivalDiv = document.createElement('div')
-      arrivalDiv.innerHTML = `<div style="background:white;color:#111;font-size:12px;font-weight:700;padding:6px 12px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.25);border:1px solid #eee;transform:translateX(-50%) translateY(-110%);">arrivée à ${arrivalStr}</div>`
+      const arrivalEl = document.createElement('div')
+      arrivalEl.innerHTML = `<div style="background:white;color:#111;font-size:12px;font-weight:700;padding:6px 12px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.25);border:1px solid #eee;transform:translateY(-110%);">arrivée à ${arrivalStr}</div>`
       arrivalMarkerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
         position: to,
         map,
-        content: arrivalDiv.firstChild as HTMLElement,
+        content: arrivalEl.firstChild as HTMLElement,
         zIndex: 1000,
       })
 
       // Badge ETA au milieu du tracé
-      const midIdx = Math.floor(path.length / 2)
-      const midPoint = path[midIdx]
-      const etaDiv = document.createElement('div')
-      etaDiv.innerHTML = `<div style="background:#1DB954;color:white;font-size:13px;font-weight:800;padding:5px 11px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);transform:translateX(-50%) translateY(-50%);">${etaMin} min</div>`
+      const midPoint = points[Math.floor(points.length / 2)]
+      const etaEl = document.createElement('div')
+      etaEl.innerHTML = `<div style="background:#1DB954;color:white;font-size:13px;font-weight:800;padding:5px 11px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${etaMin} min</div>`
       etaMarkerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
         position: midPoint,
         map,
-        content: etaDiv.firstChild as HTMLElement,
+        content: etaEl.firstChild as HTMLElement,
         zIndex: 999,
       })
 
-      // Zoom sur le trajet
+      // Zoom automatique sur le trajet
       const bounds = new window.google.maps.LatLngBounds()
-      path.forEach((p: any) => bounds.extend(p))
-      map.fitBounds(bounds, { top: 80, right: 60, bottom: 60, left: 60 })
+      points.forEach(p => bounds.extend(p))
+      map.fitBounds(bounds, { top: 80, right: 50, bottom: 50, left: 50 })
 
     } catch {
-      // Fallback ligne droite si Google Directions échoue
+      // Fallback ligne droite
       routePolylineRef.current = new window.google.maps.Polyline({
         path: [from, to],
-        geodesic: true,
         strokeColor: '#1DB954',
-        strokeOpacity: 0.7,
+        strokeOpacity: 0.8,
         strokeWeight: 4,
-        strokeDasharray: '8 4',
         map,
       })
       const bounds = new window.google.maps.LatLngBounds()
       bounds.extend(from)
       bounds.extend(to)
-      map.fitBounds(bounds, { top: 80, right: 60, bottom: 60, left: 60 })
+      map.fitBounds(bounds, { top: 80, right: 50, bottom: 50, left: 50 })
     }
   }, [onRouteCoords])
 
@@ -252,16 +250,15 @@ export default function MapView({
       })
       mapRef.current = map
 
-      // Cacher logo après chargement de la carte
       window.google.maps.event.addListenerOnce(map, 'idle', hideGoogleLogo)
 
       // Marqueur départ — point vert
-      const fromDiv = document.createElement('div')
-      fromDiv.innerHTML = `<div style="width:16px;height:16px;border-radius:50%;background:#1DB954;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`
+      const fromEl = document.createElement('div')
+      fromEl.innerHTML = `<div style="width:16px;height:16px;border-radius:50%;background:#1DB954;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`
       new window.google.maps.marker.AdvancedMarkerElement({
         position: { lat: fromLat, lng: fromLng },
         map,
-        content: fromDiv.firstChild as HTMLElement,
+        content: fromEl.firstChild as HTMLElement,
         zIndex: 100,
       })
 
@@ -269,12 +266,12 @@ export default function MapView({
 
       // Marqueur destination — épingle rouge
       if (!samePoint) {
-        const toDiv = document.createElement('div')
-        toDiv.innerHTML = `<div style="width:22px;height:30px;transform:translateX(-50%) translateY(-100%);"><svg width="22" height="30" viewBox="0 0 22 30" fill="none"><path d="M11 0C4.925 0 0 4.925 0 11c0 8.25 11 19 11 19s11-10.75 11-19C22 4.925 17.075 0 11 0z" fill="#E53935"/><circle cx="11" cy="11" r="4.5" fill="white"/></svg></div>`
+        const toEl = document.createElement('div')
+        toEl.innerHTML = `<div style="width:22px;height:30px;transform:translateY(-100%);"><svg width="22" height="30" viewBox="0 0 22 30" fill="none"><path d="M11 0C4.925 0 0 4.925 0 11c0 8.25 11 19 11 19s11-10.75 11-19C22 4.925 17.075 0 11 0z" fill="#E53935"/><circle cx="11" cy="11" r="4.5" fill="white"/></svg></div>`
         new window.google.maps.marker.AdvancedMarkerElement({
           position: { lat: toLat, lng: toLng },
           map,
-          content: toDiv.firstChild as HTMLElement,
+          content: toEl.firstChild as HTMLElement,
           zIndex: 100,
         })
       }
