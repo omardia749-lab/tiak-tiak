@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
-import 'leaflet/dist/leaflet.css'
 
 interface NearbyDriver {
   id: string
@@ -40,16 +39,34 @@ const getMotoColor = (colorName?: string): string => {
   return MOTO_COLOR_MAP[key] || '#0F5138'
 }
 
-const calculateHeading = (lat1: number, lng1: number, lat2: number, lng2: number): number | null => {
-  const dist = Math.sqrt(Math.pow(lat2 - lat1, 2) + Math.pow(lng2 - lng1, 2))
-  if (dist < 0.000005) return null
-  const dLng = (lng2 - lng1) * Math.PI / 180
-  const lat1Rad = lat1 * Math.PI / 180
-  const lat2Rad = lat2 * Math.PI / 180
-  const y = Math.sin(dLng) * Math.cos(lat2Rad)
-  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng)
-  const bearing = Math.atan2(y, x) * 180 / Math.PI
-  return (bearing + 360) % 360
+declare global {
+  interface Window {
+    google: any
+    initGoogleMaps: () => void
+  }
+}
+
+let googleMapsLoaded = false
+let googleMapsLoading = false
+const googleMapsCallbacks: (() => void)[] = []
+
+function loadGoogleMaps(apiKey: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (googleMapsLoaded) { resolve(); return }
+    googleMapsCallbacks.push(resolve)
+    if (googleMapsLoading) return
+    googleMapsLoading = true
+    window.initGoogleMaps = () => {
+      googleMapsLoaded = true
+      googleMapsCallbacks.forEach(cb => cb())
+      googleMapsCallbacks.length = 0
+    }
+    const script = document.createElement('script')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&callback=initGoogleMaps&language=fr`
+    script.async = true
+    script.defer = true
+    document.head.appendChild(script)
+  })
 }
 
 export default function MapView({
@@ -66,16 +83,18 @@ export default function MapView({
   const mapRef = useRef<any>(null)
   const driverMarkerRef = useRef<any>(null)
   const nearbyMarkersRef = useRef<any[]>([])
-  const LRef = useRef<any>(null)
-  const routeLayersRef = useRef<any[]>([])
+  const routePolylineRef = useRef<any>(null)
+  const arrivalMarkerRef = useRef<any>(null)
+  const etaMarkerRef = useRef<any>(null)
+  const fromMarkerRef = useRef<any>(null)
+  const toMarkerRef = useRef<any>(null)
 
-  const createMotoIcon = useCallback((L: any, eta?: number, isAssigned = false, color?: string, heading = 0) => {
+  const createMotoMarker = useCallback((map: any, lat: number, lng: number, eta?: number, isAssigned = false, color?: string, heading = 0) => {
     const motoColor = getMotoColor(color)
     const ringColor = isAssigned ? '#0F5138' : 'white'
-    return L.divIcon({
-      className: '',
-      html: `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
-        <div style="width:38px;height:38px;border-radius:50%;background:white;border:3px solid ${ringColor};box-shadow:0 2px 8px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;position:relative;">
+    const svgContent = `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <div style="width:38px;height:38px;border-radius:50%;background:white;border:3px solid ${ringColor};box-shadow:0 2px 8px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;">
           <div style="transform:rotate(${heading}deg);transition:transform 0.4s ease;width:26px;height:26px;display:flex;align-items:center;justify-content:center;">
             <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
               <ellipse cx="13" cy="6" rx="3.2" ry="3.6" fill="${motoColor}"/>
@@ -88,210 +107,183 @@ export default function MapView({
           </div>
         </div>
         ${eta !== undefined ? `<div style="background:#1DB954;color:white;font-size:10px;font-weight:800;padding:2px 7px;border-radius:8px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.2);">${eta} min</div>` : ''}
-      </div>`,
-      iconSize: [38, eta !== undefined ? 56 : 38],
-      iconAnchor: [19, eta !== undefined ? 56 : 38],
+      </div>`
+
+    const marker = new window.google.maps.marker.AdvancedMarkerElement({
+      position: { lat, lng },
+      map,
+      content: (() => { const d = document.createElement('div'); d.innerHTML = svgContent; return d.firstChild as HTMLElement })(),
     })
+    return marker
   }, [])
 
-  const arrivalMarkerRef = useRef<any>(null)
+  const drawRoute = useCallback(async (map: any, from: { lat: number, lng: number }, to: { lat: number, lng: number }) => {
+    if (routePolylineRef.current) { routePolylineRef.current.setMap(null); routePolylineRef.current = null }
+    if (arrivalMarkerRef.current) { arrivalMarkerRef.current.map = null; arrivalMarkerRef.current = null }
+    if (etaMarkerRef.current) { etaMarkerRef.current.map = null; etaMarkerRef.current = null }
 
-  const drawRoute = useCallback(async (L: any, map: any, from: [number, number], to: [number, number]) => {
-    routeLayersRef.current.forEach(l => { try { map.removeLayer(l) } catch {} })
-    routeLayersRef.current = []
-    if (arrivalMarkerRef.current) { try { map.removeLayer(arrivalMarkerRef.current) } catch {}; arrivalMarkerRef.current = null }
-
-    const samePoint = Math.abs(from[0] - to[0]) < 0.0001 && Math.abs(from[1] - to[1]) < 0.0001
+    const samePoint = Math.abs(from.lat - to.lat) < 0.0001 && Math.abs(from.lng - to.lng) < 0.0001
     if (samePoint) return
 
     try {
-      const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`
-      )
-      const data = await res.json()
-      if (!mapRef.current || !data.routes?.[0]) throw new Error('no route')
+      const directionsService = new window.google.maps.DirectionsService()
+      const result = await directionsService.route({
+        origin: from,
+        destination: to,
+        travelMode: window.google.maps.TravelMode.DRIVING,
+      })
 
-      const coords: [number, number][] = data.routes[0].geometry.coordinates.map(
-        ([lng, lat]: [number, number]) => [lat, lng]
-      )
+      const route = result.routes[0]
+      const leg = route.legs[0]
+      const path = route.overview_path
 
-      if (onRouteCoords) onRouteCoords(coords)
+      if (onRouteCoords) {
+        const coords: [number, number][] = path.map((p: any) => [p.lat(), p.lng()])
+        onRouteCoords(coords)
+      }
 
-      const durationSec = data.routes[0].duration || 0
+      routePolylineRef.current = new window.google.maps.Polyline({
+        path,
+        geodesic: true,
+        strokeColor: '#1DB954',
+        strokeOpacity: 1.0,
+        strokeWeight: 5,
+        map,
+      })
+
+      const durationSec = leg.duration?.value || 0
       const arrivalDate = new Date(Date.now() + durationSec * 1000)
       const arrivalStr = arrivalDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-      const arrivalIcon = L.divIcon({
-        className: '',
-        html: `<div style="background:white;color:#111;font-size:12px;font-weight:700;padding:6px 12px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.25);border:1px solid #eee;">arrivée à ${arrivalStr}</div>`,
-        iconSize: [120, 30], iconAnchor: [60, 45],
-      })
-      arrivalMarkerRef.current = L.marker(to, { icon: arrivalIcon, zIndexOffset: 1000 }).addTo(map)
-
       const etaMin = Math.max(1, Math.round(durationSec / 60))
-      const midIdx = Math.floor(coords.length / 2)
-      const midPoint = coords[midIdx] || coords[0]
-      const etaIcon = L.divIcon({
-        className: '',
-        html: `<div style="background:#1DB954;color:white;font-size:13px;font-weight:800;padding:5px 11px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${etaMin} min</div>`,
-        iconSize: [60, 28], iconAnchor: [30, 14],
+
+      const arrivalDiv = document.createElement('div')
+      arrivalDiv.innerHTML = `<div style="background:white;color:#111;font-size:12px;font-weight:700;padding:6px 12px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.25);border:1px solid #eee;">arrivée à ${arrivalStr}</div>`
+      arrivalMarkerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
+        position: to,
+        map,
+        content: arrivalDiv.firstChild as HTMLElement,
+        zIndex: 1000,
       })
-      const etaMarker = L.marker(midPoint, { icon: etaIcon, zIndexOffset: 999 }).addTo(map)
-      routeLayersRef.current.push(etaMarker)
 
-      const mainLine = L.polyline(coords, {
-        color: '#1DB954',
-        weight: 6,
-        opacity: 1,
-        lineCap: 'round',
-        lineJoin: 'round',
-      }).addTo(map)
-
-      routeLayersRef.current = [mainLine]
-
-      const bounds: [number, number][] = [...coords]
-      if (showDriver && driverLat && driverLng) bounds.push([driverLat, driverLng])
-      if (showNearby) nearbyDrivers.forEach(d => bounds.push([d.lat, d.lng]))
-
-      map.fitBounds(L.latLngBounds([[fromLat, fromLng], [toLat, toLng]]), {
-        padding: [50, 50], maxZoom: 13, animate: true, duration: 0.6
+      const midIdx = Math.floor(path.length / 2)
+      const midPoint = path[midIdx]
+      const etaDiv = document.createElement('div')
+      etaDiv.innerHTML = `<div style="background:#1DB954;color:white;font-size:13px;font-weight:800;padding:5px 11px;border-radius:14px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3);">${etaMin} min</div>`
+      etaMarkerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
+        position: midPoint,
+        map,
+        content: etaDiv.firstChild as HTMLElement,
+        zIndex: 999,
       })
-    } catch {
-      const fallback = L.polyline([from, to], {
-        color: '#1DB954', weight: 5, opacity: 1, lineCap: 'round'
-      }).addTo(map)
-      routeLayersRef.current = [fallback]
-      map.fitBounds(L.latLngBounds([from, to]), { padding: [50, 50], maxZoom: 15 })
+
+      const bounds = new window.google.maps.LatLngBounds()
+      bounds.extend(from)
+      bounds.extend(to)
+      map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 })
+
+    } catch (e) {
+      const bounds = new window.google.maps.LatLngBounds()
+      bounds.extend(from)
+      bounds.extend(to)
+      map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 })
     }
-  }, [showDriver, driverLat, driverLng, showNearby, nearbyDrivers, onRouteCoords])
+  }, [onRouteCoords])
 
   useEffect(() => {
-    if (!containerRef.current) return
-    if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
-    const c = containerRef.current as any
-    if (c._leaflet_id) c._leaflet_id = null
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
+    if (!apiKey || !containerRef.current) return
 
-    import('leaflet').then((mod) => {
-      const L = mod
-      LRef.current = L
+    loadGoogleMaps(apiKey).then(() => {
       if (!containerRef.current) return
-      const container = containerRef.current as any
-      if (container._leaflet_id) container._leaflet_id = null
 
-      const map = L.map(containerRef.current, {
-        zoomControl: false,
-        attributionControl: false,
-        dragging: true,
-        scrollWheelZoom: false,
-        doubleClickZoom: false,
+      const map = new window.google.maps.Map(containerRef.current, {
+        center: { lat: fromLat, lng: fromLng },
+        zoom: 13,
+        mapId: 'tiak_tiak_map',
+        disableDefaultUI: true,
+        gestureHandling: 'cooperative',
+        styles: [],
       })
       mapRef.current = map
 
-      const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
-      if (googleKey) {
-        L.tileLayer(`https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${googleKey}`, {
-          maxZoom: 20,
-          subdomains: '0123',
-          attribution: '© Google Maps'
-        }).addTo(map)
-      } else {
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-          maxZoom: 20,
-          subdomains: 'abcd',
-        }).addTo(map)
-      }
-
-      const fromIcon = L.divIcon({
-        className: '',
-        html: `<div style="width:18px;height:18px;border-radius:50%;background:#1DB954;border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>`,
-        iconSize: [18, 18], iconAnchor: [9, 9],
-      })
-
-      const toIcon = L.divIcon({
-        className: '',
-        html: `<div style="width:22px;height:30px;">
-          <svg width="22" height="30" viewBox="0 0 22 30" fill="none">
-            <path d="M11 0C4.925 0 0 4.925 0 11c0 8.25 11 19 11 19s11-10.75 11-19C22 4.925 17.075 0 11 0z" fill="#E53935"/>
-            <circle cx="11" cy="11" r="4.5" fill="white"/>
-          </svg>
-        </div>`,
-        iconSize: [22, 30], iconAnchor: [11, 30],
+      const fromDiv = document.createElement('div')
+      fromDiv.innerHTML = `<div style="width:16px;height:16px;border-radius:50%;background:#1DB954;border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>`
+      fromMarkerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
+        position: { lat: fromLat, lng: fromLng },
+        map,
+        content: fromDiv.firstChild as HTMLElement,
       })
 
       const samePoint = Math.abs(fromLat - toLat) < 0.0001 && Math.abs(fromLng - toLng) < 0.0001
 
-      L.marker([fromLat, fromLng], { icon: fromIcon }).addTo(map)
-      if (!samePoint) L.marker([toLat, toLng], { icon: toIcon }).addTo(map)
+      if (!samePoint) {
+        const toDiv = document.createElement('div')
+        toDiv.innerHTML = `<div style="width:22px;height:30px;"><svg width="22" height="30" viewBox="0 0 22 30" fill="none"><path d="M11 0C4.925 0 0 4.925 0 11c0 8.25 11 19 11 19s11-10.75 11-19C22 4.925 17.075 0 11 0z" fill="#E53935"/><circle cx="11" cy="11" r="4.5" fill="white"/></svg></div>`
+        toMarkerRef.current = new window.google.maps.marker.AdvancedMarkerElement({
+          position: { lat: toLat, lng: toLng },
+          map,
+          content: toDiv.firstChild as HTMLElement,
+        })
+      }
 
       if (showNearby && nearbyDrivers.length > 0) {
         nearbyDrivers.forEach(d => {
-          const m = L.marker([d.lat, d.lng], { icon: createMotoIcon(L, d.eta, false, d.motoColor) }).addTo(map)
-          nearbyMarkersRef.current.push(m)
+          const marker = createMotoMarker(map, d.lat, d.lng, d.eta, false, d.motoColor)
+          nearbyMarkersRef.current.push(marker)
         })
       }
 
       if (showDriver && driverLat && driverLng) {
-        driverMarkerRef.current = L.marker([driverLat, driverLng], {
-          icon: createMotoIcon(L, undefined, true, driverMotoColor)
-        }).addTo(map)
+        driverMarkerRef.current = createMotoMarker(map, driverLat, driverLng, undefined, true, driverMotoColor)
       }
 
       if (!samePoint) {
-        drawRoute(L, map, [fromLat, fromLng], [toLat, toLng])
+        drawRoute(map, { lat: fromLat, lng: fromLng }, { lat: toLat, lng: toLng })
       } else {
         if (showNearby && nearbyDrivers.length > 0) {
-          const pts: [number, number][] = [[fromLat, fromLng], ...nearbyDrivers.map(d => [d.lat, d.lng] as [number, number])]
-          map.fitBounds(L.latLngBounds(pts), { padding: [60, 90], maxZoom: 15 })
+          const bounds = new window.google.maps.LatLngBounds()
+          bounds.extend({ lat: fromLat, lng: fromLng })
+          nearbyDrivers.forEach(d => bounds.extend({ lat: d.lat, lng: d.lng }))
+          map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 })
         } else {
-          map.setView([fromLat, fromLng], 15)
+          map.setCenter({ lat: fromLat, lng: fromLng })
+          map.setZoom(15)
         }
       }
     })
 
     return () => {
-      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
-      if (containerRef.current) (containerRef.current as any)._leaflet_id = null
+      if (routePolylineRef.current) routePolylineRef.current.setMap(null)
+      nearbyMarkersRef.current.forEach(m => { m.map = null })
+      nearbyMarkersRef.current = []
+      mapRef.current = null
     }
   }, [fromLat, fromLng, toLat, toLng, showNearby])
 
-  const lastRouteUpdateRef = useRef<number>(0)
-
   useEffect(() => {
-    if (!mapRef.current || !LRef.current || !showDriver || !driverLat || !driverLng) return
-    const L = LRef.current
+    if (!mapRef.current || !window.google || !showDriver || !driverLat || !driverLng) return
+
     if (driverMarkerRef.current) {
-      const prevPos = driverMarkerRef.current.getLatLng()
-      const heading = calculateHeading(prevPos.lat, prevPos.lng, driverLat, driverLng)
-      driverMarkerRef.current.setLatLng([driverLat, driverLng])
-      if (heading !== null) {
-        driverMarkerRef.current.setIcon(createMotoIcon(L, undefined, true, driverMotoColor, heading))
-      }
+      driverMarkerRef.current.position = { lat: driverLat, lng: driverLng }
     } else {
-      driverMarkerRef.current = L.marker([driverLat, driverLng], {
-        icon: createMotoIcon(L, undefined, true, driverMotoColor)
-      }).addTo(mapRef.current)
+      driverMarkerRef.current = createMotoMarker(mapRef.current, driverLat, driverLng, undefined, true, driverMotoColor)
     }
 
     if (mode === 'driver') {
-      mapRef.current.setView([driverLat, driverLng], 17, { animate: true })
-
-      const now = Date.now()
-      if (now - lastRouteUpdateRef.current > 15000) {
-        lastRouteUpdateRef.current = now
-        drawRoute(L, mapRef.current, [driverLat, driverLng], [toLat, toLng])
-      }
+      mapRef.current.setCenter({ lat: driverLat, lng: driverLng })
+      mapRef.current.setZoom(17)
     }
-  }, [driverLat, driverLng, showDriver, createMotoIcon, mode, toLat, toLng, drawRoute, driverMotoColor])
+  }, [driverLat, driverLng, showDriver, createMotoMarker, mode, driverMotoColor])
 
   useEffect(() => {
-    if (!mapRef.current || !LRef.current || !showNearby) return
-    const L = LRef.current
-    nearbyMarkersRef.current.forEach(m => { try { m.remove() } catch {} })
+    if (!mapRef.current || !window.google || !showNearby) return
+    nearbyMarkersRef.current.forEach(m => { m.map = null })
     nearbyMarkersRef.current = []
     nearbyDrivers.forEach(d => {
-      const m = L.marker([d.lat, d.lng], { icon: createMotoIcon(L, d.eta, false, d.motoColor) }).addTo(mapRef.current)
-      nearbyMarkersRef.current.push(m)
+      const marker = createMotoMarker(mapRef.current, d.lat, d.lng, d.eta, false, d.motoColor)
+      nearbyMarkersRef.current.push(marker)
     })
-  }, [nearbyDrivers, showNearby, createMotoIcon])
+  }, [nearbyDrivers, showNearby, createMotoMarker])
 
   return (
     <div
