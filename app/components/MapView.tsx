@@ -147,18 +147,24 @@ export default function MapView({
 
       const result = await new Promise<any>((resolve, reject) => {
         directionsService.route({
-          origin: from,
-          destination: to,
+          origin: new window.google.maps.LatLng(from.lat, from.lng),
+          destination: new window.google.maps.LatLng(to.lat, to.lng),
           travelMode: window.google.maps.TravelMode.DRIVING,
+          region: 'sn',
         }, (result: any, status: any) => {
-          if (status === window.google.maps.DirectionsStatus.OK) resolve(result)
+          if (status === 'OK') resolve(result)
           else reject(new Error(status))
         })
       })
 
       const route = result.routes[0]
       const leg = route.legs[0]
-      const path = route.overview_path
+      const path: any[] = []
+      route.legs.forEach((l: any) => {
+        l.steps.forEach((s: any) => {
+          s.path.forEach((p: any) => path.push(p))
+        })
+      })
 
       // Callback coords pour le chauffeur
       if (onRouteCoords) {
