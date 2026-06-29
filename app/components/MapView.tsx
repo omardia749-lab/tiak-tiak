@@ -157,9 +157,9 @@ export default function MapView({
       if (!coords.length) return
       const bounds = L.latLngBounds(coords)
       map.fitBounds(bounds, {
-        paddingTopLeft: [44, 80],
-        paddingBottomRight: [44, mode === 'driver' ? 120 : 300],
-        maxZoom: 15,
+        paddingTopLeft: [44, 70],
+        paddingBottomRight: [44, mode === 'driver' ? 150 : 360],
+        maxZoom: 14,
         animate: true,
         duration: 0.5,
       })
@@ -244,9 +244,9 @@ export default function MapView({
 
         if (durationSeconds > 0) {
           const durationPoint =
-            coords[Math.floor(coords.length * 0.45)] || coords[0]
+            coords[Math.floor(coords.length * 0.35)] || coords[0]
           const arrivalPoint =
-            coords[Math.floor(coords.length * 0.82)] || coords[coords.length - 1]
+            coords[Math.floor(coords.length * 0.65)] || coords[coords.length - 1]
 
           const durationBadge = L.marker(durationPoint, {
             icon: L.divIcon({
