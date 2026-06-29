@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import 'leaflet/dist/leaflet.css'
 
 type LatLng = {
   lat: number
@@ -14,7 +15,6 @@ type NearbyDriver = {
   moto_color?: string
   motoColor?: string
   color?: string
-  heading?: number
 }
 
 type MapViewProps = {
@@ -37,62 +37,6 @@ type MapViewProps = {
   className?: string
 }
 
-let googleMapsPromise: Promise<any> | null = null
-
-function loadGoogleMaps() {
-  if (typeof window === 'undefined') {
-    return Promise.reject(new Error('Window unavailable'))
-  }
-
-  if ((window as any).google?.maps) {
-    return Promise.resolve((window as any).google)
-  }
-
-  if (googleMapsPromise) {
-    return googleMapsPromise
-  }
-
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
-
-  if (!apiKey) {
-    return Promise.reject(
-      new Error('NEXT_PUBLIC_GOOGLE_MAPS_KEY manquante')
-    )
-  }
-
-  googleMapsPromise = new Promise((resolve, reject) => {
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[data-google-maps="true"]'
-    )
-
-    if (existingScript) {
-      existingScript.addEventListener('load', () => {
-        resolve((window as any).google)
-      })
-      existingScript.addEventListener('error', reject)
-      return
-    }
-
-    const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=weekly&language=fr&region=SN`
-    script.async = true
-    script.defer = true
-    script.dataset.googleMaps = 'true'
-
-    script.onload = () => {
-      resolve((window as any).google)
-    }
-
-    script.onerror = () => {
-      reject(new Error('Impossible de charger Google Maps'))
-    }
-
-    document.head.appendChild(script)
-  })
-
-  return googleMapsPromise
-}
-
 function isValidCoordinate(lat?: number | null, lng?: number | null) {
   return (
     typeof lat === 'number' &&
@@ -109,96 +53,67 @@ function formatDuration(seconds: number) {
 
 function formatArrival(seconds: number) {
   const date = new Date(Date.now() + seconds * 1000)
-
   return date.toLocaleTimeString('fr-FR', {
     hour: '2-digit',
     minute: '2-digit',
   })
 }
 
-function svgToDataUri(svg: string) {
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+// --- Icônes SVG (gratuites, faites maison) ---
+
+function startMarkerHtml() {
+  return `
+    <div style="transform:translate(-50%,-50%);">
+      <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="17" cy="17" r="14" fill="#ffffff" stroke="#13b15a" stroke-width="4"/>
+        <circle cx="17" cy="17" r="6" fill="#13b15a"/>
+      </svg>
+    </div>
+  `
 }
 
-function startMarkerIcon() {
-  return svgToDataUri(`
-    <svg width="42" height="42" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="21" cy="21" r="18" fill="#ffffff" stroke="#13b15a" stroke-width="4"/>
-      <circle cx="21" cy="21" r="7" fill="#13b15a"/>
-    </svg>
-  `)
+function destinationMarkerHtml() {
+  return `
+    <div style="transform:translate(-50%,-100%);">
+      <svg width="38" height="46" viewBox="0 0 38 46" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19 45C19 45 36 26.8 36 17.3C36 8 28.4 1 19 1C9.6 1 2 8 2 17.3C2 26.8 19 45 19 45Z" fill="#0b7a3b" stroke="#ffffff" stroke-width="3.5"/>
+        <circle cx="19" cy="17.5" r="6.5" fill="#ffffff"/>
+      </svg>
+    </div>
+  `
 }
 
-function destinationMarkerIcon() {
-  return svgToDataUri(`
-    <svg width="46" height="56" viewBox="0 0 46 56" xmlns="http://www.w3.org/2000/svg">
-      <path d="M23 54C23 54 43 32.8 43 20.8C43 9.9 34 1 23 1C12 1 3 9.9 3 20.8C3 32.8 23 54 23 54Z" fill="#0b7a3b" stroke="#ffffff" stroke-width="4"/>
-      <circle cx="23" cy="21" r="8" fill="#ffffff"/>
-    </svg>
-  `)
+function motoMarkerHtml(color: string, size: number) {
+  const s = size
+  return `
+    <div style="transform:translate(-50%,-50%);">
+      <svg width="${s}" height="${s}" viewBox="0 0 58 58" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="29" cy="29" r="25" fill="#ffffff" stroke="${color}" stroke-width="4"/>
+        <circle cx="22.4" cy="34.5" r="5.4" fill="${color}"/>
+        <circle cx="37.6" cy="34.5" r="5.4" fill="${color}"/>
+        <path d="M22.4 34.5H28.5L34 24.8H39.2" fill="none" stroke="#083b21" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M28.5 34.5H37.6L32.4 27.2H25.8" fill="none" stroke="#083b21" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="28.8" cy="23.7" r="4.3" fill="#083b21"/>
+        <path d="M25.5 27.5L22.6 31.6" stroke="#083b21" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+    </div>
+  `
 }
 
-function motoMarkerIcon(color = '#13b15a') {
-  return svgToDataUri(`
-    <svg width="58" height="58" viewBox="0 0 58 58" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="29" cy="29" r="25" fill="#ffffff" stroke="${color}" stroke-width="4"/>
-      <path d="M17 34.5C17 31.5 19.4 29.1 22.4 29.1C25.4 29.1 27.8 31.5 27.8 34.5C27.8 37.5 25.4 39.9 22.4 39.9C19.4 39.9 17 37.5 17 34.5Z" fill="${color}"/>
-      <path d="M32.2 34.5C32.2 31.5 34.6 29.1 37.6 29.1C40.6 29.1 43 31.5 43 34.5C43 37.5 40.6 39.9 37.6 39.9C34.6 39.9 32.2 37.5 32.2 34.5Z" fill="${color}"/>
-      <path d="M22.4 34.5H28.5L34 24.8H39.2" fill="none" stroke="#083b21" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M28.5 34.5H37.6L32.4 27.2H25.8" fill="none" stroke="#083b21" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M28.8 19.4C31.2 19.4 33.1 21.3 33.1 23.7C33.1 26.1 31.2 28 28.8 28C26.4 28 24.5 26.1 24.5 23.7C24.5 21.3 26.4 19.4 28.8 19.4Z" fill="#083b21"/>
-      <path d="M25.5 27.5L22.6 31.6" stroke="#083b21" stroke-width="3" stroke-linecap="round"/>
-    </svg>
-  `)
+function badgeHtml(text: string, variant: 'duration' | 'arrival') {
+  if (variant === 'duration') {
+    return `
+      <div style="transform:translate(-50%,-50%);white-space:nowrap;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;">
+        <div style="background:#083b21;color:#fff;padding:8px 13px;border-radius:999px;font-size:13px;font-weight:800;line-height:1;box-shadow:0 10px 25px rgba(8,59,33,0.28);border:2px solid rgba(255,255,255,0.95);">${text}</div>
+      </div>
+    `
+  }
+  return `
+    <div style="transform:translate(-50%,-50%);white-space:nowrap;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;">
+      <div style="background:#fff;color:#083b21;padding:7px 12px;border-radius:999px;font-size:12px;font-weight:800;line-height:1;box-shadow:0 10px 25px rgba(15,23,42,0.15);border:1px solid rgba(19,177,90,0.22);">${text}</div>
+    </div>
+  `
 }
-
-const premiumMapStyles = [
-  {
-    featureType: 'poi',
-    elementType: 'labels',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    featureType: 'transit',
-    elementType: 'labels',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    featureType: 'administrative',
-    elementType: 'geometry',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry',
-    stylers: [{ color: '#ffffff' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#6b7280' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'labels.text.stroke',
-    stylers: [{ color: '#ffffff' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry',
-    stylers: [{ color: '#f3f4f6' }],
-  },
-  {
-    featureType: 'landscape',
-    elementType: 'geometry',
-    stylers: [{ color: '#f7faf7' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#dbeafe' }],
-  },
-]
 
 export default function MapView({
   fromLat,
@@ -217,188 +132,73 @@ export default function MapView({
 }: MapViewProps) {
   const mapElementRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
+  const leafletRef = useRef<any>(null)
 
-  const routeOutlineRef = useRef<any>(null)
-  const routeLineRef = useRef<any>(null)
-  const markersRef = useRef<any[]>([])
-  const overlaysRef = useRef<any[]>([])
+  const layersRef = useRef<any[]>([])
   const requestIdRef = useRef(0)
 
   const [error, setError] = useState<string | null>(null)
 
-  const clearMapObjects = useCallback(() => {
-    if (routeOutlineRef.current) {
-      routeOutlineRef.current.setMap(null)
-      routeOutlineRef.current = null
-    }
-
-    if (routeLineRef.current) {
-      routeLineRef.current.setMap(null)
-      routeLineRef.current = null
-    }
-
-    markersRef.current.forEach((marker) => marker.setMap(null))
-    markersRef.current = []
-
-    overlaysRef.current.forEach((overlay) => overlay.setMap(null))
-    overlaysRef.current = []
+  const clearLayers = useCallback(() => {
+    const map = mapRef.current
+    if (!map) return
+    layersRef.current.forEach((layer) => {
+      try {
+        map.removeLayer(layer)
+      } catch {
+        // ignore
+      }
+    })
+    layersRef.current = []
   }, [])
 
-  const createBadgeOverlay = useCallback(
-    (
-      google: any,
-      map: any,
-      position: LatLng,
-      text: string,
-      variant: 'duration' | 'arrival'
-    ) => {
-      const overlay = new google.maps.OverlayView()
-
-      overlay.onAdd = function () {
-        const div = document.createElement('div')
-
-        div.style.position = 'absolute'
-        div.style.transform = 'translate(-50%, -50%)'
-        div.style.zIndex = variant === 'duration' ? '30' : '28'
-        div.style.whiteSpace = 'nowrap'
-        div.style.pointerEvents = 'none'
-        div.style.fontFamily =
-          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-
-        if (variant === 'duration') {
-          div.innerHTML = `
-            <div style="
-              background:#083b21;
-              color:#ffffff;
-              padding:8px 13px;
-              border-radius:999px;
-              font-size:13px;
-              font-weight:800;
-              line-height:1;
-              box-shadow:0 10px 25px rgba(8,59,33,0.28);
-              border:2px solid rgba(255,255,255,0.95);
-            ">
-              ${text}
-            </div>
-          `
-        } else {
-          div.innerHTML = `
-            <div style="
-              background:#ffffff;
-              color:#083b21;
-              padding:7px 12px;
-              border-radius:999px;
-              font-size:12px;
-              font-weight:800;
-              line-height:1;
-              box-shadow:0 10px 25px rgba(15,23,42,0.15);
-              border:1px solid rgba(19,177,90,0.22);
-            ">
-              ${text}
-            </div>
-          `
-        }
-
-        ;(this as any).div = div
-        const panes = this.getPanes()
-        panes?.overlayMouseTarget?.appendChild(div)
-      }
-
-      overlay.draw = function () {
-        const projection = this.getProjection()
-        const div = (this as any).div
-
-        if (!projection || !div) return
-
-        const point = projection.fromLatLngToDivPixel(
-          new google.maps.LatLng(position.lat, position.lng)
-        )
-
-        if (!point) return
-
-        div.style.left = `${point.x}px`
-        div.style.top = `${point.y}px`
-      }
-
-      overlay.onRemove = function () {
-        const div = (this as any).div
-
-        if (div && div.parentNode) {
-          div.parentNode.removeChild(div)
-        }
-
-        ;(this as any).div = null
-      }
-
-      overlay.setMap(map)
-      overlaysRef.current.push(overlay)
-
-      return overlay
+  const fitToRoute = useCallback(
+    (L: any, map: any, coords: [number, number][]) => {
+      if (!coords.length) return
+      const bounds = L.latLngBounds(coords)
+      map.fitBounds(bounds, {
+        paddingTopLeft: [44, 80],
+        paddingBottomRight: [44, mode === 'driver' ? 120 : 300],
+        maxZoom: 15,
+        animate: true,
+        duration: 0.5,
+      })
     },
-    []
+    [mode]
   )
 
-  const fitMapToRoute = useCallback((google: any, map: any, coords: LatLng[]) => {
-    if (!coords.length) return
-
-    const bounds = new google.maps.LatLngBounds()
-
-    coords.forEach((coord) => {
-      bounds.extend(new google.maps.LatLng(coord.lat, coord.lng))
-    })
-
-    map.fitBounds(bounds, {
-      top: 80,
-      right: 48,
-      bottom: mode === 'driver' ? 120 : 310,
-      left: 48,
-    })
-
-    window.setTimeout(() => {
-      const zoom = map.getZoom()
-
-      if (typeof zoom === 'number' && zoom > 15) {
-        map.setZoom(15)
-      }
-
-      if (typeof zoom === 'number' && zoom < 11) {
-        map.setZoom(11)
-      }
-    }, 350)
-  }, [mode])
-
   const drawFallbackLine = useCallback(
-    (google: any, map: any, from: LatLng, to: LatLng) => {
-      const coords = [from, to]
+    (L: any, map: any, from: LatLng, to: LatLng) => {
+      const coords: [number, number][] = [
+        [from.lat, from.lng],
+        [to.lat, to.lng],
+      ]
 
-      routeOutlineRef.current = new google.maps.Polyline({
-        path: coords,
-        geodesic: true,
-        strokeColor: '#ffffff',
-        strokeOpacity: 1,
-        strokeWeight: 10,
-        zIndex: 20,
-        map,
-      })
+      const outline = L.polyline(coords, {
+        color: '#ffffff',
+        weight: 10,
+        opacity: 1,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }).addTo(map)
 
-      routeLineRef.current = new google.maps.Polyline({
-        path: coords,
-        geodesic: true,
-        strokeColor: '#13b15a',
-        strokeOpacity: 1,
-        strokeWeight: 5,
-        zIndex: 21,
-        map,
-      })
+      const line = L.polyline(coords, {
+        color: '#13b15a',
+        weight: 5,
+        opacity: 1,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }).addTo(map)
 
-      fitMapToRoute(google, map, coords)
-      onRouteCoords?.(coords.map((coord) => [coord.lat, coord.lng]))
+      layersRef.current.push(outline, line)
+      fitToRoute(L, map, coords)
+      onRouteCoords?.(coords)
     },
-    [fitMapToRoute, onRouteCoords]
+    [fitToRoute, onRouteCoords]
   )
 
   const drawRoute = useCallback(
-    async (google: any, map: any, from: LatLng, to: LatLng) => {
+    async (L: any, map: any, from: LatLng, to: LatLng) => {
       const currentRequestId = ++requestIdRef.current
 
       try {
@@ -406,166 +206,144 @@ export default function MapView({
           `/api/route-osrm?fromLng=${from.lng}&fromLat=${from.lat}` +
           `&toLng=${to.lng}&toLat=${to.lat}`
 
-        const response = await fetch(url, {
-          cache: 'no-store',
-        })
-
-        if (!response.ok) {
-          throw new Error('OSRM indisponible')
-        }
+        const response = await fetch(url, { cache: 'no-store' })
+        if (!response.ok) throw new Error('OSRM indisponible')
 
         const data = await response.json()
-
-        if (currentRequestId !== requestIdRef.current) {
-          return
-        }
+        if (currentRequestId !== requestIdRef.current) return
 
         const route = data?.routes?.[0]
-
         if (!route?.geometry?.coordinates?.length) {
           throw new Error('Route OSRM vide')
         }
 
-        const coords: LatLng[] = route.geometry.coordinates.map(
-          ([lng, lat]: [number, number]) => ({
-            lat,
-            lng,
-          })
+        const coords: [number, number][] = route.geometry.coordinates.map(
+          ([lng, lat]: [number, number]) => [lat, lng]
         )
 
         const durationSeconds =
           typeof route.duration === 'number' ? route.duration : 0
 
-        routeOutlineRef.current = new google.maps.Polyline({
-          path: coords,
-          geodesic: true,
-          strokeColor: '#ffffff',
-          strokeOpacity: 1,
-          strokeWeight: 11,
-          zIndex: 20,
-          map,
-        })
+        const outline = L.polyline(coords, {
+          color: '#ffffff',
+          weight: 11,
+          opacity: 1,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map)
 
-        routeLineRef.current = new google.maps.Polyline({
-          path: coords,
-          geodesic: true,
-          strokeColor: '#13b15a',
-          strokeOpacity: 1,
-          strokeWeight: 5,
-          zIndex: 21,
-          map,
-        })
+        const line = L.polyline(coords, {
+          color: '#13b15a',
+          weight: 5,
+          opacity: 1,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map)
 
-        const durationPoint = coords[Math.floor(coords.length * 0.45)] || coords[0]
-        const arrivalPoint = coords[Math.floor(coords.length * 0.82)] || to
+        layersRef.current.push(outline, line)
 
         if (durationSeconds > 0) {
-          createBadgeOverlay(
-            google,
-            map,
-            durationPoint,
-            formatDuration(durationSeconds),
-            'duration'
-          )
+          const durationPoint =
+            coords[Math.floor(coords.length * 0.45)] || coords[0]
+          const arrivalPoint =
+            coords[Math.floor(coords.length * 0.82)] || coords[coords.length - 1]
 
-          createBadgeOverlay(
-            google,
-            map,
-            arrivalPoint,
-            `Arrivée à ${formatArrival(durationSeconds)}`,
-            'arrival'
-          )
+          const durationBadge = L.marker(durationPoint, {
+            icon: L.divIcon({
+              html: badgeHtml(formatDuration(durationSeconds), 'duration'),
+              className: '',
+              iconSize: [0, 0],
+            }),
+            interactive: false,
+            zIndexOffset: 600,
+          }).addTo(map)
+
+          const arrivalBadge = L.marker(arrivalPoint, {
+            icon: L.divIcon({
+              html: badgeHtml(
+                `Arrivée à ${formatArrival(durationSeconds)}`,
+                'arrival'
+              ),
+              className: '',
+              iconSize: [0, 0],
+            }),
+            interactive: false,
+            zIndexOffset: 560,
+          }).addTo(map)
+
+          layersRef.current.push(durationBadge, arrivalBadge)
         }
 
-        fitMapToRoute(google, map, coords)
-        onRouteCoords?.(coords.map((coord) => [coord.lat, coord.lng]))
+        fitToRoute(L, map, coords)
+        onRouteCoords?.(coords)
       } catch {
-        drawFallbackLine(google, map, from, to)
+        drawFallbackLine(L, map, from, to)
       }
     },
-    [createBadgeOverlay, drawFallbackLine, fitMapToRoute, onRouteCoords]
+    [drawFallbackLine, fitToRoute, onRouteCoords]
   )
 
   const drawMarkers = useCallback(
-    (google: any, map: any, from?: LatLng, to?: LatLng) => {
+    (L: any, map: any, from?: LatLng, to?: LatLng) => {
       if (from) {
-        markersRef.current.push(
-          new google.maps.Marker({
-            position: from,
-            map,
-            icon: {
-              url: startMarkerIcon(),
-              scaledSize: new google.maps.Size(34, 34),
-              anchor: new google.maps.Point(17, 17),
-            },
-            zIndex: 40,
-            title: 'Départ',
-          })
-        )
+        const marker = L.marker([from.lat, from.lng], {
+          icon: L.divIcon({
+            html: startMarkerHtml(),
+            className: '',
+            iconSize: [0, 0],
+          }),
+          interactive: false,
+          zIndexOffset: 700,
+        }).addTo(map)
+        layersRef.current.push(marker)
       }
 
       if (to) {
-        markersRef.current.push(
-          new google.maps.Marker({
-            position: to,
-            map,
-            icon: {
-              url: destinationMarkerIcon(),
-              scaledSize: new google.maps.Size(38, 46),
-              anchor: new google.maps.Point(19, 44),
-            },
-            zIndex: 42,
-            title: 'Destination',
-          })
-        )
+        const marker = L.marker([to.lat, to.lng], {
+          icon: L.divIcon({
+            html: destinationMarkerHtml(),
+            className: '',
+            iconSize: [0, 0],
+          }),
+          interactive: false,
+          zIndexOffset: 720,
+        }).addTo(map)
+        layersRef.current.push(marker)
       }
 
       if (showNearby && Array.isArray(nearbyDrivers)) {
         nearbyDrivers.forEach((driver) => {
           if (!isValidCoordinate(driver.lat, driver.lng)) return
-
           const color =
             driver.moto_color ||
             driver.motoColor ||
             driver.color ||
             '#13b15a'
 
-          markersRef.current.push(
-            new google.maps.Marker({
-              position: {
-                lat: driver.lat,
-                lng: driver.lng,
-              },
-              map,
-              icon: {
-                url: motoMarkerIcon(color),
-                scaledSize: new google.maps.Size(42, 42),
-                anchor: new google.maps.Point(21, 21),
-              },
-              zIndex: 35,
-              title: 'Moto proche',
-            })
-          )
+          const marker = L.marker([driver.lat, driver.lng], {
+            icon: L.divIcon({
+              html: motoMarkerHtml(color, 42),
+              className: '',
+              iconSize: [0, 0],
+            }),
+            interactive: false,
+            zIndexOffset: 650,
+          }).addTo(map)
+          layersRef.current.push(marker)
         })
       }
 
       if (showDriver && isValidCoordinate(driverLat, driverLng)) {
-        markersRef.current.push(
-          new google.maps.Marker({
-            position: {
-              lat: driverLat as number,
-              lng: driverLng as number,
-            },
-            map,
-            icon: {
-              url: motoMarkerIcon(driverMotoColor || '#13b15a'),
-              scaledSize: new google.maps.Size(48, 48),
-              anchor: new google.maps.Point(24, 24),
-            },
-            zIndex: 50,
-            title: 'Chauffeur Tiak Tiak',
-          })
-        )
+        const marker = L.marker([driverLat as number, driverLng as number], {
+          icon: L.divIcon({
+            html: motoMarkerHtml(driverMotoColor || '#13b15a', 50),
+            className: '',
+            iconSize: [0, 0],
+          }),
+          interactive: false,
+          zIndexOffset: 800,
+        }).addTo(map)
+        layersRef.current.push(marker)
       }
     },
     [
@@ -585,74 +363,64 @@ export default function MapView({
       try {
         setError(null)
 
-        const google = await loadGoogleMaps()
+        const leafletModule = await import('leaflet')
+        const L = leafletModule.default || leafletModule
+        leafletRef.current = L
 
         if (cancelled || !mapElementRef.current) return
 
-        const defaultCenter = {
-          lat: 14.7167,
-          lng: -17.4677,
-        }
-
-        const initialCenter =
-          isValidCoordinate(fromLat, fromLng)
-            ? {
-                lat: fromLat as number,
-                lng: fromLng as number,
-              }
-            : defaultCenter
+        const defaultCenter: [number, number] = [14.7167, -17.4677]
 
         if (!mapRef.current) {
-          mapRef.current = new google.maps.Map(mapElementRef.current, {
-            center: initialCenter,
+          mapRef.current = L.map(mapElementRef.current, {
+            center: defaultCenter,
             zoom: 13,
-            disableDefaultUI: true,
-            clickableIcons: false,
-            fullscreenControl: false,
-            streetViewControl: false,
-            mapTypeControl: false,
-            cameraControl: false,
             zoomControl: false,
-            gestureHandling: 'greedy',
-            backgroundColor: '#f7faf7',
-            styles: premiumMapStyles,
+            attributionControl: false,
           })
+
+          L.tileLayer(
+            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            {
+              maxZoom: 19,
+              subdomains: 'abcd',
+            }
+          ).addTo(mapRef.current)
         }
 
         const map = mapRef.current
 
-        clearMapObjects()
+        clearLayers()
 
         const from =
           isValidCoordinate(fromLat, fromLng)
-            ? {
-                lat: fromLat as number,
-                lng: fromLng as number,
-              }
+            ? { lat: fromLat as number, lng: fromLng as number }
             : undefined
 
         const to =
           isValidCoordinate(toLat, toLng)
-            ? {
-                lat: toLat as number,
-                lng: toLng as number,
-              }
+            ? { lat: toLat as number, lng: toLng as number }
             : undefined
 
-        drawMarkers(google, map, from, to)
+        drawMarkers(L, map, from, to)
 
         if (from && to) {
-          await drawRoute(google, map, from, to)
+          await drawRoute(L, map, from, to)
         } else if (from) {
-          map.setCenter(from)
-          map.setZoom(15)
+          map.setView([from.lat, from.lng], 15)
         } else if (to) {
-          map.setCenter(to)
-          map.setZoom(15)
+          map.setView([to.lat, to.lng], 15)
         } else {
-          map.setCenter(defaultCenter)
-          map.setZoom(12)
+          map.setView(defaultCenter, 12)
         }
+
+        window.setTimeout(() => {
+          try {
+            map.invalidateSize()
+          } catch {
+            // ignore
+          }
+        }, 200)
       } catch {
         setError('Carte momentanément indisponible')
       }
@@ -664,7 +432,7 @@ export default function MapView({
       cancelled = true
     }
   }, [
-    clearMapObjects,
+    clearLayers,
     drawMarkers,
     drawRoute,
     fromLat,
@@ -675,24 +443,30 @@ export default function MapView({
 
   useEffect(() => {
     return () => {
-      clearMapObjects()
+      if (mapRef.current) {
+        try {
+          mapRef.current.remove()
+        } catch {
+          // ignore
+        }
+        mapRef.current = null
+      }
     }
-  }, [clearMapObjects])
+  }, [])
 
   return (
-    <div className={`relative h-full w-full overflow-hidden bg-[#f7faf7] ${className}`}>
+    <div
+      className={`relative h-full w-full overflow-hidden bg-[#f7faf7] ${className}`}
+    >
       <div ref={mapElementRef} className="h-full w-full" />
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/70 to-transparent" />
-
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-white/60 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white/60 to-transparent z-[400]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white/50 to-transparent z-[400]" />
 
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#f7faf7] px-6 text-center">
+        <div className="absolute inset-0 z-[500] flex items-center justify-center bg-[#f7faf7] px-6 text-center">
           <div className="rounded-3xl bg-white px-5 py-4 shadow-lg">
-            <p className="text-sm font-bold text-[#083b21]">
-              {error}
-            </p>
+            <p className="text-sm font-bold text-[#083b21]">{error}</p>
             <p className="mt-1 text-xs text-gray-500">
               Vérifie la connexion puis réessaie.
             </p>
