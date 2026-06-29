@@ -135,6 +135,7 @@ export default function MapView({
   const leafletRef = useRef<any>(null)
 
   const layersRef = useRef<any[]>([])
+  const lastBoundsRef = useRef<[number, number][] | null>(null)
   const requestIdRef = useRef(0)
 
   const [error, setError] = useState<string | null>(null)
@@ -152,17 +153,31 @@ export default function MapView({
     layersRef.current = []
   }, [])
 
+  // Cadrage robuste : on force la taille AVANT de cadrer
   const fitToRoute = useCallback(
     (L: any, map: any, coords: [number, number][]) => {
       if (!coords.length) return
-      const bounds = L.latLngBounds(coords)
-      map.fitBounds(bounds, {
-        paddingTopLeft: [44, 70],
-        paddingBottomRight: [44, mode === 'driver' ? 150 : 360],
-        maxZoom: 14,
-        animate: true,
-        duration: 0.5,
-      })
+      lastBoundsRef.current = coords
+
+      const doFit = () => {
+        try {
+          map.invalidateSize(false)
+        } catch {
+          // ignore
+        }
+        const bounds = L.latLngBounds(coords)
+        map.fitBounds(bounds, {
+          paddingTopLeft: [40, 70],
+          paddingBottomRight: [40, mode === 'driver' ? 150 : 360],
+          maxZoom: 14,
+          animate: false,
+        })
+      }
+
+      // 1er cadrage immédiat, puis re-cadrage quand la carte est stable
+      doFit()
+      window.setTimeout(doFit, 250)
+      window.setTimeout(doFit, 700)
     },
     [mode]
   )
@@ -243,10 +258,12 @@ export default function MapView({
         layersRef.current.push(outline, line)
 
         if (durationSeconds > 0) {
+          // badge durée au centre du tracé (jamais collé au bord)
           const durationPoint =
-            coords[Math.floor(coords.length * 0.35)] || coords[0]
+            coords[Math.floor(coords.length * 0.5)] || coords[0]
           const arrivalPoint =
-            coords[Math.floor(coords.length * 0.65)] || coords[coords.length - 1]
+            coords[Math.floor(coords.length * 0.78)] ||
+            coords[coords.length - 1]
 
           const durationBadge = L.marker(durationPoint, {
             icon: L.divIcon({
@@ -390,6 +407,13 @@ export default function MapView({
 
         const map = mapRef.current
 
+        // s'assure que la carte connaît sa vraie taille avant tout
+        try {
+          map.invalidateSize(false)
+        } catch {
+          // ignore
+        }
+
         clearLayers()
 
         const from =
@@ -413,14 +437,6 @@ export default function MapView({
         } else {
           map.setView(defaultCenter, 12)
         }
-
-        window.setTimeout(() => {
-          try {
-            map.invalidateSize()
-          } catch {
-            // ignore
-          }
-        }, 200)
       } catch {
         setError('Carte momentanément indisponible')
       }
@@ -440,6 +456,33 @@ export default function MapView({
     toLat,
     toLng,
   ])
+
+  // Recadre quand la fenêtre / le conteneur change de taille
+  useEffect(() => {
+    function handleResize() {
+      const L = leafletRef.current
+      const map = mapRef.current
+      const coords = lastBoundsRef.current
+      if (!L || !map) return
+      try {
+        map.invalidateSize(false)
+      } catch {
+        // ignore
+      }
+      if (coords && coords.length) {
+        const bounds = L.latLngBounds(coords)
+        map.fitBounds(bounds, {
+          paddingTopLeft: [40, 70],
+          paddingBottomRight: [40, mode === 'driver' ? 150 : 360],
+          maxZoom: 14,
+          animate: false,
+        })
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [mode])
 
   useEffect(() => {
     return () => {
