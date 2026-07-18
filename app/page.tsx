@@ -2358,52 +2358,33 @@ const OfflineBanner = () => isOffline ? (
   if (screen === 'confirm' && selected) {
     const methods = [{ id: 'cash', icon: '💵', name: 'Especes' }, { id: 'wave', icon: '📱', name: 'Wave' }, { id: 'orange', icon: '🟠', name: 'Orange Money' }]
     return (
-      <div className="fixed inset-0 flex flex-col bg-gray-100">
-        <div className="flex-1 overflow-y-auto">
-          <div className="h-52 relative">
-            <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} nearbyDrivers={nearbyDrivers} showNearby={true} />
-            <button onClick={() => setScreen('recherche')} className="absolute bottom-3 left-3 w-9 h-9 rounded-full bg-white shadow-lg flex items-center justify-center z-[400]">
-              <ArrowLeft size={18} color="#0F5138" />
-            </button>
-            <button onClick={() => setShowDemandSheet(true)} className="absolute top-3 left-3 bg-white rounded-full shadow-lg flex items-center gap-1.5 px-2.5 py-1.5 z-[400]">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <line x1="3" y1="6" x2="9" y2="6" stroke="#111" strokeWidth="2" strokeLinecap="round"/>
-                <line x1="15" y1="6" x2="21" y2="6" stroke="#111" strokeWidth="2" strokeLinecap="round"/>
-                <circle cx="12" cy="6" r="2" fill="white" stroke="#111" strokeWidth="1.5"/>
-                <path d="M4 9 C4 9 5 7.5 8 7.5 L11 7.5 L11 21 L4 21 C2.5 21 2.5 19 2.5 18 L2.5 13 C2.5 10.5 3 9.5 4 9Z" fill="#111"/>
-                <path d="M20 9 C20 9 19 7.5 16 7.5 L13 7.5 L13 21 L20 21 C21.5 21 21.5 19 21.5 18 L21.5 13 C21.5 10.5 21 9.5 20 9Z" fill="#111"/>
-                <rect x="11.3" y="7.5" width="1.4" height="13.5" fill="white"/>
-                <rect x="5.5" y="9" width="2.5" height="5" rx="1" fill="white"/>
-                <rect x="16" y="9" width="2.5" height="5" rx="1" fill="white"/>
-                <rect x="10.5" y="17" width="3" height="4" fill="white"/>
-              </svg>
-              <div className="w-3 h-0.5 rounded-full" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }} />
-              <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }}>
-                <Zap size={10} color="white" fill="white" />
-              </div>
-              <div className="w-3 h-0.5 rounded-full" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }} />
-              <User size={13} color="#111" fill="#111" />
-            </button>
+      <div className="fixed inset-0 bg-gray-100">
+        {/* ===== CARTE PLEIN ÉCRAN (comme Yango) ===== */}
+        <div className="absolute inset-0 z-0">
+          <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} nearbyDrivers={nearbyDrivers} showNearby={true} bottomOffset={320} />
+        </div>
+
+        {/* Bouton retour flottant */}
+        <button onClick={() => setScreen('recherche')} className="absolute top-4 left-4 w-11 h-11 rounded-full bg-white shadow-lg flex items-center justify-center z-[600]">
+          <ArrowLeft size={20} color="#0F5138" />
+        </button>
+
+        {/* Badge demande flottant */}
+        <button onClick={() => setShowDemandSheet(true)} className="absolute top-4 right-4 bg-white rounded-full shadow-lg flex items-center gap-1.5 px-3 py-2 z-[600]">
+          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }}>
+            <Zap size={11} color="white" fill="white" />
           </div>
-          <div className="p-4 space-y-3">
-            {nearbyDrivers.length > 0 && nearbyDrivers[0].rating !== undefined && (
-              <div className="rounded-xl px-3 py-2 flex items-center gap-2" style={{ background: '#E8F5E9' }}>
-                <Shield size={15} color="#0F5138" />
-                <p className="text-xs font-semibold" style={{ color: '#0F5138' }}>
-                  {nearbyDrivers[0].name?.split(' ')[0]} {nearbyDrivers[0].name?.split(' ')[1]?.[0]}. · {(nearbyDrivers[0].rating || 5).toFixed(1)} étoiles · {nearbyDrivers[0].totalRides || 0} courses
-                </p>
-              </div>
-            )}
+          <span className="text-xs font-bold" style={{ color: '#111' }}>{demandLevel === 'high' ? 'Forte' : demandLevel === 'medium' ? 'Modérée' : 'Normale'}</span>
+        </button>
+
+        {/* ===== BOTTOM SHEET par-dessus la carte ===== */}
+        <div className="absolute bottom-0 left-0 right-0 z-[600] bg-white rounded-t-3xl flex flex-col" style={{ maxHeight: '58%', boxShadow: '0 -8px 30px rgba(0,0,0,0.15)' }}>
+          <div className="w-10 h-1 rounded-full bg-gray-200 mx-auto mt-3 flex-shrink-0" />
+          <div className="flex-1 overflow-y-auto px-4 pt-3 pb-2 space-y-3">
             {nearbyDrivers.length > 0 && (
               <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#E8F5E9' }}>
                 <span className="text-lg">🛵</span>
                 <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>{nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} dispo • Plus proche : {nearbyDrivers[0].eta} min</p>
-              </div>
-            )}
-            {demandLevel === 'medium' && (
-              <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#FEF3C7' }}>
-                <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0" />
-                <p className="text-sm font-semibold text-yellow-700">Demande modérée — prix normal</p>
               </div>
             )}
             {isFirstRide && (
@@ -2412,45 +2393,43 @@ const OfflineBanner = () => isOffline ? (
                 <p className="text-sm font-bold text-white">-10% sur ta première course !</p>
               </div>
             )}
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-3"><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954' }} /><div><p className="text-xs text-gray-400">Depart</p><p className="text-sm font-semibold">{position.address}</p></div></div>
-              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-red-500" /><div><p className="text-xs text-gray-400">Destination</p><p className="text-sm font-semibold">{selected.name}</p></div></div>
+            <div className="bg-gray-50 rounded-2xl p-4">
+              <div className="flex items-center gap-3 mb-3"><span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#1DB954' }} /><div className="min-w-0"><p className="text-xs text-gray-400">Depart</p><p className="text-sm font-semibold truncate">{position.address}</p></div></div>
+              <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-red-500 flex-shrink-0" /><div className="min-w-0"><p className="text-xs text-gray-400">Destination</p><p className="text-sm font-semibold truncate">{selected.name}</p></div></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setService('moto')} className="bg-white rounded-2xl shadow-sm flex flex-col items-center gap-1 overflow-hidden" style={{ border: service === 'moto' ? '2px solid #1DB954' : '2px solid transparent' }}>
-                <img src="/images/moto-taxi.png" alt="Moto-taxi" style={{ width: '100%', height: '90px', objectFit: 'cover', objectPosition: 'center', opacity: service === 'moto' ? 1 : 0.45 }} />
-                <div className="pb-3 flex flex-col items-center gap-1">
+              <button onClick={() => setService('moto')} className="bg-white rounded-2xl shadow-sm flex flex-col items-center gap-1 overflow-hidden" style={{ border: service === 'moto' ? '2px solid #1DB954' : '2px solid #F3F4F6' }}>
+                <img src="/images/moto-taxi.png" alt="Moto-taxi" style={{ width: '100%', height: '70px', objectFit: 'contain', opacity: service === 'moto' ? 1 : 0.45 }} />
+                <div className="pb-2 flex flex-col items-center">
                   <span className="font-bold text-sm" style={{ color: service === 'moto' ? '#0F5138' : '#9CA3AF' }}>Moto-taxi</span>
                   {nearbyDrivers.length > 0 && nearbyDrivers[0].eta <= 3 ? (
-                    <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#1DB954' }}>⚡ RAPIDE • {nearbyDrivers[0].eta} min</span>
-                  ) : nearbyDrivers.length > 0 ? (
-                    <span className="text-xs text-gray-400">{nearbyDrivers[0].eta} min</span>
+                    <span className="text-xs font-black px-2 py-0.5 rounded-full text-white mt-0.5" style={{ background: '#1DB954' }}>⚡ RAPIDE • {nearbyDrivers[0].eta} min</span>
                   ) : (
-                    <span className="text-xs text-gray-400">2 min</span>
+                    <span className="text-xs text-gray-400">{nearbyDrivers.length > 0 ? nearbyDrivers[0].eta : 2} min</span>
                   )}
                 </div>
               </button>
-              <button onClick={() => setService('livraison')} className="bg-white rounded-2xl shadow-sm flex flex-col items-center gap-1 overflow-hidden" style={{ border: service === 'livraison' ? '2px solid #1DB954' : '2px solid transparent' }}>
-                <img src="/images/livraison.png" alt="Livraison" style={{ width: '100%', height: '90px', objectFit: 'cover', objectPosition: 'center', opacity: service === 'livraison' ? 1 : 0.45 }} />
-                <div className="pb-3 flex flex-col items-center gap-1">
+              <button onClick={() => setService('livraison')} className="bg-white rounded-2xl shadow-sm flex flex-col items-center gap-1 overflow-hidden" style={{ border: service === 'livraison' ? '2px solid #1DB954' : '2px solid #F3F4F6' }}>
+                <img src="/images/livraison.png" alt="Livraison" style={{ width: '100%', height: '70px', objectFit: 'contain', opacity: service === 'livraison' ? 1 : 0.45 }} />
+                <div className="pb-2 flex flex-col items-center">
                   <span className="font-bold text-sm" style={{ color: service === 'livraison' ? '#0F5138' : '#9CA3AF' }}>Livraison</span>
                   <span className="text-xs text-gray-400">10 min</span>
                 </div>
               </button>
             </div>
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="bg-gray-50 rounded-2xl p-4">
               <div className="flex justify-between mb-2"><span className="text-sm text-gray-500">Distance</span><span className="text-sm font-bold">{formatDistance(km)}</span></div>
               <div className="flex justify-between mb-3"><span className="text-sm text-gray-500">Duree estimee</span><span className="text-sm font-bold">{formatETA(eta)}</span></div>
               {isFirstRide && (
                 <div className="flex justify-between mb-2 text-sm"><span className="text-gray-400 line-through">{formatPrice(basePrice)}</span><span className="font-bold text-green-600">-10%</span></div>
               )}
-              <div className="border-t border-gray-100 pt-3 flex justify-between items-center"><span className="font-bold">Prix total</span><span className="text-2xl font-black" style={{ color: '#0F5138' }}>{formatPrice(price)}</span></div>
+              <div className="border-t border-gray-200 pt-3 flex justify-between items-center"><span className="font-bold">Prix total</span><span className="text-2xl font-black" style={{ color: '#0F5138' }}>{formatPrice(price)}</span></div>
             </div>
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="bg-gray-50 rounded-2xl p-4">
               <p className="font-bold text-sm text-gray-700 mb-3">Mode de paiement</p>
               <div className="flex gap-2">
                 {methods.map(m => (
-                  <button key={m.id} onClick={() => setPayment(m.id)} className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border-2" style={{ borderColor: payment === m.id ? '#1DB954' : '#F3F4F6', background: payment === m.id ? '#E8F5E9' : 'white' }}>
+                  <button key={m.id} onClick={() => setPayment(m.id)} className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border-2" style={{ borderColor: payment === m.id ? '#1DB954' : '#E5E7EB', background: payment === m.id ? '#E8F5E9' : 'white' }}>
                     <span className="text-xl">{m.icon}</span>
                     <span className="text-xs font-bold" style={{ color: payment === m.id ? '#0F5138' : '#9CA3AF' }}>{m.name}</span>
                   </button>
@@ -2458,50 +2437,38 @@ const OfflineBanner = () => isOffline ? (
               </div>
             </div>
           </div>
+          <div className="px-4 py-3 border-t border-gray-100 flex-shrink-0">
+            <button onClick={commanderCourse} disabled={commandLoading} className="w-full py-4 rounded-2xl font-bold text-white text-base flex items-center justify-center gap-2" style={{ background: commandLoading ? '#7aaa94' : '#0F5138' }}>
+              {commandLoading ? 'Envoi...' : (
+                <>
+                  <svg width="22" height="22" viewBox="0 0 26 26" fill="none">
+                    <ellipse cx="13" cy="6" rx="3.2" ry="3.6" fill="white"/>
+                    <rect x="11" y="9" width="4" height="9" rx="2" fill="white"/>
+                    <path d="M13 17 L8 23 M13 17 L18 23" stroke="white" strokeWidth="2.4" strokeLinecap="round"/>
+                    <circle cx="7" cy="24" r="2" fill="rgba(255,255,255,0.7)"/>
+                    <circle cx="19" cy="24" r="2" fill="rgba(255,255,255,0.7)"/>
+                    <path d="M9 11 L4 9 M17 11 L22 9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  Commander — {paymentLabel(payment).icon} {paymentLabel(payment).name}
+                </>
+              )}
+            </button>
+          </div>
         </div>
-        <div className="p-4 bg-white border-t border-gray-100">
-          <button onClick={commanderCourse} disabled={commandLoading} className="w-full py-4 rounded-2xl font-bold text-white text-base flex items-center justify-center gap-2" style={{ background: commandLoading ? '#7aaa94' : '#0F5138' }}>
-            {commandLoading ? 'Envoi...' : (
-              <>
-                <svg width="22" height="22" viewBox="0 0 26 26" fill="none">
-                  <ellipse cx="13" cy="6" rx="3.2" ry="3.6" fill="white"/>
-                  <rect x="11" y="9" width="4" height="9" rx="2" fill="white"/>
-                  <path d="M13 17 L8 23 M13 17 L18 23" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
-                  <circle cx="7" cy="24" r="2" fill="rgba(255,255,255,0.7)"/>
-                  <circle cx="19" cy="24" r="2" fill="rgba(255,255,255,0.7)"/>
-                  <path d="M9 11 L4 9 M17 11 L22 9" stroke="white" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                Commander — {paymentLabel(payment).icon} {paymentLabel(payment).name}
-              </>
-            )}
-          </button>
-        </div>
+
         {showDemandSheet && (
-          <div className="fixed inset-0 z-50 flex items-end" onClick={() => setShowDemandSheet(false)}>
+          <div className="fixed inset-0 z-[700] flex items-end" onClick={() => setShowDemandSheet(false)}>
             <div className="absolute inset-0 bg-black bg-opacity-40" />
             <div className="relative bg-white w-full rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: '#F59E0B' }}>
+                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }}>
                   <Zap size={22} color="white" fill="white" />
                 </div>
                 <button onClick={() => setShowDemandSheet(false)}><X size={22} color="#9CA3AF" /></button>
               </div>
               <div>
-                <h3 className="text-xl font-black text-gray-900 mb-2">Prix un peu plus élevé</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">Il y a actuellement plus de commandes que de chauffeurs disponibles dans cette zone. Les prix augmentent légèrement pour inciter plus de chauffeurs à se rendre disponibles, afin que tout le monde puisse se déplacer.</p>
-              </div>
-              <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
-                <p className="text-xs font-bold text-gray-400 text-center uppercase tracking-wide">À proximité</p>
-                <p className="text-sm font-bold text-orange-500 text-center">Davantage de commandes que de chauffeurs</p>
-                <div className="flex items-center gap-3 pt-1">
-                  <Zap size={18} color="#9CA3AF" />
-                  <div className="relative h-1.5 rounded-full flex-1" style={{ background: 'linear-gradient(90deg, #1DB954 0%, #F59E0B 50%, #EF4444 100%)' }}>
-                    <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border-2 flex items-center justify-center shadow" style={{ borderColor: '#F59E0B', left: '75%', transform: 'translate(-50%, -50%)' }}>
-                      <Zap size={9} color="#F59E0B" fill="#F59E0B" />
-                    </div>
-                  </div>
-                  <User size={18} color="#9CA3AF" />
-                </div>
+                <h3 className="text-xl font-black text-gray-900 mb-2">{demandLevel === 'high' ? 'Prix un peu plus élevé' : 'Niveau de demande'}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{demandLevel === 'high' ? "Il y a actuellement plus de commandes que de chauffeurs disponibles dans cette zone. Les prix augmentent légèrement pour inciter plus de chauffeurs à se rendre disponibles." : "La demande est actuellement équilibrée dans ta zone. Les prix sont normaux."}</p>
               </div>
               <button onClick={() => setShowDemandSheet(false)} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>
                 J&apos;ai compris

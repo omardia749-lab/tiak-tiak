@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import 'leaflet/dist/leaflet.css'
 
 type LatLng = { lat: number; lng: number }
@@ -27,6 +27,7 @@ type MapViewProps = {
   showDriver?: boolean
   mode?: 'client' | 'driver' | string
   onRouteCoords?: (coords: [number, number][]) => void
+  bottomOffset?: number
   className?: string
 }
 
@@ -52,7 +53,7 @@ function formatArrival(seconds: number) {
 function startMarkerHtml() {
   return `
     <div style="transform:translate(-50%,-50%);">
-      <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+      <svg width="28" height="28" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
         <circle cx="17" cy="17" r="14" fill="#ffffff" stroke="#13b15a" stroke-width="4"/>
         <circle cx="17" cy="17" r="6" fill="#13b15a"/>
       </svg>
@@ -63,7 +64,7 @@ function startMarkerHtml() {
 function destinationMarkerHtml() {
   return `
     <div style="transform:translate(-50%,-100%);">
-      <svg width="38" height="46" viewBox="0 0 38 46" xmlns="http://www.w3.org/2000/svg">
+      <svg width="34" height="42" viewBox="0 0 38 46" xmlns="http://www.w3.org/2000/svg">
         <path d="M19 45C19 45 36 26.8 36 17.3C36 8 28.4 1 19 1C9.6 1 2 8 2 17.3C2 26.8 19 45 19 45Z" fill="#0b7a3b" stroke="#ffffff" stroke-width="3.5"/>
         <circle cx="19" cy="17.5" r="6.5" fill="#ffffff"/>
       </svg>
@@ -90,15 +91,15 @@ function motoMarkerHtml(color: string, size: number) {
 function durationBadgeHtml(text: string) {
   return `
     <div style="transform:translate(-50%,-50%);white-space:nowrap;">
-      <div style="background:#083b21;color:#fff;padding:7px 13px;border-radius:999px;font-size:13px;font-weight:800;line-height:1;box-shadow:0 4px 12px rgba(8,59,33,0.35);border:2px solid rgba(255,255,255,0.95);">${text}</div>
+      <div style="background:#083b21;color:#fff;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:800;line-height:1;box-shadow:0 4px 12px rgba(8,59,33,0.35);border:2px solid rgba(255,255,255,0.95);">${text}</div>
     </div>
   `
 }
 
 function arrivalBadgeHtml(text: string) {
   return `
-    <div style="transform:translate(-50%,-50%);white-space:nowrap;">
-      <div style="background:#fff;color:#083b21;padding:7px 13px;border-radius:999px;font-size:12px;font-weight:800;line-height:1;box-shadow:0 4px 12px rgba(15,23,42,0.18);border:1.5px solid rgba(19,177,90,0.3);">${text}</div>
+    <div style="transform:translate(-50%,-155%);white-space:nowrap;">
+      <div style="background:#fff;color:#083b21;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:800;line-height:1;box-shadow:0 4px 12px rgba(15,23,42,0.2);border:1.5px solid rgba(19,177,90,0.3);">${text}</div>
     </div>
   `
 }
@@ -107,234 +108,58 @@ export default function MapView({
   fromLat, fromLng, toLat, toLng,
   driverLat, driverLng, driverMotoColor,
   nearbyDrivers = [], showNearby = false, showDriver = false,
-  mode = 'client', onRouteCoords, className = '',
+  mode = 'client', onRouteCoords, bottomOffset = 0, className = '',
 }: MapViewProps) {
   const mapElementRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
-  const leafletRef = useRef<any>(null)
-  const layersRef = useRef<any[]>([])
+  const LRef = useRef<any>(null)
+
+  const routeLayersRef = useRef<any[]>([])
+  const nearbyLayersRef = useRef<any[]>([])
+  const driverLayerRef = useRef<any>(null)
   const requestIdRef = useRef(0)
+  const onRouteCoordsRef = useRef(onRouteCoords)
+  const [mapReady, setMapReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const clearLayers = useCallback(() => {
-    const map = mapRef.current
-    if (!map) return
-    layersRef.current.forEach((layer) => {
-      try { map.removeLayer(layer) } catch {}
-    })
-    layersRef.current = []
-  }, [])
+  useEffect(() => { onRouteCoordsRef.current = onRouteCoords })
 
-  // Zoom intelligent — s'adapte à la distance entre les 2 points
-  const fitToRoute = useCallback((L: any, map: any, coords: [number, number][], from: LatLng, to: LatLng) => {
-    if (!coords.length) return
-
-    const distanceLat = Math.abs(from.lat - to.lat)
-    const distanceLng = Math.abs(from.lng - to.lng)
-    const maxDist = Math.max(distanceLat, distanceLng)
-
-    // Zoom selon distance
-    let maxZoom = 15
-    if (maxDist > 0.5) maxZoom = 13
-    if (maxDist > 1.0) maxZoom = 12
-    if (maxDist > 2.0) maxZoom = 11
-
-    const bounds = L.latLngBounds(coords)
-    map.fitBounds(bounds, {
-      paddingTopLeft: [40, 70],
-      paddingBottomRight: [40, mode === 'driver' ? 100 : 280],
-      maxZoom,
-      animate: true,
-      duration: 0.5,
-    })
-  }, [mode])
-
-  const drawFallbackLine = useCallback((L: any, map: any, from: LatLng, to: LatLng) => {
-    const coords: [number, number][] = [[from.lat, from.lng], [to.lat, to.lng]]
-
-    const outline = L.polyline(coords, {
-      color: '#ffffff', weight: 10, opacity: 1, lineCap: 'round', lineJoin: 'round',
-    }).addTo(map)
-
-    const line = L.polyline(coords, {
-      color: '#13b15a', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round',
-    }).addTo(map)
-
-    layersRef.current.push(outline, line)
-    fitToRoute(L, map, coords, from, to)
-    onRouteCoords?.(coords)
-  }, [fitToRoute, onRouteCoords])
-
-  const drawRoute = useCallback(async (L: any, map: any, from: LatLng, to: LatLng) => {
-    const currentRequestId = ++requestIdRef.current
-
-    try {
-      const url = `/api/route-osrm?fromLng=${from.lng}&fromLat=${from.lat}&toLng=${to.lng}&toLat=${to.lat}`
-      const response = await fetch(url, { cache: 'no-store' })
-      if (!response.ok) throw new Error('OSRM indisponible')
-
-      const data = await response.json()
-      if (currentRequestId !== requestIdRef.current) return
-
-      const route = data?.routes?.[0]
-      if (!route?.geometry?.coordinates?.length) throw new Error('Route vide')
-
-      const coords: [number, number][] = route.geometry.coordinates.map(
-        ([lng, lat]: [number, number]) => [lat, lng]
-      )
-
-      const durationSeconds = typeof route.duration === 'number' ? route.duration : 0
-
-      // Contour blanc pour lisibilité
-      const outline = L.polyline(coords, {
-        color: '#ffffff', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round',
-      }).addTo(map)
-
-      // Ligne verte principale
-      const line = L.polyline(coords, {
-        color: '#13b15a', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round',
-      }).addTo(map)
-
-      layersRef.current.push(outline, line)
-
-      if (durationSeconds > 0) {
-        // Badge durée au milieu du tracé
-        const durationPoint = coords[Math.floor(coords.length * 0.5)] || coords[0]
-        const durationMarker = L.marker(durationPoint, {
-          icon: L.divIcon({
-            html: durationBadgeHtml(formatDuration(durationSeconds)),
-            className: '', iconSize: [0, 0],
-          }),
-          interactive: false,
-          zIndexOffset: 600,
-        }).addTo(map)
-
-        // Badge heure arrivée vers la destination
-        const arrivalPoint = coords[Math.floor(coords.length * 0.15)] || coords[0]
-        const arrivalMarker = L.marker(arrivalPoint, {
-          icon: L.divIcon({
-            html: arrivalBadgeHtml(`Arrivée à ${formatArrival(durationSeconds)}`),
-            className: '', iconSize: [0, 0],
-          }),
-          interactive: false,
-          zIndexOffset: 560,
-        }).addTo(map)
-
-        layersRef.current.push(durationMarker, arrivalMarker)
-      }
-
-      fitToRoute(L, map, coords, from, to)
-      onRouteCoords?.(coords)
-
-    } catch {
-      drawFallbackLine(L, map, from, to)
-    }
-  }, [drawFallbackLine, fitToRoute, onRouteCoords])
-
-  const drawMarkers = useCallback((L: any, map: any, from?: LatLng, to?: LatLng) => {
-    if (from) {
-      const marker = L.marker([from.lat, from.lng], {
-        icon: L.divIcon({ html: startMarkerHtml(), className: '', iconSize: [0, 0] }),
-        interactive: false, zIndexOffset: 700,
-      }).addTo(map)
-      layersRef.current.push(marker)
-    }
-
-    if (to) {
-      const marker = L.marker([to.lat, to.lng], {
-        icon: L.divIcon({ html: destinationMarkerHtml(), className: '', iconSize: [0, 0] }),
-        interactive: false, zIndexOffset: 720,
-      }).addTo(map)
-      layersRef.current.push(marker)
-    }
-
-    if (showNearby && Array.isArray(nearbyDrivers)) {
-      nearbyDrivers.forEach((driver) => {
-        if (!isValidCoordinate(driver.lat, driver.lng)) return
-        const color = driver.moto_color || driver.motoColor || driver.color || '#13b15a'
-        const marker = L.marker([driver.lat, driver.lng], {
-          icon: L.divIcon({ html: motoMarkerHtml(color, 42), className: '', iconSize: [0, 0] }),
-          interactive: false, zIndexOffset: 650,
-        }).addTo(map)
-        layersRef.current.push(marker)
-      })
-    }
-
-    if (showDriver && isValidCoordinate(driverLat, driverLng)) {
-      const marker = L.marker([driverLat as number, driverLng as number], {
-        icon: L.divIcon({ html: motoMarkerHtml(driverMotoColor || '#13b15a', 50), className: '', iconSize: [0, 0] }),
-        interactive: false, zIndexOffset: 800,
-      }).addTo(map)
-      layersRef.current.push(marker)
-    }
-  }, [driverLat, driverLng, driverMotoColor, nearbyDrivers, showDriver, showNearby])
-
+  // ══════════ 1. INITIALISATION — UNE SEULE FOIS ══════════
   useEffect(() => {
     let cancelled = false
 
-    async function initialiseMap() {
+    async function init() {
       try {
-        setError(null)
         const leafletModule = await import('leaflet')
         const L = leafletModule.default || leafletModule
-        leafletRef.current = L
+        if (cancelled || !mapElementRef.current || mapRef.current) return
 
-        if (cancelled || !mapElementRef.current) return
+        LRef.current = L
+        const map = L.map(mapElementRef.current, {
+          center: [14.7167, -17.4677],
+          zoom: 14,
+          zoomControl: false,
+          attributionControl: false,
+        })
 
-        const defaultCenter: [number, number] = [14.7167, -17.4677]
+        L.tileLayer(
+          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+          { maxZoom: 19, subdomains: 'abcd' }
+        ).addTo(map)
 
-        if (!mapRef.current) {
-          mapRef.current = L.map(mapElementRef.current, {
-            center: defaultCenter,
-            zoom: 14,
-            zoomControl: false,
-            attributionControl: false,
-          })
-
-          L.tileLayer(
-            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-            { maxZoom: 19, subdomains: 'abcd' }
-          ).addTo(mapRef.current)
-        }
-
-        const map = mapRef.current
-        clearLayers()
-
-        const from = isValidCoordinate(fromLat, fromLng)
-          ? { lat: fromLat as number, lng: fromLng as number }
-          : undefined
-
-        const to = isValidCoordinate(toLat, toLng)
-          ? { lat: toLat as number, lng: toLng as number }
-          : undefined
-
-        drawMarkers(L, map, from, to)
-
-        if (from && to) {
-          await drawRoute(L, map, from, to)
-        } else if (from) {
-          map.setView([from.lat, from.lng], 15)
-        } else if (to) {
-          map.setView([to.lat, to.lng], 15)
-        } else {
-          map.setView(defaultCenter, 13)
-        }
-
-        window.setTimeout(() => {
+        mapRef.current = map
+        setTimeout(() => {
           try { map.invalidateSize() } catch {}
-        }, 200)
-
+          setMapReady(true)
+        }, 250)
       } catch {
         setError('Carte momentanément indisponible')
       }
     }
 
-    initialiseMap()
-    return () => { cancelled = true }
-  }, [clearLayers, drawMarkers, drawRoute, fromLat, fromLng, toLat, toLng])
-
-  useEffect(() => {
+    init()
     return () => {
+      cancelled = true
       if (mapRef.current) {
         try { mapRef.current.remove() } catch {}
         mapRef.current = null
@@ -342,15 +167,170 @@ export default function MapView({
     }
   }, [])
 
+  // ══════════ 2. ROUTE + MARQUEURS — quand les coordonnées changent ══════════
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !LRef.current) return
+    const L = LRef.current
+    const map = mapRef.current
+
+    routeLayersRef.current.forEach(l => { try { map.removeLayer(l) } catch {} })
+    routeLayersRef.current = []
+
+    const from = isValidCoordinate(fromLat, fromLng)
+      ? { lat: fromLat as number, lng: fromLng as number } : undefined
+    const to = isValidCoordinate(toLat, toLng)
+      ? { lat: toLat as number, lng: toLng as number } : undefined
+
+    if (from) {
+      const m = L.marker([from.lat, from.lng], {
+        icon: L.divIcon({ html: startMarkerHtml(), className: '', iconSize: [0, 0] }),
+        interactive: false, zIndexOffset: 700,
+      }).addTo(map)
+      routeLayersRef.current.push(m)
+    }
+
+    if (to) {
+      const m = L.marker([to.lat, to.lng], {
+        icon: L.divIcon({ html: destinationMarkerHtml(), className: '', iconSize: [0, 0] }),
+        interactive: false, zIndexOffset: 720,
+      }).addTo(map)
+      routeLayersRef.current.push(m)
+    }
+
+    // Cadrage sécurisé — le padding ne dépasse JAMAIS la taille de la carte
+    const fitSafe = (coords: [number, number][]) => {
+      const size = map.getSize()
+      const wantedBottom = 45 + bottomOffset
+      const safeBottom = (size.y - wantedBottom - 90) > 120 ? wantedBottom : 45
+      const bounds = L.latLngBounds(coords)
+      map.fitBounds(bounds, {
+        paddingTopLeft: [45, 90],
+        paddingBottomRight: [45, safeBottom],
+        maxZoom: 16,
+      })
+    }
+
+    const centerSafe = (point: [number, number], zoom: number) => {
+      map.setView(point, zoom, { animate: false })
+      if (bottomOffset > 0) {
+        const size = map.getSize()
+        if (size.y - bottomOffset > 150) {
+          map.panBy([0, bottomOffset / 2], { animate: false })
+        }
+      }
+    }
+
+    const samePoint = from && to &&
+      Math.abs(from.lat - to.lat) < 0.0001 && Math.abs(from.lng - to.lng) < 0.0001
+
+    if (from && to && !samePoint) {
+      const requestId = ++requestIdRef.current
+
+      const drawLine = (coords: [number, number][], durationSeconds: number) => {
+        if (requestId !== requestIdRef.current || !mapRef.current) return
+
+        const outline = L.polyline(coords, {
+          color: '#ffffff', weight: 10, opacity: 1, lineCap: 'round', lineJoin: 'round',
+        }).addTo(map)
+        const line = L.polyline(coords, {
+          color: '#13b15a', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round',
+        }).addTo(map)
+        routeLayersRef.current.push(outline, line)
+
+        if (durationSeconds > 0) {
+          const durationPoint = coords[Math.floor(coords.length * 0.5)]
+          const durBadge = L.marker(durationPoint, {
+            icon: L.divIcon({ html: durationBadgeHtml(formatDuration(durationSeconds)), className: '', iconSize: [0, 0] }),
+            interactive: false, zIndexOffset: 600,
+          }).addTo(map)
+          routeLayersRef.current.push(durBadge)
+
+          const arrBadge = L.marker([to.lat, to.lng], {
+            icon: L.divIcon({ html: arrivalBadgeHtml(`Arrivée à ${formatArrival(durationSeconds)}`), className: '', iconSize: [0, 0] }),
+            interactive: false, zIndexOffset: 560,
+          }).addTo(map)
+          routeLayersRef.current.push(arrBadge)
+        }
+
+        fitSafe(coords)
+        onRouteCoordsRef.current?.(coords)
+      }
+
+      fetch(`/api/route-osrm?fromLng=${from.lng}&fromLat=${from.lat}&toLng=${to.lng}&toLat=${to.lat}`, { cache: 'no-store' })
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(data => {
+          const route = data?.routes?.[0]
+          if (!route?.geometry?.coordinates?.length) throw new Error()
+          const coords: [number, number][] = route.geometry.coordinates.map(
+            ([lng, lat]: [number, number]) => [lat, lng]
+          )
+          drawLine(coords, typeof route.duration === 'number' ? route.duration : 0)
+        })
+        .catch(() => {
+          drawLine([[from.lat, from.lng], [to.lat, to.lng]], 0)
+        })
+    } else if (from) {
+      centerSafe([from.lat, from.lng], 15)
+    } else if (to) {
+      centerSafe([to.lat, to.lng], 15)
+    }
+  }, [mapReady, fromLat, fromLng, toLat, toLng, bottomOffset])
+
+  // ══════════ 3. MOTOS PROCHES — sans toucher au zoom ══════════
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !LRef.current) return
+    const L = LRef.current
+    const map = mapRef.current
+
+    nearbyLayersRef.current.forEach(l => { try { map.removeLayer(l) } catch {} })
+    nearbyLayersRef.current = []
+
+    if (!showNearby) return
+
+    nearbyDrivers.forEach((driver) => {
+      if (!isValidCoordinate(driver.lat, driver.lng)) return
+      const color = driver.moto_color || driver.motoColor || driver.color || '#13b15a'
+      const m = L.marker([driver.lat, driver.lng], {
+        icon: L.divIcon({ html: motoMarkerHtml(color, 38), className: '', iconSize: [0, 0] }),
+        interactive: false, zIndexOffset: 650,
+      }).addTo(map)
+      nearbyLayersRef.current.push(m)
+    })
+  }, [mapReady, nearbyDrivers, showNearby])
+
+  // ══════════ 4. CHAUFFEUR ASSIGNÉ — bouge sans réinitialiser ══════════
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !LRef.current) return
+    const L = LRef.current
+    const map = mapRef.current
+
+    if (!showDriver || !isValidCoordinate(driverLat, driverLng)) {
+      if (driverLayerRef.current) {
+        try { map.removeLayer(driverLayerRef.current) } catch {}
+        driverLayerRef.current = null
+      }
+      return
+    }
+
+    const pos: [number, number] = [driverLat as number, driverLng as number]
+
+    if (driverLayerRef.current) {
+      driverLayerRef.current.setLatLng(pos)
+    } else {
+      driverLayerRef.current = L.marker(pos, {
+        icon: L.divIcon({ html: motoMarkerHtml(driverMotoColor || '#13b15a', 46), className: '', iconSize: [0, 0] }),
+        interactive: false, zIndexOffset: 800,
+      }).addTo(map)
+    }
+
+    if (mode === 'driver') {
+      map.panTo(pos, { animate: true, duration: 0.5 })
+    }
+  }, [mapReady, driverLat, driverLng, driverMotoColor, showDriver, mode])
+
   return (
     <div className={`relative h-full w-full overflow-hidden bg-[#f7faf7] ${className}`}>
       <div ref={mapElementRef} className="h-full w-full" />
-
-      {/* Dégradé haut */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-white/50 to-transparent z-[400]" />
-      {/* Dégradé bas */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-white/40 to-transparent z-[400]" />
-
       {error && (
         <div className="absolute inset-0 z-[500] flex items-center justify-center bg-[#f7faf7] px-6 text-center">
           <div className="rounded-3xl bg-white px-5 py-4 shadow-lg">
