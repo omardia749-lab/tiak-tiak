@@ -50,23 +50,27 @@ function formatArrival(seconds: number) {
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
 
+// ✅ MARQUEUR DÉPART — petit rond blanc avec anneau vert foncé + point central
 function startMarkerHtml() {
   return `
     <div style="transform:translate(-50%,-50%);">
-      <svg width="28" height="28" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="17" cy="17" r="14" fill="#ffffff" stroke="#13b15a" stroke-width="4"/>
-        <circle cx="17" cy="17" r="6" fill="#13b15a"/>
+      <svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="11" cy="11" r="10" fill="#ffffff"/>
+        <circle cx="11" cy="11" r="10" fill="none" stroke="#083b21" stroke-width="2.5"/>
+        <circle cx="11" cy="11" r="4" fill="#083b21"/>
       </svg>
     </div>
   `
 }
 
+// ✅ MARQUEUR DESTINATION — petit rond vert avec anneau blanc + point blanc (comme Yango)
 function destinationMarkerHtml() {
   return `
-    <div style="transform:translate(-50%,-100%);">
-      <svg width="34" height="42" viewBox="0 0 38 46" xmlns="http://www.w3.org/2000/svg">
-        <path d="M19 45C19 45 36 26.8 36 17.3C36 8 28.4 1 19 1C9.6 1 2 8 2 17.3C2 26.8 19 45 19 45Z" fill="#0b7a3b" stroke="#ffffff" stroke-width="3.5"/>
-        <circle cx="19" cy="17.5" r="6.5" fill="#ffffff"/>
+    <div style="transform:translate(-50%,-50%);">
+      <svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="11" cy="11" r="10" fill="#13b15a"/>
+        <circle cx="11" cy="11" r="10" fill="none" stroke="#ffffff" stroke-width="3"/>
+        <circle cx="11" cy="11" r="3.5" fill="#ffffff"/>
       </svg>
     </div>
   `
@@ -88,6 +92,7 @@ function motoMarkerHtml(color: string, size: number) {
   `
 }
 
+// ✅ BADGE ETA — au milieu du tracé
 function durationBadgeHtml(text: string) {
   return `
     <div style="transform:translate(-50%,-50%);white-space:nowrap;">
@@ -96,10 +101,11 @@ function durationBadgeHtml(text: string) {
   `
 }
 
+// ✅ BADGE ARRIVÉE — bulle blanche décalée vers le haut-droite du point de départ (jamais coupée)
 function arrivalBadgeHtml(text: string) {
   return `
-    <div style="transform:translate(-50%,-155%);white-space:nowrap;">
-      <div style="background:#fff;color:#083b21;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:800;line-height:1;box-shadow:0 4px 12px rgba(15,23,42,0.2);border:1.5px solid rgba(19,177,90,0.3);">${text}</div>
+    <div style="transform:translate(12px,-52px);white-space:nowrap;pointer-events:none;">
+      <div style="background:#fff;color:#111111;padding:7px 13px;border-radius:10px;font-size:12px;font-weight:700;line-height:1;box-shadow:0 2px 10px rgba(0,0,0,0.18);">${text}</div>
     </div>
   `
 }
@@ -167,7 +173,7 @@ export default function MapView({
     }
   }, [])
 
-  // ══════════ 2. ROUTE + MARQUEURS — quand les coordonnées changent ══════════
+  // ══════════ 2. ROUTE + MARQUEURS ══════════
   useEffect(() => {
     if (!mapReady || !mapRef.current || !LRef.current) return
     const L = LRef.current
@@ -197,7 +203,6 @@ export default function MapView({
       routeLayersRef.current.push(m)
     }
 
-    // Cadrage sécurisé — le padding ne dépasse JAMAIS la taille de la carte
     const fitSafe = (coords: [number, number][]) => {
       const size = map.getSize()
       const wantedBottom = 45 + bottomOffset
@@ -238,6 +243,7 @@ export default function MapView({
         routeLayersRef.current.push(outline, line)
 
         if (durationSeconds > 0) {
+          // Badge ETA au milieu du tracé
           const durationPoint = coords[Math.floor(coords.length * 0.5)]
           const durBadge = L.marker(durationPoint, {
             icon: L.divIcon({ html: durationBadgeHtml(formatDuration(durationSeconds)), className: '', iconSize: [0, 0] }),
@@ -245,7 +251,8 @@ export default function MapView({
           }).addTo(map)
           routeLayersRef.current.push(durBadge)
 
-          const arrBadge = L.marker([to.lat, to.lng], {
+          // ✅ Badge arrivée ancré sur le point de DÉPART (pas destination) — jamais coupé
+          const arrBadge = L.marker([from.lat, from.lng], {
             icon: L.divIcon({ html: arrivalBadgeHtml(`Arrivée à ${formatArrival(durationSeconds)}`), className: '', iconSize: [0, 0] }),
             interactive: false, zIndexOffset: 560,
           }).addTo(map)
@@ -276,7 +283,7 @@ export default function MapView({
     }
   }, [mapReady, fromLat, fromLng, toLat, toLng, bottomOffset])
 
-  // ══════════ 3. MOTOS PROCHES — sans toucher au zoom ══════════
+  // ══════════ 3. MOTOS PROCHES ══════════
   useEffect(() => {
     if (!mapReady || !mapRef.current || !LRef.current) return
     const L = LRef.current
@@ -298,7 +305,7 @@ export default function MapView({
     })
   }, [mapReady, nearbyDrivers, showNearby])
 
-  // ══════════ 4. CHAUFFEUR ASSIGNÉ — bouge sans réinitialiser ══════════
+  // ══════════ 4. CHAUFFEUR ASSIGNÉ ══════════
   useEffect(() => {
     if (!mapReady || !mapRef.current || !LRef.current) return
     const L = LRef.current
