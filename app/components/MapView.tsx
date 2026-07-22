@@ -49,30 +49,29 @@ function formatArrival(seconds: number) {
 }
 
 // ══════════════════════════════════════════════
-//  MARQUEURS
+//  MARQUEURS — style Yango exact
 // ══════════════════════════════════════════════
 
-// DÉPART — losange vert foncé stylé (point de prise en charge)
+// DÉPART — petit rond blanc avec anneau vert foncé (exactement comme Yango)
 function startMarkerHtml() {
   return `
     <div style="transform:translate(-50%,-50%);">
-      <svg width="26" height="26" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
-        <rect x="5" y="5" width="16" height="16" rx="3" fill="#083b21" transform="rotate(45 13 13)"/>
-        <rect x="8" y="8" width="10" height="10" rx="2" fill="#1DB954" transform="rotate(45 13 13)"/>
-        <circle cx="13" cy="13" r="2.5" fill="white"/>
+      <svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="10" cy="10" r="8" fill="#ffffff"/>
+        <circle cx="10" cy="10" r="8" fill="none" stroke="#083b21" stroke-width="3"/>
       </svg>
     </div>
   `
 }
 
-// DESTINATION — épingle moderne verte
+// DESTINATION — petit rond blanc avec anneau vert vif (exactement comme Yango)
 function destinationMarkerHtml() {
   return `
-    <div style="transform:translate(-50%,-100%);">
-      <svg width="30" height="38" viewBox="0 0 30 38" xmlns="http://www.w3.org/2000/svg">
-        <path d="M15 2C8 2 2 7.6 2 14.6C2 23 15 36 15 36C15 36 28 23 28 14.6C28 7.6 22 2 15 2Z" fill="#0F5138" stroke="white" stroke-width="2.5"/>
-        <circle cx="15" cy="15" r="5.5" fill="white"/>
-        <circle cx="15" cy="15" r="2.8" fill="#1DB954"/>
+    <div style="transform:translate(-50%,-50%);">
+      <svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="10" cy="10" r="8" fill="#ffffff"/>
+        <circle cx="10" cy="10" r="8" fill="none" stroke="#1DB954" stroke-width="3"/>
+        <circle cx="10" cy="10" r="3" fill="#1DB954"/>
       </svg>
     </div>
   `
@@ -99,21 +98,21 @@ function motoMarkerHtml(color: string, size: number) {
 //  BADGES
 // ══════════════════════════════════════════════
 
-// BADGE DURÉE "X min" — sur le DÉPART, au-dessus avec flèche vers le bas
+// BADGE DURÉE "X min" — pilule verte avec pointe, posée sur le DÉPART (style Yango)
 function durationBadgeHtml(text: string) {
   return `
-    <div style="transform:translate(-50%,-190%);white-space:nowrap;pointer-events:none;">
-      <div style="background:#083b21;color:#fff;padding:6px 12px;border-radius:10px;font-size:12px;font-weight:800;line-height:1;box-shadow:0 4px 14px rgba(8,59,33,0.4);border:1.5px solid rgba(255,255,255,0.95);">${text}</div>
-      <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #083b21;margin:0 auto;"></div>
+    <div style="transform:translate(-50%,-135%);white-space:nowrap;pointer-events:none;filter:drop-shadow(0 4px 8px rgba(29,185,84,0.4));">
+      <div style="background:#1DB954;color:#fff;padding:6px 13px;border-radius:999px;font-size:13px;font-weight:800;line-height:1;text-align:center;">${text}</div>
+      <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #1DB954;margin:-1px auto 0;"></div>
     </div>
   `
 }
 
-// BADGE ARRIVÉE "Arrivée à HH:MM" — sur la DESTINATION, centré au-dessus (jamais coupé)
+// BADGE ARRIVÉE "Arrivée à HH:MM" — sur la DESTINATION, centré au-dessus
 function arrivalBadgeHtml(text: string) {
   return `
-    <div style="transform:translate(-50%,-230%);white-space:nowrap;pointer-events:none;">
-      <div style="background:#fff;color:#111;padding:7px 14px;border-radius:22px;font-size:12px;font-weight:700;line-height:1;box-shadow:0 3px 14px rgba(0,0,0,0.18);border:1px solid rgba(0,0,0,0.06);">${text}</div>
+    <div style="transform:translate(-50%,-215%);white-space:nowrap;pointer-events:none;">
+      <div style="background:#fff;color:#111;padding:6px 13px;border-radius:20px;font-size:12px;font-weight:700;line-height:1;box-shadow:0 3px 12px rgba(0,0,0,0.16);">${text}</div>
     </div>
   `
 }
@@ -208,16 +207,16 @@ export default function MapView({
       routeLayersRef.current.push(m)
     }
 
-    // Cadrage sécurisé — padding généreux en haut pour les badges
+    // Cadrage équilibré — marges égales comme Yango
     const fitSafe = (coords: [number, number][]) => {
       const size = map.getSize()
-      const wantedBottom = 45 + bottomOffset
-      const safeBottom = (size.y - wantedBottom - 110) > 120 ? wantedBottom : 45
+      const wantedBottom = 60 + bottomOffset
+      const safeBottom = (size.y - wantedBottom - 120) > 120 ? wantedBottom : 60
       const bounds = L.latLngBounds(coords)
       map.fitBounds(bounds, {
-        paddingTopLeft: [55, 110],
-        paddingBottomRight: [55, safeBottom],
-        maxZoom: 16,
+        paddingTopLeft: [60, 120],
+        paddingBottomRight: [60, safeBottom],
+        maxZoom: 15.5,
       })
     }
 
@@ -240,24 +239,24 @@ export default function MapView({
       const drawLine = (coords: [number, number][], durationSeconds: number) => {
         if (requestId !== requestIdRef.current || !mapRef.current) return
 
-        // Trait fin comme Yango — contour blanc 7px + ligne verte 4px
+        // Trait fin comme Yango — contour blanc 6px + ligne verte 3.5px
         const outline = L.polyline(coords, {
-          color: '#ffffff', weight: 7, opacity: 1, lineCap: 'round', lineJoin: 'round',
+          color: '#ffffff', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round',
         }).addTo(map)
         const line = L.polyline(coords, {
-          color: '#1DB954', weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round',
+          color: '#1DB954', weight: 3.5, opacity: 1, lineCap: 'round', lineJoin: 'round',
         }).addTo(map)
         routeLayersRef.current.push(outline, line)
 
         if (durationSeconds > 0) {
-          // Badge DURÉE "X min" sur le DÉPART
+          // Badge "X min" — pilule verte sur le DÉPART
           const durBadge = L.marker([from.lat, from.lng], {
             icon: L.divIcon({ html: durationBadgeHtml(formatDuration(durationSeconds)), className: '', iconSize: [0, 0] }),
             interactive: false, zIndexOffset: 740,
           }).addTo(map)
           routeLayersRef.current.push(durBadge)
 
-          // Badge ARRIVÉE "Arrivée à HH:MM" sur la DESTINATION
+          // Badge "Arrivée à HH:MM" sur la DESTINATION
           const arrBadge = L.marker([to.lat, to.lng], {
             icon: L.divIcon({ html: arrivalBadgeHtml(`Arrivée à ${formatArrival(durationSeconds)}`), className: '', iconSize: [0, 0] }),
             interactive: false, zIndexOffset: 760,
@@ -311,7 +310,7 @@ export default function MapView({
     })
   }, [mapReady, nearbyDrivers, showNearby])
 
-  // ══════════ 4. CHAUFFEUR ASSIGNÉ — mouvement fluide ══════════
+  // ══════════ 4. CHAUFFEUR ASSIGNÉ ══════════
   useEffect(() => {
     if (!mapReady || !mapRef.current || !LRef.current) return
     const L = LRef.current
