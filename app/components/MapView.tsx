@@ -48,7 +48,11 @@ function formatArrival(seconds: number) {
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
 
-// MARQUEUR DÉPART — losange vert foncé stylé
+// ══════════════════════════════════════════════
+//  MARQUEURS
+// ══════════════════════════════════════════════
+
+// DÉPART — losange vert foncé stylé (point de prise en charge)
 function startMarkerHtml() {
   return `
     <div style="transform:translate(-50%,-50%);">
@@ -61,19 +65,20 @@ function startMarkerHtml() {
   `
 }
 
-// MARQUEUR DESTINATION — épingle moderne verte
+// DESTINATION — épingle moderne verte
 function destinationMarkerHtml() {
   return `
     <div style="transform:translate(-50%,-100%);">
-      <svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg">
-        <path d="M14 2C7.4 2 2 7.4 2 14C2 22 14 34 14 34C14 34 26 22 26 14C26 7.4 20.6 2 14 2Z" fill="#0F5138" stroke="white" stroke-width="2"/>
-        <circle cx="14" cy="14" r="5" fill="white"/>
-        <circle cx="14" cy="14" r="2.5" fill="#1DB954"/>
+      <svg width="30" height="38" viewBox="0 0 30 38" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15 2C8 2 2 7.6 2 14.6C2 23 15 36 15 36C15 36 28 23 28 14.6C28 7.6 22 2 15 2Z" fill="#0F5138" stroke="white" stroke-width="2.5"/>
+        <circle cx="15" cy="15" r="5.5" fill="white"/>
+        <circle cx="15" cy="15" r="2.8" fill="#1DB954"/>
       </svg>
     </div>
   `
 }
 
+// MOTO — chauffeur
 function motoMarkerHtml(color: string, size: number) {
   return `
     <div style="transform:translate(-50%,-50%);">
@@ -90,21 +95,25 @@ function motoMarkerHtml(color: string, size: number) {
   `
 }
 
-// BADGE ETA — ancré sur la destination, au-dessus
+// ══════════════════════════════════════════════
+//  BADGES
+// ══════════════════════════════════════════════
+
+// BADGE DURÉE "X min" — sur le DÉPART, au-dessus avec flèche vers le bas
 function durationBadgeHtml(text: string) {
   return `
-    <div style="transform:translate(-50%,-170%);white-space:nowrap;pointer-events:none;">
-      <div style="background:#083b21;color:#fff;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:800;line-height:1.2;box-shadow:0 3px 10px rgba(8,59,33,0.4);border:1.5px solid rgba(255,255,255,0.9);text-align:center;">${text}</div>
-      <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #083b21;margin:0 auto;"></div>
+    <div style="transform:translate(-50%,-190%);white-space:nowrap;pointer-events:none;">
+      <div style="background:#083b21;color:#fff;padding:6px 12px;border-radius:10px;font-size:12px;font-weight:800;line-height:1;box-shadow:0 4px 14px rgba(8,59,33,0.4);border:1.5px solid rgba(255,255,255,0.95);">${text}</div>
+      <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #083b21;margin:0 auto;"></div>
     </div>
   `
 }
 
-// BADGE ARRIVÉE — ancré sur le départ, bulle blanche en haut à droite
+// BADGE ARRIVÉE "Arrivée à HH:MM" — sur la DESTINATION, centré au-dessus (jamais coupé)
 function arrivalBadgeHtml(text: string) {
   return `
-    <div style="transform:translate(14px,-64px);white-space:nowrap;pointer-events:none;">
-      <div style="background:#fff;color:#111;padding:6px 12px;border-radius:20px;font-size:11px;font-weight:700;line-height:1;box-shadow:0 2px 12px rgba(0,0,0,0.15);border:1px solid rgba(0,0,0,0.08);">${text}</div>
+    <div style="transform:translate(-50%,-230%);white-space:nowrap;pointer-events:none;">
+      <div style="background:#fff;color:#111;padding:7px 14px;border-radius:22px;font-size:12px;font-weight:700;line-height:1;box-shadow:0 3px 14px rgba(0,0,0,0.18);border:1px solid rgba(0,0,0,0.06);">${text}</div>
     </div>
   `
 }
@@ -129,6 +138,7 @@ export default function MapView({
 
   useEffect(() => { onRouteCoordsRef.current = onRouteCoords })
 
+  // ══════════ 1. INITIALISATION ══════════
   useEffect(() => {
     let cancelled = false
     async function init() {
@@ -166,6 +176,7 @@ export default function MapView({
     }
   }, [])
 
+  // ══════════ 2. ROUTE + MARQUEURS + BADGES ══════════
   useEffect(() => {
     if (!mapReady || !mapRef.current || !LRef.current) return
     const L = LRef.current
@@ -179,6 +190,7 @@ export default function MapView({
     const to = isValidCoordinate(toLat, toLng)
       ? { lat: toLat as number, lng: toLng as number } : undefined
 
+    // Marqueur départ
     if (from) {
       const m = L.marker([from.lat, from.lng], {
         icon: L.divIcon({ html: startMarkerHtml(), className: '', iconSize: [0, 0] }),
@@ -187,6 +199,7 @@ export default function MapView({
       routeLayersRef.current.push(m)
     }
 
+    // Marqueur destination
     if (to) {
       const m = L.marker([to.lat, to.lng], {
         icon: L.divIcon({ html: destinationMarkerHtml(), className: '', iconSize: [0, 0] }),
@@ -195,14 +208,15 @@ export default function MapView({
       routeLayersRef.current.push(m)
     }
 
+    // Cadrage sécurisé — padding généreux en haut pour les badges
     const fitSafe = (coords: [number, number][]) => {
       const size = map.getSize()
       const wantedBottom = 45 + bottomOffset
-      const safeBottom = (size.y - wantedBottom - 90) > 120 ? wantedBottom : 45
+      const safeBottom = (size.y - wantedBottom - 110) > 120 ? wantedBottom : 45
       const bounds = L.latLngBounds(coords)
       map.fitBounds(bounds, {
-        paddingTopLeft: [45, 90],
-        paddingBottomRight: [45, safeBottom],
+        paddingTopLeft: [55, 110],
+        paddingBottomRight: [55, safeBottom],
         maxZoom: 16,
       })
     }
@@ -226,7 +240,7 @@ export default function MapView({
       const drawLine = (coords: [number, number][], durationSeconds: number) => {
         if (requestId !== requestIdRef.current || !mapRef.current) return
 
-        // Trait fin comme Yango
+        // Trait fin comme Yango — contour blanc 7px + ligne verte 4px
         const outline = L.polyline(coords, {
           color: '#ffffff', weight: 7, opacity: 1, lineCap: 'round', lineJoin: 'round',
         }).addTo(map)
@@ -236,17 +250,17 @@ export default function MapView({
         routeLayersRef.current.push(outline, line)
 
         if (durationSeconds > 0) {
-          // Badge ETA sur la destination
-          const durBadge = L.marker([to.lat, to.lng], {
+          // Badge DURÉE "X min" sur le DÉPART
+          const durBadge = L.marker([from.lat, from.lng], {
             icon: L.divIcon({ html: durationBadgeHtml(formatDuration(durationSeconds)), className: '', iconSize: [0, 0] }),
-            interactive: false, zIndexOffset: 600,
+            interactive: false, zIndexOffset: 740,
           }).addTo(map)
           routeLayersRef.current.push(durBadge)
 
-          // Badge arrivée sur le départ
-          const arrBadge = L.marker([from.lat, from.lng], {
+          // Badge ARRIVÉE "Arrivée à HH:MM" sur la DESTINATION
+          const arrBadge = L.marker([to.lat, to.lng], {
             icon: L.divIcon({ html: arrivalBadgeHtml(`Arrivée à ${formatArrival(durationSeconds)}`), className: '', iconSize: [0, 0] }),
-            interactive: false, zIndexOffset: 560,
+            interactive: false, zIndexOffset: 760,
           }).addTo(map)
           routeLayersRef.current.push(arrBadge)
         }
@@ -275,6 +289,7 @@ export default function MapView({
     }
   }, [mapReady, fromLat, fromLng, toLat, toLng, bottomOffset])
 
+  // ══════════ 3. MOTOS PROCHES ══════════
   useEffect(() => {
     if (!mapReady || !mapRef.current || !LRef.current) return
     const L = LRef.current
@@ -296,6 +311,7 @@ export default function MapView({
     })
   }, [mapReady, nearbyDrivers, showNearby])
 
+  // ══════════ 4. CHAUFFEUR ASSIGNÉ — mouvement fluide ══════════
   useEffect(() => {
     if (!mapReady || !mapRef.current || !LRef.current) return
     const L = LRef.current
