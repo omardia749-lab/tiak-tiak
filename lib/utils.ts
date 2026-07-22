@@ -51,7 +51,6 @@ export function formatDistance(km: number): string {
 }
 
 export function calculateETA(km: number): number {
-  // ~25 km/h moyenne moto en ville
   return Math.max(2, Math.round((km / 40) * 60))
 }
 

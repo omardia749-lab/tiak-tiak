@@ -25,6 +25,7 @@ type MapViewProps = {
   showDriver?: boolean
   mode?: 'client' | 'driver' | string
   onRouteCoords?: (coords: [number, number][]) => void
+  onDuration?: (seconds: number) => void
   bottomOffset?: number
   className?: string
 }
@@ -48,14 +49,6 @@ function formatArrival(seconds: number) {
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
 
-// ─────────────────────────────────────────────
-// RÈGLE : pas de transform CSS — on utilise
-// iconSize + iconAnchor de Leaflet pour tout
-// positionner au pixel près, sans approximation.
-// ─────────────────────────────────────────────
-
-// MARQUEUR DÉPART — rond blanc + anneau foncé, 20×20px
-// iconAnchor [10,10] = centre du cercle sur le point GPS
 const START_SIZE: [number, number] = [20, 20]
 const START_ANCHOR: [number, number] = [10, 10]
 function startMarkerHtml() {
@@ -64,8 +57,6 @@ function startMarkerHtml() {
   </svg>`
 }
 
-// MARQUEUR DESTINATION — rond blanc + anneau vert + point vert, 20×20px
-// iconAnchor [10,10] = centre du cercle sur le point GPS
 const DEST_SIZE: [number, number] = [20, 20]
 const DEST_ANCHOR: [number, number] = [10, 10]
 function destinationMarkerHtml() {
@@ -75,65 +66,23 @@ function destinationMarkerHtml() {
   </svg>`
 }
 
-// BADGE DURÉE "X min" — pilule verte sur le DÉPART
-// Largeur estimée ~70px, hauteur ~28px + 8px pointe = 36px total
-// iconAnchor [35, 36] = pointe en bas centrée sur le point GPS
 const DUR_SIZE: [number, number] = [100, 40]
 const DUR_ANCHOR: [number, number] = [50, 40]
 function durationBadgeHtml(text: string) {
-  return `<div style="
-    display:inline-flex;
-    flex-direction:column;
-    align-items:center;
-    width:100px;
-  ">
-    <div style="
-      background:#1DB954;
-      color:#fff;
-      padding:7px 16px;
-      border-radius:999px;
-      font-size:13px;
-      font-weight:800;
-      line-height:1;
-      white-space:nowrap;
-      box-shadow:0 2px 8px rgba(15,81,56,0.35);
-    ">${text}</div>
-    <div style="
-      width:0;height:0;
-      border-left:7px solid transparent;
-      border-right:7px solid transparent;
-      border-top:9px solid #1DB954;
-      margin-top:-1px;
-    "></div>
+  return `<div style="display:inline-flex;flex-direction:column;align-items:center;width:100px;">
+    <div style="background:#1DB954;color:#fff;padding:7px 16px;border-radius:999px;font-size:13px;font-weight:800;line-height:1;white-space:nowrap;box-shadow:0 2px 8px rgba(15,81,56,0.35);">${text}</div>
+    <div style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid #1DB954;margin-top:-1px;"></div>
   </div>`
 }
 
-// BADGE ARRIVÉE "Arrivée à HH:MM" — bulle blanche sur la DESTINATION
-// Largeur estimée ~130px, hauteur ~30px
-// iconAnchor [65, 40] = bas de la bulle (juste au-dessus du marqueur)
 const ARR_SIZE: [number, number] = [150, 40]
 const ARR_ANCHOR: [number, number] = [75, 40]
 function arrivalBadgeHtml(text: string) {
-  return `<div style="
-    width:150px;
-    display:flex;
-    justify-content:center;
-  ">
-    <div style="
-      background:#fff;
-      color:#111;
-      padding:7px 14px;
-      border-radius:20px;
-      font-size:12px;
-      font-weight:700;
-      line-height:1;
-      white-space:nowrap;
-      box-shadow:0 2px 10px rgba(0,0,0,0.18);
-    ">${text}</div>
+  return `<div style="width:150px;display:flex;justify-content:center;">
+    <div style="background:#fff;color:#111;padding:7px 14px;border-radius:20px;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,0.18);">${text}</div>
   </div>`
 }
 
-// MARQUEUR MOTO chauffeur — 46×46px centré
 function motoMarkerHtml(color: string, size: number) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 58 58" xmlns="http://www.w3.org/2000/svg">
     <circle cx="29" cy="29" r="25" fill="#fff" stroke="${color}" stroke-width="4"/>
@@ -150,7 +99,7 @@ export default function MapView({
   fromLat, fromLng, toLat, toLng,
   driverLat, driverLng, driverMotoColor,
   nearbyDrivers = [], showNearby = false, showDriver = false,
-  mode = 'client', onRouteCoords, bottomOffset = 0, className = '',
+  mode = 'client', onRouteCoords, onDuration, bottomOffset = 0, className = '',
 }: MapViewProps) {
   const mapElementRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
@@ -160,12 +109,14 @@ export default function MapView({
   const driverLayerRef = useRef<any>(null)
   const requestIdRef = useRef(0)
   const onRouteCoordsRef = useRef(onRouteCoords)
+  const onDurationRef = useRef(onDuration)
   const [mapReady, setMapReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => { onRouteCoordsRef.current = onRouteCoords })
+  useEffect(() => { onDurationRef.current = onDuration })
 
-  // 1. INIT CARTE
+  // 1. INIT
   useEffect(() => {
     let cancelled = false
     async function init() {
@@ -217,32 +168,18 @@ export default function MapView({
     const to = isValidCoordinate(toLat, toLng)
       ? { lat: toLat as number, lng: toLng as number } : undefined
 
-    // Marqueur départ — centré exactement sur le point GPS
     if (from) {
       const m = L.marker([from.lat, from.lng], {
-        icon: L.divIcon({
-          html: startMarkerHtml(),
-          className: '',
-          iconSize: START_SIZE,
-          iconAnchor: START_ANCHOR,
-        }),
-        interactive: false,
-        zIndexOffset: 700,
+        icon: L.divIcon({ html: startMarkerHtml(), className: '', iconSize: START_SIZE, iconAnchor: START_ANCHOR }),
+        interactive: false, zIndexOffset: 700,
       }).addTo(map)
       routeLayersRef.current.push(m)
     }
 
-    // Marqueur destination — centré exactement sur le point GPS
     if (to) {
       const m = L.marker([to.lat, to.lng], {
-        icon: L.divIcon({
-          html: destinationMarkerHtml(),
-          className: '',
-          iconSize: DEST_SIZE,
-          iconAnchor: DEST_ANCHOR,
-        }),
-        interactive: false,
-        zIndexOffset: 720,
+        icon: L.divIcon({ html: destinationMarkerHtml(), className: '', iconSize: DEST_SIZE, iconAnchor: DEST_ANCHOR }),
+        interactive: false, zIndexOffset: 720,
       }).addTo(map)
       routeLayersRef.current.push(m)
     }
@@ -262,15 +199,12 @@ export default function MapView({
       map.setView(point, zoom, { animate: false })
       if (bottomOffset > 0) {
         const size = map.getSize()
-        if (size.y - bottomOffset > 150) {
-          map.panBy([0, bottomOffset / 2], { animate: false })
-        }
+        if (size.y - bottomOffset > 150) map.panBy([0, bottomOffset / 2], { animate: false })
       }
     }
 
     const samePoint = from && to &&
-      Math.abs(from.lat - to.lat) < 0.0001 &&
-      Math.abs(from.lng - to.lng) < 0.0001
+      Math.abs(from.lat - to.lat) < 0.0001 && Math.abs(from.lng - to.lng) < 0.0001
 
     if (from && to && !samePoint) {
       const requestId = ++requestIdRef.current
@@ -278,55 +212,34 @@ export default function MapView({
       const drawLine = (coords: [number, number][], durationSeconds: number) => {
         if (requestId !== requestIdRef.current || !mapRef.current) return
 
-        // Tracé fin style Yango
-        const outline = L.polyline(coords, {
-          color: '#ffffff', weight: 6, opacity: 1,
-          lineCap: 'round', lineJoin: 'round',
-        }).addTo(map)
-        const line = L.polyline(coords, {
-          color: '#1DB954', weight: 3.5, opacity: 1,
-          lineCap: 'round', lineJoin: 'round',
-        }).addTo(map)
+        const outline = L.polyline(coords, { color: '#ffffff', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map)
+        const line = L.polyline(coords, { color: '#1DB954', weight: 3.5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map)
         routeLayersRef.current.push(outline, line)
 
         if (durationSeconds > 0) {
-          // Badge DURÉE sur le DÉPART
-          // iconAnchor [50,40] = pointe du bas centrée sur le point GPS
+          // Badge durée sur le DÉPART
           const durBadge = L.marker([from.lat, from.lng], {
-            icon: L.divIcon({
-              html: durationBadgeHtml(formatDuration(durationSeconds)),
-              className: '',
-              iconSize: DUR_SIZE,
-              iconAnchor: DUR_ANCHOR,
-            }),
-            interactive: false,
-            zIndexOffset: 740,
+            icon: L.divIcon({ html: durationBadgeHtml(formatDuration(durationSeconds)), className: '', iconSize: DUR_SIZE, iconAnchor: DUR_ANCHOR }),
+            interactive: false, zIndexOffset: 740,
           }).addTo(map)
           routeLayersRef.current.push(durBadge)
 
-          // Badge ARRIVÉE sur la DESTINATION
-          // iconAnchor [75,40] = bas de la bulle juste au-dessus du marqueur
+          // Badge arrivée sur la DESTINATION
           const arrBadge = L.marker([to.lat, to.lng], {
-            icon: L.divIcon({
-              html: arrivalBadgeHtml(`Arrivée à ${formatArrival(durationSeconds)}`),
-              className: '',
-              iconSize: ARR_SIZE,
-              iconAnchor: ARR_ANCHOR,
-            }),
-            interactive: false,
-            zIndexOffset: 760,
+            icon: L.divIcon({ html: arrivalBadgeHtml(`Arrivée à ${formatArrival(durationSeconds)}`), className: '', iconSize: ARR_SIZE, iconAnchor: ARR_ANCHOR }),
+            interactive: false, zIndexOffset: 760,
           }).addTo(map)
           routeLayersRef.current.push(arrBadge)
+
+          // Transmettre la durée OSRM au parent
+          onDurationRef.current?.(durationSeconds)
         }
 
         fitSafe(coords)
         onRouteCoordsRef.current?.(coords)
       }
 
-      fetch(
-        `/api/route-osrm?fromLng=${from.lng}&fromLat=${from.lat}&toLng=${to.lng}&toLat=${to.lat}`,
-        { cache: 'no-store' }
-      )
+      fetch(`/api/route-osrm?fromLng=${from.lng}&fromLat=${from.lat}&toLng=${to.lng}&toLat=${to.lat}`, { cache: 'no-store' })
         .then(res => res.ok ? res.json() : Promise.reject())
         .then(data => {
           const route = data?.routes?.[0]
@@ -361,14 +274,8 @@ export default function MapView({
       const color = driver.moto_color || driver.motoColor || driver.color || '#13b15a'
       const sz = 38
       const m = L.marker([driver.lat, driver.lng], {
-        icon: L.divIcon({
-          html: motoMarkerHtml(color, sz),
-          className: '',
-          iconSize: [sz, sz],
-          iconAnchor: [sz / 2, sz / 2],
-        }),
-        interactive: false,
-        zIndexOffset: 650,
+        icon: L.divIcon({ html: motoMarkerHtml(color, sz), className: '', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }),
+        interactive: false, zIndexOffset: 650,
       }).addTo(map)
       nearbyLayersRef.current.push(m)
     })
@@ -395,20 +302,12 @@ export default function MapView({
       driverLayerRef.current.setLatLng(pos)
     } else {
       driverLayerRef.current = L.marker(pos, {
-        icon: L.divIcon({
-          html: motoMarkerHtml(driverMotoColor || '#13b15a', sz),
-          className: '',
-          iconSize: [sz, sz],
-          iconAnchor: [sz / 2, sz / 2],
-        }),
-        interactive: false,
-        zIndexOffset: 800,
+        icon: L.divIcon({ html: motoMarkerHtml(driverMotoColor || '#13b15a', sz), className: '', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }),
+        interactive: false, zIndexOffset: 800,
       }).addTo(map)
     }
 
-    if (mode === 'driver') {
-      map.panTo(pos, { animate: true, duration: 0.5 })
-    }
+    if (mode === 'driver') map.panTo(pos, { animate: true, duration: 0.5 })
   }, [mapReady, driverLat, driverLng, driverMotoColor, showDriver, mode])
 
   return (
