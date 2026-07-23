@@ -2113,7 +2113,7 @@ const OfflineBanner = () => isOffline ? (
             </div>
 
             <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center justify-between">
-              <div className="flex items-center gap-2"><span className="text-lg">{pmLabel.icon}</span><span className="text-sm font-bold text-gray-600">{pmLabel.name}</span></div>
+              <div className="flex items-center gap-2">{pmLabel.icon.startsWith('/') ? <img src={pmLabel.icon} alt={pmLabel.name} className="w-6 h-6 rounded-full object-cover" /> : <span className="text-lg">{pmLabel.icon}</span>}<span className="text-sm font-bold text-gray-600">{pmLabel.name}</span></div>
               <span className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(currentClientRide.price)}</span>
             </div>
 
@@ -2357,7 +2357,7 @@ const OfflineBanner = () => isOffline ? (
   )
 
   if (screen === 'confirm' && selected) {
-    const methods = [{ id: 'cash', icon: '💵', name: 'Especes' }, { id: 'wave', icon: '📱', name: 'Wave' }, { id: 'orange', icon: '🟠', name: 'Orange Money' }]
+    const methods = [{ id: 'cash', icon: '💵', name: 'Especes' }, { id: 'wave', icon: '/images/wave.png', name: 'Wave' }, { id: 'orange', icon: '/images/orange-money.png', name: 'Orange Money' }]
     return (
       <div className="fixed inset-0 bg-gray-100">
         {/* ===== CARTE PLEIN ÉCRAN (comme Yango) ===== */}
@@ -2431,7 +2431,7 @@ const OfflineBanner = () => isOffline ? (
               <div className="flex gap-2">
                 {methods.map(m => (
                   <button key={m.id} onClick={() => setPayment(m.id)} className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border-2" style={{ borderColor: payment === m.id ? '#1DB954' : '#E5E7EB', background: payment === m.id ? '#E8F5E9' : 'white' }}>
-                    <span className="text-xl">{m.icon}</span>
+                    {m.icon.startsWith('/') ? <img src={m.icon} alt={m.name} className="w-7 h-7 rounded-full object-cover" /> : <span className="text-xl">{m.icon}</span>}
                     <span className="text-xs font-bold" style={{ color: payment === m.id ? '#0F5138' : '#9CA3AF' }}>{m.name}</span>
                   </button>
                 ))}
@@ -2530,7 +2530,7 @@ const OfflineBanner = () => isOffline ? (
   )
 
   if (screen === 'paiement') {
-    const methods = [{ id: 'cash', icon: '💵', name: 'Especes', desc: 'Payer en liquide au chauffeur' }, { id: 'wave', icon: '📱', name: 'Wave', desc: 'Paiement mobile Wave' }, { id: 'orange', icon: '🟠', name: 'Orange Money', desc: 'Paiement mobile Orange' }]
+    const methods = [{ id: 'cash', icon: '💵', name: 'Especes', desc: 'Payer en liquide au chauffeur' }, { id: 'wave', icon: '/images/wave.png', name: 'Wave', desc: 'Paiement mobile Wave' }, { id: 'orange', icon: '/images/orange-money.png', name: 'Orange Money', desc: 'Paiement mobile Orange' }]
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
         <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
