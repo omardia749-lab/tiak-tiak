@@ -316,14 +316,14 @@ const [osrmEta, setOsrmEta] = useState(0)
 
   // ===== SPLASH + GPS AUTO =====
   useEffect(() => {
-    const t1 = setTimeout(() => setSplashPhase('white'), 3000)
+    const t1 = setTimeout(() => setSplashPhase('white'), 1500)
     const t2 = setTimeout(() => {
       const saved = localStorage.getItem('tiaktiak_user')
       if (saved) setUser(JSON.parse(saved))
       const savedLang = localStorage.getItem('tiaktiak_lang')
       if (savedLang) setLang(savedLang)
       setLoaded(true)
-    }, 8000)
+    }, 3000)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
@@ -1101,9 +1101,9 @@ const [emergencyName, setEmergencyName] = useState('')
     }
   }
 
-  const paymentLabel = (p: string) => {
-    if (p === 'wave') return { icon: '📱', name: 'Wave' }
-    if (p === 'orange') return { icon: '🟠', name: 'Orange Money' }
+ const paymentLabel = (p: string) => {
+    if (p === 'wave') return { icon: '/images/wave.png', name: 'Wave' }
+    if (p === 'orange') return { icon: '/images/orange-money.png', name: 'Orange Money' }
     return { icon: '💵', name: 'Especes' }
   }
 
