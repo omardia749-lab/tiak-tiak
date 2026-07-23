@@ -7,6 +7,7 @@ import { calculatePrice, formatPrice, formatDistance, calculateETA, formatETA, h
 import { CONDITIONS_UTILISATION, POLITIQUE_CONFIDENTIALITE } from '../lib/legal'
 import { supabase } from '../lib/supabase'
 import dynamic from 'next/dynamic'
+import { getFCMToken, onForegroundMessage } from '../lib/firebase'
 
 const MapView = dynamic(() => import('./components/MapView'), { ssr: false })
 import { LogoIcon, LogoWordmark } from './components/logo'
@@ -201,6 +202,7 @@ export default function TiakTiak() {
 
   const [service, setService] = useState('moto')
 const [osrmEta, setOsrmEta] = useState(0)
+const [fcmToken, setFcmToken] = useState<string | null>(null)
   const [screen, setScreen] = useState('accueil')
   const [menuOpen, setMenuOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -426,6 +428,20 @@ const [osrmEta, setOsrmEta] = useState(0)
     }
     checkStatus()
     loadDriverStats()
+
+    // Enregistrer le token FCM pour les notifications push
+if (user?.role === 'chauffeur') {
+  getFCMToken().then(async (token) => {
+    if (token) {
+      setFcmToken(token)
+      await supabase.from('users').update({ fcm_token: token }).eq('phone', user.phone)
+    }
+  })
+  onForegroundMessage((payload) => {
+    const { title, body } = payload.notification || {}
+    if (title) alert(`🔔 ${title}\n${body || ''}`)
+  })
+}
   }, [user])
 
   const loadDriverStats = useCallback(async () => {
