@@ -975,8 +975,39 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
       commission: calculateCommission(price, false, service as 'moto' | 'livraison'),
       payment_method: payment, status: 'pending', pin_code: pin,
     }).select('id').single()
-    if (error) alert('Erreur: ' + JSON.stringify(error))
-    else { setCurrentRideId(rideData?.id || null); setClientPinCode(pin); setScreen('attente') }
+   if (error) alert('Erreur: ' + JSON.stringify(error))
+    else {
+      setCurrentRideId(rideData?.id || null)
+      setClientPinCode(pin)
+      setScreen('attente')
+
+      // Envoyer notification push aux chauffeurs disponibles
+      try {
+        const { data: driversData } = await supabase
+          .from('users')
+          .select('fcm_token')
+          .eq('role', 'chauffeur')
+          .eq('is_online', true)
+          .not('fcm_token', 'is', null)
+
+        const tokens = (driversData || [])
+          .map((d: any) => d.fcm_token)
+          .filter(Boolean)
+
+        if (tokens.length > 0) {
+          await fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tokens,
+              title: '🛵 Nouvelle course !',
+              body: `De ${position.address} → ${selected.name} — ${formatPrice(price)}`,
+              data: { rideId: rideData?.id || '' },
+            }),
+          })
+        }
+      } catch {}
+    }
     setCommandLoading(false)
   }
 
