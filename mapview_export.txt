@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import 'leaflet/dist/leaflet.css'
@@ -141,7 +141,7 @@ export default function MapView({
           setMapReady(true)
         }, 250)
       } catch {
-        setError('Carte momentanément indisponible')
+        setError('Carte momentanÃ©ment indisponible')
       }
     }
     init()
@@ -154,7 +154,7 @@ export default function MapView({
     }
   }, [])
 
-  // 2. TRACÉ + MARQUEURS + BADGES
+  // 2. TRACÃ‰ + MARQUEURS + BADGES
   useEffect(() => {
     if (!mapReady || !mapRef.current || !LRef.current) return
     const L = LRef.current
@@ -217,21 +217,21 @@ export default function MapView({
         routeLayersRef.current.push(outline, line)
 
         if (durationSeconds > 0) {
-          // Badge durée sur le DÉPART
+          // Badge durÃ©e sur le DÃ‰PART
           const durBadge = L.marker([from.lat, from.lng], {
             icon: L.divIcon({ html: durationBadgeHtml(formatDuration(durationSeconds)), className: '', iconSize: DUR_SIZE, iconAnchor: DUR_ANCHOR }),
             interactive: false, zIndexOffset: 740,
           }).addTo(map)
           routeLayersRef.current.push(durBadge)
 
-          // Badge arrivée sur la DESTINATION
+          // Badge arrivÃ©e sur la DESTINATION
           const arrBadge = L.marker([to.lat, to.lng], {
-            icon: L.divIcon({ html: arrivalBadgeHtml(`Arrivée à ${formatArrival(durationSeconds)}`), className: '', iconSize: ARR_SIZE, iconAnchor: ARR_ANCHOR }),
+            icon: L.divIcon({ html: arrivalBadgeHtml(`ArrivÃ©e Ã  ${formatArrival(durationSeconds)}`), className: '', iconSize: ARR_SIZE, iconAnchor: ARR_ANCHOR }),
             interactive: false, zIndexOffset: 760,
           }).addTo(map)
           routeLayersRef.current.push(arrBadge)
 
-          // Transmettre la durée OSRM au parent
+          // Transmettre la durÃ©e OSRM au parent
           onDurationRef.current?.(durationSeconds)
         }
 
@@ -281,7 +281,7 @@ export default function MapView({
     })
   }, [mapReady, nearbyDrivers, showNearby])
 
-  // 4. CHAUFFEUR ASSIGNÉ
+  // 4. CHAUFFEUR ASSIGNÃ‰
   useEffect(() => {
     if (!mapReady || !mapRef.current || !LRef.current) return
     const L = LRef.current
@@ -299,23 +299,7 @@ export default function MapView({
     const sz = 46
 
     if (driverLayerRef.current) {
-      const currentPos = driverLayerRef.current.getLatLng()
-      const startLat = currentPos.lat
-      const startLng = currentPos.lng
-      const endLat = pos[0]
-      const endLng = pos[1]
-      const duration = 500
-      const startTime = performance.now()
-      const animate = (now: number) => {
-        const elapsed = now - startTime
-        const t = Math.min(elapsed / duration, 1)
-        const easedT = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
-        const lat = startLat + (endLat - startLat) * easedT
-        const lng = startLng + (endLng - startLng) * easedT
-        if (driverLayerRef.current) driverLayerRef.current.setLatLng([lat, lng])
-        if (t < 1) requestAnimationFrame(animate)
-      }
-      requestAnimationFrame(animate)
+      driverLayerRef.current.setLatLng(pos)
     } else {
       driverLayerRef.current = L.marker(pos, {
         icon: L.divIcon({ html: motoMarkerHtml(driverMotoColor || '#13b15a', sz), className: '', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] }),
@@ -333,7 +317,7 @@ export default function MapView({
         <div className="absolute inset-0 z-[500] flex items-center justify-center bg-[#f7faf7] px-6 text-center">
           <div className="rounded-3xl bg-white px-5 py-4 shadow-lg">
             <p className="text-sm font-bold text-[#083b21]">{error}</p>
-            <p className="mt-1 text-xs text-gray-500">Vérifie ta connexion puis réessaie.</p>
+            <p className="mt-1 text-xs text-gray-500">VÃ©rifie ta connexion puis rÃ©essaie.</p>
           </div>
         </div>
       )}
