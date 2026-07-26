@@ -318,6 +318,8 @@ const [isVerified, setIsVerified] = useState(false)
   const gpsRetryRef = useRef(false)
   const lastMovementRef = useRef<number | null>(null)
 const lastPosRef = useRef<{ lat: number; lng: number } | null>(null)
+const selfieCheckRef = useRef<NodeJS.Timeout | null>(null)
+const lastSelfieCheckRef = useRef<number>(Date.now())
 
   // ===== SPLASH + GPS AUTO =====
   useEffect(() => {
@@ -1194,6 +1196,53 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     setCurrentClientRide(null); setDriverArrived(false); setShowPinModal(false); setCancelLoading(false)
   }
 
+  const demarrerSelfieAleatoire = () => {
+    if (selfieCheckRef.current) clearTimeout(selfieCheckRef.current)
+    const delai = (30 + Math.random() * 15) * 60 * 1000 // 30-45 min aléatoire
+    selfieCheckRef.current = setTimeout(async () => {
+      if (!isOnline || !user?.id) return
+      const repondu = { value: false }
+      const timeout = setTimeout(async () => {
+        if (!repondu.value) {
+          // Pas de réponse en 2 minutes — alerte admin
+          await fetch('/api/sos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ride_id: currentDriverRide?.id || null,
+              triggered_by: 'systeme',
+              triggered_by_name: 'Selfie contrôle — pas de réponse',
+              triggered_by_phone: user.phone || '',
+              other_party_name: '',
+              other_party_phone: '',
+              lat: driverPosition.lat,
+              lng: driverPosition.lng,
+              address: 'Chauffeur ne répond pas au contrôle aléatoire',
+            }),
+          })
+        }
+      }, 2 * 60 * 1000)
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+        const track = stream.getVideoTracks()[0]
+        const imageCapture = new (window as any).ImageCapture(track)
+        const blob = await imageCapture.takePhoto()
+        track.stop()
+        repondu.value = true
+        clearTimeout(timeout)
+        const file = new File([blob], `controle_aleatoire_${user.phone}_${Date.now()}.jpg`)
+        await supabase.storage.from('selfies').upload(file.name, file)
+        lastSelfieCheckRef.current = Date.now()
+        demarrerSelfieAleatoire() // relancer le prochain contrôle
+      } catch {
+        repondu.value = true
+        clearTimeout(timeout)
+        demarrerSelfieAleatoire()
+      }
+    }, delai)
+  }
+
   const toggleOnline = async () => {
     if (!user?.id) return
     setOnlineLoading(true)
@@ -1227,6 +1276,11 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
 
     await supabase.from('users').update({ is_online: newStatus }).eq('id', user.id)
     setIsOnline(newStatus)
+    if (newStatus) {
+      demarrerSelfieAleatoire()
+    } else {
+      if (selfieCheckRef.current) clearTimeout(selfieCheckRef.current)
+    }
     setOnlineLoading(false)
   }
 
