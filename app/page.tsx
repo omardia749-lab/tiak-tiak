@@ -1832,6 +1832,12 @@ const OfflineBanner = () => isOffline ? (
           </div>
           <div className="text-center">
             <p className="text-green-200 text-sm font-semibold mb-1">NOUVELLE {incomingRide.service_type === 'livraison' ? 'LIVRAISON' : 'COURSE'} !</p>
+{(incomingRide as any).client_is_verified && (
+  <div className="flex items-center gap-1 bg-green-400 bg-opacity-20 px-3 py-1 rounded-full mb-1">
+    <CheckCircle size={12} color="#1DB954" />
+    <span className="text-xs font-bold text-green-300">Client vérifié ✓</span>
+  </div>
+)}
             <h2 className="text-2xl font-black text-white mb-1">{formatPrice(incomingRide.price)}</h2>
             <p className="text-green-200 text-sm">{incomingRide.distance_km} km • {incomingRide.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</p>
             <p className="text-green-300 text-xs mt-1">Commission : {freeTrialActive ? '0 FCFA 🎉' : formatPrice(calculateCommission(incomingRide.price, isPremium, incomingRide.service_type as 'moto' | 'livraison'))}</p>
