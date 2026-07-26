@@ -2031,6 +2031,27 @@ const OfflineBanner = () => isOffline ? (
               <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(currentDriverRide.price)}</p><p className="text-xs text-gray-400">Prix</p></div>
               <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: freeTrialActive ? '#1DB954' : '#F59E0B' }}>{freeTrialActive ? '0F 🎉' : formatPrice(currentDriverRide.commission || 0)}</p><p className="text-xs text-gray-400">Commission</p></div>
             </div>
+             <button onClick={async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const recorder = new MediaRecorder(stream)
+    const chunks: BlobPart[] = []
+    recorder.ondataavailable = e => chunks.push(e.data)
+    recorder.onstop = async () => {
+      const blob = new Blob(chunks, { type: 'audio/webm' })
+      const file = new File([blob], `audio_course_${currentDriverRide?.id}_${Date.now()}.webm`)
+      await supabase.storage.from('sos-audio').upload(file.name, file)
+      alert('✅ Audio enregistré et sauvegardé.')
+    }
+    recorder.start()
+    alert('🎙️ Enregistrement démarré — il s\'arrêtera dans 5 minutes.')
+    setTimeout(() => { recorder.stop(); stream.getTracks().forEach(t => t.stop()) }, 5 * 60 * 1000)
+  } catch {
+    alert('❌ Autorise le micro pour activer l\'enregistrement.')
+  }
+}} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#6B7280' }}>
+  🎙️ Activer enregistrement audio
+</button>
             <button onClick={() => declencherSOS('chauffeur')} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> 🚨 SOS Urgence</button>
           </div>
         </div>
