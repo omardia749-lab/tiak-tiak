@@ -203,6 +203,7 @@ export default function TiakTiak() {
   const [service, setService] = useState('moto')
 const [osrmEta, setOsrmEta] = useState(0)
 const [fcmToken, setFcmToken] = useState<string | null>(null)
+const [isVerified, setIsVerified] = useState(false)
   const [screen, setScreen] = useState('accueil')
   const [menuOpen, setMenuOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -407,6 +408,11 @@ const [fcmToken, setFcmToken] = useState<string | null>(null)
   useEffect(() => {
     if (!user || user.role !== 'chauffeur' || !user.id) return
     const checkStatus = async () => {
+      if (user?.role === 'client') {
+  const { data: verif } = await supabase.from('users').select('is_verified').eq('id', user.id).single()
+  if (verif) setIsVerified(verif.is_verified || false)
+  return
+}
       const { data } = await supabase.from('users').select('is_validated, is_suspended, is_premium, premium_expires_at, rating, total_rides, is_online, free_trial_used, free_trial_start, free_trial_end').eq('id', user.id!).single()
       if (data) {
         setIsValidated(data.is_validated || false)
@@ -429,6 +435,7 @@ const [fcmToken, setFcmToken] = useState<string | null>(null)
     checkStatus()
     loadDriverStats()
 
+    
     // Enregistrer le token FCM pour les notifications push
 if (user?.role === 'chauffeur') {
   getFCMToken().then(async (token) => {
@@ -1020,6 +1027,11 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     if (!selected || !user) return
     if (position.lat === DEFAULT_POS.lat && position.lng === DEFAULT_POS.lng) {
       alert('Active ta position en haut de l\'écran avant de commander.')
+      return
+    }
+    const hour = new Date().getHours()
+    if ((hour >= 22 || hour < 6) && !isVerified) {
+      alert('🌙 Mode nuit sécurisé actif — vérifie ton profil pour commander la nuit.')
       return
     }
     setCommandLoading(true)
