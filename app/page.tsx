@@ -1114,9 +1114,24 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
       return
     }
     const hour = new Date().getHours()
-    if ((hour >= 22 || hour < 6) && !isVerified) {
-      alert('🌙 Mode nuit sécurisé actif — vérifie ton profil pour commander la nuit.')
-      return
+    if (hour >= 22 || hour < 6) {
+      if (!isVerified) {
+        alert('🌙 Mode nuit sécurisé actif — vérifie ton profil pour commander la nuit.')
+        return
+      }
+      // Selfie de contrôle client aussi la nuit
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+        const track = stream.getVideoTracks()[0]
+        const imageCapture = new (window as any).ImageCapture(track)
+        const blob = await imageCapture.takePhoto()
+        track.stop()
+        const file = new File([blob], `controle_client_${user.phone}_${Date.now()}.jpg`, { type: 'image/jpeg' })
+        await supabase.storage.from('selfies').upload(file.name, file)
+        alert('✅ Contrôle de nuit validé — bonne course !')
+      } catch {
+        // Si caméra non disponible, on laisse passer (client vérifié suffit)
+      }
     }
     setCommandLoading(true)
     const pin = generatePIN()
