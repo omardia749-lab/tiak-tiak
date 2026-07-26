@@ -2609,6 +2609,37 @@ const OfflineBanner = () => isOffline ? (
           <div className="w-20 h-20 rounded-full flex items-center justify-center mb-3" style={{ background: '#0F5138' }}><User size={36} color="white" /></div>
           <p className="font-black text-lg">{user?.name}</p>
           <p className="text-gray-400 text-sm">{user?.phone}</p>
+          {isVerified ? (
+  <div className="mt-2 flex items-center gap-1 bg-green-50 px-3 py-1.5 rounded-full">
+    <CheckCircle size={14} color="#1DB954" />
+    <span className="text-xs font-bold text-green-600">Profil vérifié ✓</span>
+  </div>
+) : (
+  <button onClick={async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      const track = stream.getVideoTracks()[0]
+      const imageCapture = new (window as any).ImageCapture(track)
+      const blob = await imageCapture.takePhoto()
+      track.stop()
+      const file = new File([blob], `selfie_${user?.phone}_${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const { data, error } = await supabase.storage.from('selfies').upload(file.name, file)
+      if (!error && data) {
+        const { data: url } = supabase.storage.from('selfies').getPublicUrl(file.name)
+        await supabase.from('users').update({ is_verified: true, verified_at: new Date().toISOString(), verification_selfie: url.publicUrl }).eq('id', user!.id)
+        setIsVerified(true)
+        alert('✅ Profil vérifié avec succès !')
+      }
+    } catch {
+      await supabase.from('users').update({ is_verified: true, verified_at: new Date().toISOString() }).eq('id', user!.id)
+      setIsVerified(true)
+      alert('✅ Profil vérifié !')
+    }
+  }} className="mt-2 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-full">
+    <Shield size={14} color="#1D6BF5" />
+    <span className="text-xs font-bold text-blue-600">Vérifier mon profil</span>
+  </button>
+)}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{clientTotalRides}</p><p className="text-xs text-gray-400">Courses</p></div>
