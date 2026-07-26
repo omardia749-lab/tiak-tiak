@@ -1037,7 +1037,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     setCommandLoading(true)
     const pin = generatePIN()
     const { data: rideData, error } = await supabase.from('rides').insert({
-      client_id: user.id || null, client_name: user.name, client_phone: user.phone,
+      client_id: user.id || null, client_name: user.name, client_phone: user.phone, client_is_verified: isVerified,
       service_type: service,
       from_lat: position.lat, from_lng: position.lng, from_address: position.address,
       to_lat: selected.lat, to_lng: selected.lng, to_address: selected.name,
