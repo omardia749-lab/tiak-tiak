@@ -2051,6 +2051,32 @@ const OfflineBanner = () => isOffline ? (
   }
 }} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#6B7280' }}>
   🎙️ Activer enregistrement audio
+  <button onClick={async () => {
+  const types = ['danger', 'vol', 'agression', 'accident']
+  const type = prompt('Type de danger :\n1. Danger général\n2. Vol\n3. Agression\n4. Accident\n\nEntre le numéro :')
+  const zoneType = types[(parseInt(type || '1') - 1)] || 'danger'
+  const desc = prompt('Décris brièvement la situation (optionnel) :') || ''
+  try {
+    const res = await fetch('/api/danger-zones', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reported_by: user?.phone,
+        reported_by_name: user?.name,
+        lat: driverPosition.lat,
+        lng: driverPosition.lng,
+        description: desc,
+        zone_type: zoneType,
+      }),
+    })
+    const data = await res.json()
+    alert(`✅ ${data.message || 'Zone signalée avec succès !'}`)
+  } catch {
+    alert('❌ Erreur lors du signalement.')
+  }
+}} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#F59E0B' }}>
+  ⚠️ Signaler zone dangereuse
+</button>
 </button>
             <button onClick={() => declencherSOS('chauffeur')} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> 🚨 SOS Urgence</button>
           </div>
