@@ -1177,6 +1177,33 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     if (!user?.id) return
     setOnlineLoading(true)
     const newStatus = !isOnline
+
+    // Mode nuit — selfie de contrôle obligatoire après 22h
+    if (newStatus) {
+      const hour = new Date().getHours()
+      if (hour >= 22 || hour < 6) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+          const track = stream.getVideoTracks()[0]
+          const imageCapture = new (window as any).ImageCapture(track)
+          const blob = await imageCapture.takePhoto()
+          track.stop()
+          const file = new File([blob], `controle_${user.phone}_${Date.now()}.jpg`, { type: 'image/jpeg' })
+          const { error } = await supabase.storage.from('selfies').upload(file.name, file)
+          if (error) {
+            alert('❌ Selfie de contrôle requis pour conduire la nuit. Réessaie.')
+            setOnlineLoading(false)
+            return
+          }
+          alert('✅ Selfie de contrôle validé — Bonne nuit de travail !')
+        } catch {
+          alert('🌙 Mode nuit actif — selfie de contrôle requis. Autorise la caméra et réessaie.')
+          setOnlineLoading(false)
+          return
+        }
+      }
+    }
+
     await supabase.from('users').update({ is_online: newStatus }).eq('id', user.id)
     setIsOnline(newStatus)
     setOnlineLoading(false)
