@@ -2604,6 +2604,74 @@ const OfflineBanner = () => isOffline ? (
     )
   }
 
+  if (screen === 'securite') return (
+  <div className="fixed inset-0 flex flex-col bg-gray-100">
+    <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
+      <button onClick={() => setScreen('accueil')}><ArrowLeft size={24} color="#0F5138" /></button>
+      <span className="font-bold text-black">Centre de sécurité 🛡️</span>
+    </header>
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+      {/* Numéros d'urgence */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <p className="font-black text-sm text-gray-800 mb-3">🚨 Numéros d'urgence</p>
+        <div className="space-y-2">
+          <a href="tel:17" className="flex items-center justify-between p-3 bg-red-50 rounded-xl">
+            <div className="flex items-center gap-3"><Phone size={18} color="#DC2626" /><div><p className="font-bold text-sm text-red-600">Police Secours</p><p className="text-xs text-gray-400">Appel gratuit 24h/24</p></div></div>
+            <span className="text-2xl font-black text-red-600">17</span>
+          </a>
+          <a href="tel:18" className="flex items-center justify-between p-3 bg-orange-50 rounded-xl">
+            <div className="flex items-center gap-3"><Phone size={18} color="#F59E0B" /><div><p className="font-bold text-sm text-orange-600">Pompiers</p><p className="text-xs text-gray-400">Appel gratuit 24h/24</p></div></div>
+            <span className="text-2xl font-black text-orange-600">18</span>
+          </a>
+          <a href="tel:15" className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
+            <div className="flex items-center gap-3"><Phone size={18} color="#1D6BF5" /><div><p className="font-bold text-sm text-blue-600">SAMU</p><p className="text-xs text-gray-400">Urgences médicales</p></div></div>
+            <span className="text-2xl font-black text-blue-600">15</span>
+          </a>
+          <a href={SUPPORT_WHATSAPP} target="_blank" className="flex items-center justify-between p-3 bg-green-50 rounded-xl">
+            <div className="flex items-center gap-3"><MessageCircle size={18} color="#1DB954" /><div><p className="font-bold text-sm text-green-600">Support TIAK TIAK</p><p className="text-xs text-gray-400">WhatsApp disponible</p></div></div>
+            <ChevronRight size={18} color="#1DB954" />
+          </a>
+        </div>
+      </div>
+
+      {/* Statut vérification */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <p className="font-black text-sm text-gray-800 mb-3">✅ Mon statut de sécurité</p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+            <div className="flex items-center gap-2"><CheckCircle size={16} color={isVerified ? '#1DB954' : '#9CA3AF'} /><span className="text-sm font-medium">Profil vérifié</span></div>
+            <span className={`text-xs font-bold px-2 py-1 rounded-full ${isVerified ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>{isVerified ? 'Vérifié ✓' : 'Non vérifié'}</span>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+            <div className="flex items-center gap-2"><Phone size={16} color="#1DB954" /><span className="text-sm font-medium">Numéro confirmé</span></div>
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-600">Confirmé ✓</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Conseils de sécurité */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <p className="font-black text-sm text-gray-800 mb-3">💡 Conseils de sécurité</p>
+        <div className="space-y-2 text-sm text-gray-600">
+          <div className="flex items-start gap-2 p-2"><span>🛵</span><span>Vérifie toujours la plaque et la couleur de la moto avant de monter</span></div>
+          <div className="flex items-start gap-2 p-2"><span>📱</span><span>Partage ton trajet avec un proche avant de démarrer</span></div>
+          <div className="flex items-start gap-2 p-2"><span>🌙</span><span>La nuit, préfère les zones éclairées pour ta prise en charge</span></div>
+          <div className="flex items-start gap-2 p-2"><span>🔴</span><span>En cas de danger, utilise le bouton SOS dans l'app</span></div>
+          <div className="flex items-start gap-2 p-2"><span>📸</span><span>Note le numéro du chauffeur visible dans l'app avant de démarrer</span></div>
+        </div>
+      </div>
+
+      {/* Mode nuit */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-2"><span>🌙</span><p className="font-black text-sm text-gray-800">Mode nuit sécurisé</p></div>
+        <p className="text-xs text-gray-500">Après 22h, seuls les profils vérifiés peuvent commander. Cette protection est automatique et s'applique pour ta sécurité et celle des chauffeurs.</p>
+      </div>
+
+    </div>
+  </div>
+)
+
   if (screen === 'profil') return (
     <div className="fixed inset-0 flex flex-col bg-gray-100">
       <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
