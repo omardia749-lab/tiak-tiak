@@ -28,6 +28,7 @@ type MapViewProps = {
   onDuration?: (seconds: number) => void
   bottomOffset?: number
   className?: string
+  dangerZones?: { lat: number; lng: number; zone_type: string; description?: string; votes: number }[]
 }
 
 function isValidCoordinate(lat?: number | null, lng?: number | null) {
@@ -99,7 +100,7 @@ export default function MapView({
   fromLat, fromLng, toLat, toLng,
   driverLat, driverLng, driverMotoColor,
   nearbyDrivers = [], showNearby = false, showDriver = false,
-  mode = 'client', onRouteCoords, onDuration, bottomOffset = 0, className = '',
+  mode = 'client', onRouteCoords, onDuration, bottomOffset = 0, className = '', dangerZones = [],
 }: MapViewProps) {
   const mapElementRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
@@ -258,6 +259,37 @@ export default function MapView({
       centerSafe([to.lat, to.lng], 15)
     }
   }, [mapReady, fromLat, fromLng, toLat, toLng, bottomOffset])
+
+  // ZONES À RISQUE
+useEffect(() => {
+  if (!mapReady || !mapRef.current || !LRef.current) return
+  const L = LRef.current
+  const map = mapRef.current
+
+  // Supprimer anciennes zones
+  if ((map as any)._dangerLayers) {
+    (map as any)._dangerLayers.forEach((l: any) => { try { map.removeLayer(l) } catch {} })
+  }
+  ;(map as any)._dangerLayers = []
+
+  if (!dangerZones || dangerZones.length === 0) return
+
+  dangerZones.forEach(zone => {
+    const icon = zone.zone_type === 'agression' ? '🔴' : zone.zone_type === 'vol' ? '🟠' : zone.zone_type === 'accident' ? '🟡' : '⚠️'
+    const m = L.marker([zone.lat, zone.lng], {
+      icon: L.divIcon({
+        html: `<div style="font-size:20px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));">${icon}</div>`,
+        className: '',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      }),
+      interactive: true,
+      zIndexOffset: 500,
+    }).addTo(map)
+    m.bindPopup(`<b>⚠️ Zone dangereuse</b><br>${zone.description || zone.zone_type}<br><small>${zone.votes} signalement(s)</small>`)
+    ;(map as any)._dangerLayers.push(m)
+  })
+}, [mapReady, dangerZones])
 
   // 3. MOTOS PROCHES
   useEffect(() => {

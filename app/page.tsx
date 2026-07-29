@@ -204,6 +204,7 @@ export default function TiakTiak() {
 const [osrmEta, setOsrmEta] = useState(0)
 const [deviationAlert, setDeviationAlert] = useState(false)
 const [arretAlert, setArretAlert] = useState(false)
+const [dangerZones, setDangerZones] = useState<any[]>([])
 const [fcmToken, setFcmToken] = useState<string | null>(null)
 const [isVerified, setIsVerified] = useState(false)
   const [screen, setScreen] = useState('accueil')
@@ -1101,6 +1102,13 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
   const price = isFirstRide ? applyFirstRideDiscount(basePrice, true) : basePrice
   const eta = osrmEta > 0 ? osrmEta : (selected ? calculateETA(km) : 0)
   const referralCode = user ? 'TIAK-' + (user.phone.replace(/[^0-9]/g, '').slice(-4) || '0000') : 'TIAK-0000'
+
+  useEffect(() => {
+  fetch('/api/danger-zones')
+    .then(r => r.json())
+    .then(data => setDangerZones(data || []))
+    .catch(() => {})
+}, [])
 
   const shareReferral = () => {
     const text = 'Rejoins TIAK TIAK ! https://tiak-tiak-zeta.vercel.app'
@@ -2795,7 +2803,8 @@ const OfflineBanner = () => isOffline ? (
       <div className="fixed inset-0 bg-gray-100">
         {/* ===== CARTE PLEIN ÉCRAN (comme Yango) ===== */}
         <div className="absolute inset-0 z-0">
-          <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} nearbyDrivers={nearbyDrivers} showNearby={true} bottomOffset={320} onDuration={(seconds) => setOsrmEta(Math.max(1, Math.round(seconds / 60)))} />
+          <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} nearbyDrivers={nearbyDrivers} showNearby={true} bottomOffset={320} onDuration={(seconds) => setOsrmEta(Math.max(1, Math.round(seconds / 60)))}
+                dangerZones={dangerZones} />
         </div>
 
         {/* Bouton retour flottant */}
