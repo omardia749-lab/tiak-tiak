@@ -202,6 +202,8 @@ export default function TiakTiak() {
 
   const [service, setService] = useState('moto')
 const [osrmEta, setOsrmEta] = useState(0)
+const [deviationAlert, setDeviationAlert] = useState(false)
+const [arretAlert, setArretAlert] = useState(false)
 const [fcmToken, setFcmToken] = useState<string | null>(null)
 const [isVerified, setIsVerified] = useState(false)
   const [screen, setScreen] = useState('accueil')
@@ -644,6 +646,31 @@ if (routeCoords && routeCoords.length > 0) {
     )
     return () => { if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current) }
   }, [isOnline, user, currentDriverRide, driverPhase, clientArrived, routeCoords])
+
+  // Surveiller les alertes SOS en temps réel côté client
+useEffect(() => {
+  if (!currentClientRide?.id) return
+  const sub = supabase
+    .channel(`sos_client_${currentClientRide.id}`)
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'sos_alerts',
+      filter: `ride_id=eq.${currentClientRide.id}`,
+    }, (payload: any) => {
+      const alert = payload.new
+      if (alert.triggered_by_name?.includes('Déviation')) {
+        setDeviationAlert(true)
+        setTimeout(() => setDeviationAlert(false), 30000)
+      }
+      if (alert.triggered_by_name?.includes('Arrêt')) {
+        setArretAlert(true)
+        setTimeout(() => setArretAlert(false), 30000)
+      }
+    })
+    .subscribe()
+  return () => { supabase.removeChannel(sub) }
+}, [currentClientRide?.id])
 
   useEffect(() => {
     if (!user || user.role !== 'chauffeur' || !isOnline || !isValidated) return
@@ -2633,6 +2660,26 @@ const OfflineBanner = () => isOffline ? (
 
   if (screen === 'attente') return (
     <div className="fixed inset-0 flex flex-col" style={{ background: '#0F5138' }}>
+    {deviationAlert && (
+  <div className="absolute top-20 left-4 right-4 z-50 bg-red-600 text-white rounded-2xl p-4 shadow-xl flex items-center gap-3">
+    <AlertCircle size={24} color="white" />
+    <div className="flex-1">
+      <p className="font-black text-sm">⚠️ Déviation détectée</p>
+      <p className="text-xs text-red-100">Ton chauffeur a quitté l'itinéraire prévu</p>
+    </div>
+    <button onClick={() => declencherSOS('client')} className="bg-white text-red-600 px-3 py-1 rounded-xl font-bold text-xs">SOS</button>
+  </div>
+)}
+{arretAlert && (
+  <div className="absolute top-20 left-4 right-4 z-50 bg-orange-500 text-white rounded-2xl p-4 shadow-xl flex items-center gap-3">
+    <AlertCircle size={24} color="white" />
+    <div className="flex-1">
+      <p className="font-black text-sm">⏸️ Arrêt anormal</p>
+      <p className="text-xs text-orange-100">Ton chauffeur est immobile depuis 5 minutes</p>
+    </div>
+    <button onClick={() => declencherSOS('client')} className="bg-white text-orange-600 px-3 py-1 rounded-xl font-bold text-xs">SOS</button>
+  </div>
+)}
       <header className="px-4 py-4 flex items-center justify-between">
         <span className="text-xl font-black italic text-white">TIAK TIAK</span>
         <div className="flex items-center gap-2"><button onClick={() => declencherSOS('client')} className="bg-red-600 text-white px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 text-xs"><AlertCircle size={14} /> SOS</button><button onClick={() => setScreen('annulation')} className="text-green-200 text-sm font-semibold">Annuler</button></div>
