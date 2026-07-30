@@ -29,6 +29,7 @@ type MapViewProps = {
   bottomOffset?: number
   className?: string
   dangerZones?: { lat: number; lng: number; zone_type: string; description?: string; votes: number }[]
+  sosAlerts?: { id: string; lat: number; lng: number; triggered_by_name: string }[]
 }
 
 function isValidCoordinate(lat?: number | null, lng?: number | null) {
@@ -100,7 +101,7 @@ export default function MapView({
   fromLat, fromLng, toLat, toLng,
   driverLat, driverLng, driverMotoColor,
   nearbyDrivers = [], showNearby = false, showDriver = false,
-  mode = 'client', onRouteCoords, onDuration, bottomOffset = 0, className = '', dangerZones = [],
+  mode = 'client', onRouteCoords, onDuration, bottomOffset = 0, className = '', dangerZones = [], sosAlerts = [],
 }: MapViewProps) {
   const mapElementRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
@@ -290,6 +291,33 @@ useEffect(() => {
     ;(map as any)._dangerLayers.push(m)
   })
 }, [mapReady, dangerZones])
+
+// ALERTES SOS PROCHES — épingle rouge sur carte chauffeur
+useEffect(() => {
+  if (!mapReady || !mapRef.current || !LRef.current) return
+  const L = LRef.current
+  const map = mapRef.current
+
+  if ((map as any)._sosLayers) {
+    (map as any)._sosLayers.forEach((l: any) => { try { map.removeLayer(l) } catch {} })
+  }
+  ;(map as any)._sosLayers = []
+
+  sosAlerts.forEach(alert => {
+    const m = L.marker([alert.lat, alert.lng], {
+      icon: L.divIcon({
+        html: `<div style="background:#DC2626;color:white;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:800;box-shadow:0 2px 8px rgba(220,38,38,0.5);white-space:nowrap;">🚨 Collègue en danger</div>`,
+        className: '',
+        iconSize: [160, 32],
+        iconAnchor: [80, 16],
+      }),
+      interactive: true,
+      zIndexOffset: 900,
+    }).addTo(map)
+    m.bindPopup(`<b>🚨 Collègue en danger !</b><br>${alert.triggered_by_name || 'Chauffeur TIAK TIAK'}`)
+    ;(map as any)._sosLayers.push(m)
+  })
+}, [mapReady, sosAlerts])
 
   // 3. MOTOS PROCHES
   useEffect(() => {
