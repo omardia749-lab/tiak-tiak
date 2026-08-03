@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Menu, User, ChevronRight, ChevronDown, Home, List, Search, X, MapPin, ArrowLeft, LogOut, Navigation, Zap, Phone, Gift, HelpCircle, Info, Share2, MessageCircle, CreditCard, Check, Settings, Globe, Bell, Shield, FileText, Clock, XCircle, Power, Users, TrendingUp, CheckCircle, Ban, AlertTriangle, Star, Award, Wallet, AlertCircle, Camera, Play, Lock, Package } from 'lucide-react'
@@ -100,28 +100,28 @@ const SUPPORT_WHATSAPP = 'https://wa.me/221755535030?text=' + encodeURIComponent
 const DEFAULT_POS: GpsPosition = { lat: 14.7167, lng: -17.2833, address: 'Rufisque, Dakar' }
 
 const CANCEL_REASONS = [
-  "J'ai trouvé un autre moyen de transport",
+  "J'ai trouvÃ© un autre moyen de transport",
   "Le chauffeur tarde trop",
   "J'ai fait une erreur de destination",
-  "Problème personnel",
+  "ProblÃ¨me personnel",
   "Autre raison",
 ]
 
 const REPORT_OPTIONS = [
-  { id: 'dangerous', icon: '🚫', label: 'Conduite dangereuse' },
-  { id: 'rude', icon: '💬', label: 'Comportement irrespectueux' },
-  { id: 'price', icon: '💰', label: 'Prix incorrect' },
-  { id: 'route', icon: '📍', label: 'Mauvais itineraire' },
-  { id: 'perfect', icon: '✅', label: 'Tout etait parfait' },
+  { id: 'dangerous', icon: 'ðŸš«', label: 'Conduite dangereuse' },
+  { id: 'rude', icon: 'ðŸ’¬', label: 'Comportement irrespectueux' },
+  { id: 'price', icon: 'ðŸ’°', label: 'Prix incorrect' },
+  { id: 'route', icon: 'ðŸ“', label: 'Mauvais itineraire' },
+  { id: 'perfect', icon: 'âœ…', label: 'Tout etait parfait' },
 ]
 
 const PREMIUM_BENEFITS = [
-  { icon: '💰', text: 'Commission fixe 100 FCFA moto / 200 FCFA livraison' },
-  { icon: '🔵', text: 'Badge bleu ✓ visible par tous les clients' },
-  { icon: '⚡', text: 'Reçois les courses 1 minute avant les autres' },
-  { icon: '📊', text: 'Statistiques détaillées semaine/mois' },
-  { icon: '🎯', text: '3 jours gratuits sans commission inclus' },
-  { icon: '💬', text: 'Support prioritaire 24h/24' },
+  { icon: 'ðŸ’°', text: 'Commission fixe 100 FCFA moto / 200 FCFA livraison' },
+  { icon: 'ðŸ”µ', text: 'Badge bleu âœ“ visible par tous les clients' },
+  { icon: 'âš¡', text: 'ReÃ§ois les courses 1 minute avant les autres' },
+  { icon: 'ðŸ“Š', text: 'Statistiques dÃ©taillÃ©es semaine/mois' },
+  { icon: 'ðŸŽ¯', text: '3 jours gratuits sans commission inclus' },
+  { icon: 'ðŸ’¬', text: 'Support prioritaire 24h/24' },
 ]
 
 const generatePIN = () => Math.floor(1000 + Math.random() * 9000).toString()
@@ -156,7 +156,7 @@ const speak = (text: string) => {
 
 const formatCountdown = (endDate: string) => {
   const diff = new Date(endDate).getTime() - Date.now()
-  if (diff <= 0) return 'Expiré'
+  if (diff <= 0) return 'ExpirÃ©'
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
   const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
@@ -166,11 +166,11 @@ const formatCountdown = (endDate: string) => {
 }
 
 const shareTrip = (driverName: string, fromAddr: string, toAddr: string) => {
-  const text = `🛵 Je suis dans un TIAK TIAK !\n\nChauffeur : ${driverName}\nDe : ${fromAddr}\nVers : ${toAddr}\n\nSuis mon trajet en temps réel.`
+  const text = `ðŸ›µ Je suis dans un TIAK TIAK !\n\nChauffeur : ${driverName}\nDe : ${fromAddr}\nVers : ${toAddr}\n\nSuis mon trajet en temps rÃ©el.`
   if ((navigator as any).share) {
     (navigator as any).share({ title: 'Mon trajet TIAK TIAK', text }).catch(() => {})
   } else if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(() => alert('Lien copié !')).catch(() => {})
+    navigator.clipboard.writeText(text).then(() => alert('Lien copiÃ© !')).catch(() => {})
   }
 }
 
@@ -301,7 +301,7 @@ const [isVerified, setIsVerified] = useState(false)
   const [showNextRideBanner, setShowNextRideBanner] = useState(false)
   const [statsTab, setStatsTab] = useState<'semaine' | 'mois'>('semaine')
 
-  // Évaluation
+  // Ã‰valuation
   const [clientRating, setClientRating] = useState(0)
   const [clientComment, setClientComment] = useState('')
   const [clientReport, setClientReport] = useState('')
@@ -457,7 +457,7 @@ if (user?.role === 'chauffeur') {
   })
   onForegroundMessage((payload) => {
     const { title, body } = payload.notification || {}
-    if (title) alert(`🔔 ${title}\n${body || ''}`)
+    if (title) alert(`ðŸ”” ${title}\n${body || ''}`)
   })
 }
   }, [user])
@@ -502,7 +502,7 @@ if (user?.role === 'chauffeur') {
     await supabase.from('users').update({ free_trial_used: true, free_trial_start: now.toISOString(), free_trial_end: end.toISOString() }).eq('id', user.id)
     setFreeTrialUsed(true); setFreeTrialEnd(end.toISOString()); setFreeTrialActive(true)
     setTrialActivating(false)
-    speak("Vos 3 jours gratuits sont activés !")
+    speak("Vos 3 jours gratuits sont activÃ©s !")
   }
 
   useEffect(() => {
@@ -521,23 +521,23 @@ if (user?.role === 'chauffeur') {
             const distToClient = haversineDistance(latitude, longitude, currentDriverRide.from_lat, currentDriverRide.from_lng)
             if (distToClient * 1000 < 10 && !clientArrived) {
               setClientArrived(true)
-              speak("Vous êtes arrivé chez le client. Demandez le code PIN.")
+              speak("Vous Ãªtes arrivÃ© chez le client. Demandez le code PIN.")
               await supabase.from('rides').update({ driver_arrived_at: new Date().toISOString() } as any).eq('id', currentDriverRide.id)
               setShowPinEntry(true)
             }
           } else {
             const distToDest = haversineDistance(latitude, longitude, currentDriverRide.to_lat, currentDriverRide.to_lng)
             if (distToDest * 1000 < 10) {
-              speak("Vous êtes arrivé à destination")
+              speak("Vous Ãªtes arrivÃ© Ã  destination")
               await terminerCourse()
             }
 
 
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // PROTOCOLE D'ALERTE SILENCIEUSE COMPLET
-// ═══════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 const activerProtocoleSilencieux = async (raison: string, adresse: string) => {
-  // ÉTAPE 1 — Tracking GPS renforcé toutes les 3 secondes
+  // Ã‰TAPE 1 â€” Tracking GPS renforcÃ© toutes les 3 secondes
   const trackingInterval = setInterval(async () => {
     await fetch('/api/sos', {
       method: 'POST',
@@ -545,7 +545,7 @@ const activerProtocoleSilencieux = async (raison: string, adresse: string) => {
       body: JSON.stringify({
         ride_id: currentDriverRide?.id || null,
         triggered_by: 'systeme_tracking',
-        triggered_by_name: `GPS Track — ${raison}`,
+        triggered_by_name: `GPS Track â€” ${raison}`,
         triggered_by_phone: user.phone || '',
         other_party_name: currentDriverRide?.client_name || '',
         other_party_phone: currentDriverRide?.client_phone || '',
@@ -556,7 +556,7 @@ const activerProtocoleSilencieux = async (raison: string, adresse: string) => {
     })
   }, 3000)
 
-  // ÉTAPE 2 — Audio automatique silencieux sur les 2 téléphones
+  // Ã‰TAPE 2 â€” Audio automatique silencieux sur les 2 tÃ©lÃ©phones
   let recorder: MediaRecorder | null = null
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -579,7 +579,7 @@ const activerProtocoleSilencieux = async (raison: string, adresse: string) => {
     recorder.start()
   } catch {}
 
-  // ÉTAPE 3 — Alerter l'admin immédiatement
+  // Ã‰TAPE 3 â€” Alerter l'admin immÃ©diatement
   await fetch('/api/sos', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -596,21 +596,21 @@ const activerProtocoleSilencieux = async (raison: string, adresse: string) => {
     }),
   })
 
-  // ÉTAPE 4 — Attendre 60 secondes PUIS demander "Tout va bien ?"
+  // Ã‰TAPE 4 â€” Attendre 60 secondes PUIS demander "Tout va bien ?"
   await new Promise(resolve => setTimeout(resolve, 60000))
   clearInterval(trackingInterval)
   if (recorder && recorder.state === 'recording') recorder.stop()
 
-  // ÉTAPE 5 — Afficher la question APRÈS 60 secondes d'audio
+  // Ã‰TAPE 5 â€” Afficher la question APRÃˆS 60 secondes d'audio
   const toutVaBien = window.confirm(
-    `🔔 Vérification de sécurité TIAK TIAK\n\n${raison}\n\nTout va bien ? Appuie OK si oui, Annuler si tu as besoin d'aide.`
+    `ðŸ”” VÃ©rification de sÃ©curitÃ© TIAK TIAK\n\n${raison}\n\nTout va bien ? Appuie OK si oui, Annuler si tu as besoin d'aide.`
   )
   if (!toutVaBien) {
     await declencherSOS('chauffeur')
   }
 }
 
-// Détection arrêt anormal
+// DÃ©tection arrÃªt anormal
 if (currentDriverRide && driverPhase === 'with_client') {
   const now = Date.now()
   if (!lastMovementRef.current) lastMovementRef.current = now
@@ -625,21 +625,21 @@ if (currentDriverRide && driverPhase === 'with_client') {
   } else if (now - lastMovementRef.current > 5 * 60 * 1000) {
     lastMovementRef.current = now // reset anti-spam
     activerProtocoleSilencieux(
-      'Arrêt anormal détecté',
-      `Immobile depuis 5 min — ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+      'ArrÃªt anormal dÃ©tectÃ©',
+      `Immobile depuis 5 min â€” ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
     )
   }
 }
 
-// Détection déviation d'itinéraire
+// DÃ©tection dÃ©viation d'itinÃ©raire
 if (routeCoords && routeCoords.length > 0) {
   const minDist = Math.min(...routeCoords.map(([rlat, rlng]: [number, number]) =>
     haversineDistance(latitude, longitude, rlat, rlng) * 1000
   ))
   if (minDist > 500) {
     activerProtocoleSilencieux(
-      'Déviation d\'itinéraire détectée',
-      `${Math.round(minDist)}m du tracé prévu`
+      'DÃ©viation d\'itinÃ©raire dÃ©tectÃ©e',
+      `${Math.round(minDist)}m du tracÃ© prÃ©vu`
     )
   }
 }
@@ -652,7 +652,7 @@ if (routeCoords && routeCoords.length > 0) {
     return () => { if (gpsWatchRef.current) navigator.geolocation.clearWatch(gpsWatchRef.current) }
   }, [isOnline, user, currentDriverRide, driverPhase, clientArrived, routeCoords])
 
-  // Surveiller les alertes SOS en temps réel côté client
+  // Surveiller les alertes SOS en temps rÃ©el cÃ´tÃ© client
 useEffect(() => {
   if (!currentClientRide?.id) return
   const sub = supabase
@@ -664,11 +664,11 @@ useEffect(() => {
       filter: `ride_id=eq.${currentClientRide.id}`,
     }, (payload: any) => {
       const alert = payload.new
-      if (alert.triggered_by_name?.includes('Déviation')) {
+      if (alert.triggered_by_name?.includes('DÃ©viation')) {
         setDeviationAlert(true)
         setTimeout(() => setDeviationAlert(false), 30000)
       }
-      if (alert.triggered_by_name?.includes('Arrêt')) {
+      if (alert.triggered_by_name?.includes('ArrÃªt')) {
         setArretAlert(true)
         setTimeout(() => setArretAlert(false), 30000)
       }
@@ -677,7 +677,7 @@ useEffect(() => {
   return () => { supabase.removeChannel(sub) }
 }, [currentClientRide?.id])
 
-// Surveiller les alertes SOS proches côté chauffeur
+// Surveiller les alertes SOS proches cÃ´tÃ© chauffeur
 useEffect(() => {
   if (user?.role !== 'chauffeur') return
   const sub = supabase
@@ -744,7 +744,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
           setPinInput('')
           setScreen('chauffeur_accueil')
           playTiakTiakSound()
-          speak("La course a été annulée par le client")
+          speak("La course a Ã©tÃ© annulÃ©e par le client")
           if (navigator.vibrate) navigator.vibrate([500, 200, 500])
         }
         if (incomingRide && updated.id === incomingRide.id && updated.status === 'cancelled') setIncomingRide(null)
@@ -783,24 +783,24 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
               setEstimatedArrival(Math.max(1, Math.round(dist * 3)))
             }
           }
-          speak(`Votre chauffeur ${driverData?.name || ''} arrive bientôt. Votre code PIN est ${updated.pin_code}`)
+          speak(`Votre chauffeur ${driverData?.name || ''} arrive bientÃ´t. Votre code PIN est ${updated.pin_code}`)
           setShowPinModal(true)
           setScreen('suivi')
         }
         if ((updated as any).driver_arrived_at && !driverArrived) {
           setDriverArrived(true)
           setDriverArrivedAt(Date.now())
-          speak("Votre chauffeur est arrivé. Donnez-lui votre code PIN.")
+          speak("Votre chauffeur est arrivÃ©. Donnez-lui votre code PIN.")
         }
         if ((updated as any).pin_wrong_attempt) {
           setPinWrongNotif(true)
-          speak("Attention ! Un mauvais code a été saisi. Vérifiez bien votre chauffeur.")
+          speak("Attention ! Un mauvais code a Ã©tÃ© saisi. VÃ©rifiez bien votre chauffeur.")
           setTimeout(() => setPinWrongNotif(false), 5000)
         }
-        if (updated.status === 'in_progress') speak("La course a démarré. Bon voyage !")
+        if (updated.status === 'in_progress') speak("La course a dÃ©marrÃ©. Bon voyage !")
         if (updated.status === 'completed') {
           setCurrentClientRide(updated)
-          speak("Vous êtes arrivé à destination. Merci d'avoir utilisé TIAK TIAK")
+          speak("Vous Ãªtes arrivÃ© Ã  destination. Merci d'avoir utilisÃ© TIAK TIAK")
           setScreen('checkin')
           loadFreqDests()
         }
@@ -828,11 +828,11 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     if (pinInput === currentDriverRide.pin_code) {
       await supabase.from('rides').update({ pin_verified: true } as any).eq('id', currentDriverRide.id)
       setShowPinEntry(false); setPinInput(''); setPinError(false)
-      speak("Code correct ! Vous pouvez démarrer la course.")
+      speak("Code correct ! Vous pouvez dÃ©marrer la course.")
     } else {
       setPinError(true); setPinInput('')
       await supabase.from('rides').update({ pin_wrong_attempt: true } as any).eq('id', currentDriverRide.id)
-      speak("Code incorrect. Demandez à nouveau au client.")
+      speak("Code incorrect. Demandez Ã  nouveau au client.")
       setTimeout(() => setPinError(false), 3000)
     }
   }
@@ -914,7 +914,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
         }
         const avgBrightness = totalBrightness / grays.length
         const dark = avgBrightness < 60
-        // Laplacian variance pour netteté
+        // Laplacian variance pour nettetÃ©
         let laplacianSum = 0
         const w = canvas.width
         for (let i = 1; i < canvas.height - 1; i++) {
@@ -978,15 +978,15 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
             return
           }
           if (dark) {
-            setAuthError('Photo trop sombre. Améliore l\'éclairage.')
+            setAuthError('Photo trop sombre. AmÃ©liore l\'Ã©clairage.')
             return
           }
           if (score < 3) {
-            setAuthError('Photo trop floue. Reprends en tenant le téléphone stable.')
+            setAuthError('Photo trop floue. Reprends en tenant le tÃ©lÃ©phone stable.')
             return
           }
           if (score < 6) {
-            setAuthError('Photo un peu floue mais acceptée. Essaie d\'avoir plus de lumière.')
+            setAuthError('Photo un peu floue mais acceptÃ©e. Essaie d\'avoir plus de lumiÃ¨re.')
           } else {
             setAuthError('')
           }
@@ -1067,17 +1067,17 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
       }).select('id').single()
       if (error) {
         if (error.code === '23505') {
-          setAuthError('Ce numéro est déjà utilisé. Connecte-toi.')
+          setAuthError('Ce numÃ©ro est dÃ©jÃ  utilisÃ©. Connecte-toi.')
           setAuthMode('login')
         } else {
-          setAuthError('Erreur de connexion. Réessaie.')
+          setAuthError('Erreur de connexion. RÃ©essaie.')
         }
         setAuthLoading(false)
         return
       }
       saveUser({ id: data.id, role: 'chauffeur', name: formName.trim(), phone: formPhone.trim() })
     } catch {
-      setAuthError('Erreur. Vérifie ta connexion et réessaie.')
+      setAuthError('Erreur. VÃ©rifie ta connexion et rÃ©essaie.')
     }
     setAuthLoading(false)
   }
@@ -1142,7 +1142,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
   const shareReferral = () => {
     const text = 'Rejoins TIAK TIAK ! https://tiak-tiak-zeta.vercel.app'
     if ((navigator as any).share) (navigator as any).share({ title: 'TIAK TIAK', text }).catch(() => {})
-    else if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => alert('Lien copié !')).catch(() => {})
+    else if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => alert('Lien copiÃ© !')).catch(() => {})
   }
 
   const declencherSOS = async (triggeredBy: 'client' | 'chauffeur') => {
@@ -1171,7 +1171,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
       if (emergencyPhone) {
         const mapsLink = `https://maps.google.com/?q=${pos?.lat},${pos?.lng}`
         const msg = encodeURIComponent(
-          `🚨 URGENCE TIAK TIAK\n${user?.name} a déclenché une alerte SOS !\n📍 Position : ${mapsLink}\n📍 Adresse : ${pos?.address || position.address}\n🛵 Course : ${currentRide?.from_address || ''} → ${currentRide?.to_address || ''}\nAppelle immédiatement !`
+          `ðŸš¨ URGENCE TIAK TIAK\n${user?.name} a dÃ©clenchÃ© une alerte SOS !\nðŸ“ Position : ${mapsLink}\nðŸ“ Adresse : ${pos?.address || position.address}\nðŸ›µ Course : ${currentRide?.from_address || ''} â†’ ${currentRide?.to_address || ''}\nAppelle immÃ©diatement !`
         )
         window.open(`https://wa.me/221${emergencyPhone.replace(/\s/g, '').replace(/^0/, '')}?text=${msg}`, '_blank')
       }
@@ -1197,7 +1197,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
         setTimeout(() => recorder.stop(), 120000) // 2 minutes d'enregistrement
       } catch {}
 
-      alert('🚨 SOS envoyé ! Ton contact d\'urgence et l\'admin TIAK TIAK ont été alertés.')
+      alert('ðŸš¨ SOS envoyÃ© ! Ton contact d\'urgence et l\'admin TIAK TIAK ont Ã©tÃ© alertÃ©s.')
     } catch {
       alert('Erreur SOS. Appelle directement le 17.')
     }
@@ -1205,23 +1205,23 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
 
   const commanderCourse = async () => {
     if (!selected || !user) return
-    // Vérifier si le client est blacklisté
+    // VÃ©rifier si le client est blacklistÃ©
     const { data: blackcheck } = await fetch(`/api/blacklist?phone=${user.phone}`).then(r => r.json()).catch(() => ({ blacklisted: false }))
     if (blackcheck?.blacklisted) {
-      alert('❌ Votre compte a été suspendu. Contactez le support TIAK TIAK.')
+      alert('âŒ Votre compte a Ã©tÃ© suspendu. Contactez le support TIAK TIAK.')
       return
     }
     if (position.lat === DEFAULT_POS.lat && position.lng === DEFAULT_POS.lng) {
-      alert('Active ta position en haut de l\'écran avant de commander.')
+      alert('Active ta position en haut de l\'Ã©cran avant de commander.')
       return
     }
     const hour = new Date().getHours()
     if (hour >= 22 || hour < 6) {
       if (!isVerified) {
-        alert('🌙 Mode nuit sécurisé actif — vérifie ton profil pour commander la nuit.')
+        alert('ðŸŒ™ Mode nuit sÃ©curisÃ© actif â€” vÃ©rifie ton profil pour commander la nuit.')
         return
       }
-      // Selfie de contrôle client aussi la nuit
+      // Selfie de contrÃ´le client aussi la nuit
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true })
         const track = stream.getVideoTracks()[0]
@@ -1230,9 +1230,9 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
         track.stop()
         const file = new File([blob], `controle_client_${user.phone}_${Date.now()}.jpg`, { type: 'image/jpeg' })
         await supabase.storage.from('selfies').upload(file.name, file)
-        alert('✅ Contrôle de nuit validé — bonne course !')
+        alert('âœ… ContrÃ´le de nuit validÃ© â€” bonne course !')
       } catch {
-        // Si caméra non disponible, on laisse passer (client vérifié suffit)
+        // Si camÃ©ra non disponible, on laisse passer (client vÃ©rifiÃ© suffit)
       }
     }
     setCommandLoading(true)
@@ -1271,8 +1271,8 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               tokens,
-              title: '🛵 Nouvelle course !',
-              body: `De ${position.address} → ${selected.name} — ${formatPrice(price)}`,
+              title: 'ðŸ›µ Nouvelle course !',
+              body: `De ${position.address} â†’ ${selected.name} â€” ${formatPrice(price)}`,
               data: { rideId: rideData?.id || '' },
             }),
           })
@@ -1292,26 +1292,26 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
 
   const demarrerSelfieAleatoire = () => {
     if (selfieCheckRef.current) clearTimeout(selfieCheckRef.current)
-    const delai = (30 + Math.random() * 15) * 60 * 1000 // 30-45 min aléatoire
+    const delai = (30 + Math.random() * 15) * 60 * 1000 // 30-45 min alÃ©atoire
     selfieCheckRef.current = setTimeout(async () => {
       if (!isOnline || !user?.id) return
       const repondu = { value: false }
       const timeout = setTimeout(async () => {
         if (!repondu.value) {
-          // Pas de réponse en 2 minutes — alerte admin
+          // Pas de rÃ©ponse en 2 minutes â€” alerte admin
           await fetch('/api/sos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ride_id: currentDriverRide?.id || null,
               triggered_by: 'systeme',
-              triggered_by_name: 'Selfie contrôle — pas de réponse',
+              triggered_by_name: 'Selfie contrÃ´le â€” pas de rÃ©ponse',
               triggered_by_phone: user.phone || '',
               other_party_name: '',
               other_party_phone: '',
               lat: driverPosition.lat,
               lng: driverPosition.lng,
-              address: 'Chauffeur ne répond pas au contrôle aléatoire',
+              address: 'Chauffeur ne rÃ©pond pas au contrÃ´le alÃ©atoire',
             }),
           })
         }
@@ -1328,7 +1328,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
         const file = new File([blob], `controle_aleatoire_${user.phone}_${Date.now()}.jpg`)
         await supabase.storage.from('selfies').upload(file.name, file)
         lastSelfieCheckRef.current = Date.now()
-        demarrerSelfieAleatoire() // relancer le prochain contrôle
+        demarrerSelfieAleatoire() // relancer le prochain contrÃ´le
       } catch {
         repondu.value = true
         clearTimeout(timeout)
@@ -1342,7 +1342,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     setOnlineLoading(true)
     const newStatus = !isOnline
 
-    // Mode nuit — selfie de contrôle obligatoire après 22h
+    // Mode nuit â€” selfie de contrÃ´le obligatoire aprÃ¨s 22h
     if (newStatus) {
       const hour = new Date().getHours()
       if (hour >= 22 || hour < 6) {
@@ -1355,13 +1355,13 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
           const file = new File([blob], `controle_${user.phone}_${Date.now()}.jpg`, { type: 'image/jpeg' })
           const { error } = await supabase.storage.from('selfies').upload(file.name, file)
           if (error) {
-            alert('❌ Selfie de contrôle requis pour conduire la nuit. Réessaie.')
+            alert('âŒ Selfie de contrÃ´le requis pour conduire la nuit. RÃ©essaie.')
             setOnlineLoading(false)
             return
           }
-          alert('✅ Selfie de contrôle validé — Bonne nuit de travail !')
+          alert('âœ… Selfie de contrÃ´le validÃ© â€” Bonne nuit de travail !')
         } catch {
-          alert('🌙 Mode nuit actif — selfie de contrôle requis. Autorise la caméra et réessaie.')
+          alert('ðŸŒ™ Mode nuit actif â€” selfie de contrÃ´le requis. Autorise la camÃ©ra et rÃ©essaie.')
           setOnlineLoading(false)
           return
         }
@@ -1385,14 +1385,14 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     const { data, error } = await supabase.from('rides')
       .update({ status: 'accepted', driver_id: user.id, accepted_at: new Date().toISOString(), commission: rideCommission })
       .eq('id', incomingRide.id).eq('status', 'pending').select().single()
-    if (error || !data) { alert('Course déjà prise !'); setIncomingRide(null) }
+    if (error || !data) { alert('Course dÃ©jÃ  prise !'); setIncomingRide(null) }
     else {
       setCurrentDriverRide(data as Ride); setIncomingRide(null)
       setNavStartPos(driverPosition)
       setDriverPhase('to_client'); setClientArrived(false); setRideCancelled(false)
       setShowPinEntry(false); setPinInput('')
       setScreen('driver_to_client')
-      speak(`Course acceptée. Direction ${data.from_address}`)
+      speak(`Course acceptÃ©e. Direction ${data.from_address}`)
     }
     setAcceptLoading(false)
   }
@@ -1404,7 +1404,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
       .update({ status: 'accepted', driver_id: user.id, accepted_at: new Date().toISOString(), commission: rideCommission })
       .eq('id', nextIncomingRide.id).eq('status', 'pending').select().single()
     if (!error && data) {
-      speak("Prochaine course confirmée !")
+      speak("Prochaine course confirmÃ©e !")
       setNextIncomingRide(data as Ride)
     }
     setShowNextRideBanner(false)
@@ -1417,7 +1417,7 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     await supabase.from('rides').update({ status: 'in_progress', started_at: new Date().toISOString() } as any).eq('id', currentDriverRide.id)
     setNavStartPos(driverPosition)
     setDriverPhase('with_client'); setScreen('driver_course')
-    speak(`Course démarrée. Direction ${currentDriverRide.to_address}`)
+    speak(`Course dÃ©marrÃ©e. Direction ${currentDriverRide.to_address}`)
   }
 
   const terminerCourse = async () => {
@@ -1501,20 +1501,20 @@ const [emergencyName, setEmergencyName] = useState('')
  const paymentLabel = (p: string) => {
     if (p === 'wave') return { icon: '/images/wave.png', name: 'Wave' }
     if (p === 'orange') return { icon: '/images/orange-money.png', name: 'Orange Money' }
-    return { icon: '💵', name: 'Especes' }
+    return { icon: 'ðŸ’µ', name: 'Especes' }
   }
 
   const languages = [
-    { code: 'fr', flag: '🇫🇷', name: 'Francais' },
-    { code: 'wo', flag: '🇸🇳', name: 'Wolof' },
-    { code: 'en', flag: '🇬🇧', name: 'English' },
-    { code: 'ar', flag: '🇸🇦', name: 'Arabe' },
-    { code: 'es', flag: '🇪🇸', name: 'Espagnol' },
+    { code: 'fr', flag: 'ðŸ‡«ðŸ‡·', name: 'Francais' },
+    { code: 'wo', flag: 'ðŸ‡¸ðŸ‡³', name: 'Wolof' },
+    { code: 'en', flag: 'ðŸ‡¬ðŸ‡§', name: 'English' },
+    { code: 'ar', flag: 'ðŸ‡¸ðŸ‡¦', name: 'Arabe' },
+    { code: 'es', flag: 'ðŸ‡ªðŸ‡¸', name: 'Espagnol' },
   ]
 
 const OfflineBanner = () => isOffline ? (
     <div className="fixed top-0 left-0 right-0 z-[100] py-2 text-center text-xs font-bold text-white" style={{ background: '#EF4444' }}>
-      📡 Connexion perdue — reconnexion en cours...
+      ðŸ“¡ Connexion perdue â€” reconnexion en cours...
     </div>
   ) : null
 
@@ -1535,7 +1535,7 @@ const OfflineBanner = () => isOffline ? (
         <div className="flex-1 flex flex-col items-center justify-center px-8 gap-5">
           <LogoIcon size={88} />
           <LogoWordmark size={38} onDark={false} />
-          <p className="text-gray-400 text-sm text-center">Transport moto rapide à votre service</p>
+          <p className="text-gray-400 text-sm text-center">Transport moto rapide Ã  votre service</p>
         </div>
         <div className="px-8 pb-10 space-y-3">
           <button onClick={() => { setAuthScreen('client'); setAuthMode('signup'); setAuthError(''); setFormName(''); setFormPhone('') }} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#0F5138' }}>
@@ -1602,9 +1602,9 @@ const OfflineBanner = () => isOffline ? (
               <div><label className="text-sm font-semibold text-gray-600">Couleur moto</label><input value={formColor} onChange={e => setFormColor(e.target.value)} placeholder="Ex: Rouge" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
                 <p className="font-bold text-sm mb-2" style={{ color: '#0F5138' }}>Commission</p>
-                <p className="text-xs text-gray-600">Moto &lt; 2000F → 100F · 2000-4999F → 200F · ≥5000F → 400F</p>
-                <p className="text-xs text-gray-600">Livraison &lt; 3000F → 200F · ≥3000F → 500F</p>
-                <p className="text-xs text-gray-600">Premium → 100F moto / 200F livraison fixe</p>
+                <p className="text-xs text-gray-600">Moto &lt; 2000F â†’ 100F Â· 2000-4999F â†’ 200F Â· â‰¥5000F â†’ 400F</p>
+                <p className="text-xs text-gray-600">Livraison &lt; 3000F â†’ 200F Â· â‰¥3000F â†’ 500F</p>
+                <p className="text-xs text-gray-600">Premium â†’ 100F moto / 200F livraison fixe</p>
               </div>
               {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
               <button onClick={() => { setAuthMode('login'); setAuthError('') }} className="w-full text-center text-sm" style={{ color: '#0F5138' }}>Deja inscrit ? Se connecter</button>
@@ -1643,22 +1643,22 @@ const OfflineBanner = () => isOffline ? (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
         <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
           <button onClick={() => setSelectedRide(null)}><ArrowLeft size={24} color="#0F5138" /></button>
-          <span className="font-bold text-black">Détail course</span>
+          <span className="font-bold text-black">DÃ©tail course</span>
         </header>
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>👤 Client</p>
+            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>ðŸ‘¤ Client</p>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Nom</span><span className="text-sm font-bold">{selectedRide.client_name || 'Inconnu'}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Telephone</span><span className="text-sm font-bold">{selectedRide.client_phone || 'Inconnu'}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">ID Client</span><span className="text-xs font-mono">{selectedRide.client_id || '-'}</span></div>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>🛵 Chauffeur</p>
-            <div className="flex justify-between"><span className="text-sm text-gray-500">ID Chauffeur</span><span className="text-xs font-mono">{selectedRide.driver_id || 'Non assigné'}</span></div>
-            <div className="flex justify-between"><span className="text-sm text-gray-500">PIN verifie</span><span className="text-sm font-bold">{selectedRide.pin_verified ? '✅ Oui' : '❌ Non'}</span></div>
+            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>ðŸ›µ Chauffeur</p>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">ID Chauffeur</span><span className="text-xs font-mono">{selectedRide.driver_id || 'Non assignÃ©'}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">PIN verifie</span><span className="text-sm font-bold">{selectedRide.pin_verified ? 'âœ… Oui' : 'âŒ Non'}</span></div>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>📍 Trajet</p>
+            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>ðŸ“ Trajet</p>
             <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: '#1DB954' }} /><span className="text-sm">{selectedRide.from_address}</span></div>
             <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-400" /><span className="text-sm">{selectedRide.to_address}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Distance</span><span className="text-sm font-bold">{selectedRide.distance_km} km</span></div>
@@ -1666,14 +1666,14 @@ const OfflineBanner = () => isOffline ? (
             <div className="flex justify-between"><span className="text-sm text-gray-500">Coordonnees arrivee</span><span className="text-xs font-mono">{selectedRide.to_lat?.toFixed(5)}, {selectedRide.to_lng?.toFixed(5)}</span></div>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>💰 Financier</p>
-            <div className="flex justify-between"><span className="text-sm text-gray-500">Service</span><span className="text-sm font-bold">{selectedRide.service_type === 'moto' ? '🏍️ Moto-taxi' : '📦 Livraison'}</span></div>
+            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>ðŸ’° Financier</p>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">Service</span><span className="text-sm font-bold">{selectedRide.service_type === 'moto' ? 'ðŸï¸ Moto-taxi' : 'ðŸ“¦ Livraison'}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Prix</span><span className="text-sm font-bold" style={{ color: '#0F5138' }}>{formatPrice(selectedRide.price)}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Commission</span><span className="text-sm font-bold text-orange-500">{formatPrice(selectedRide.commission || 0)}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Paiement</span><span className="text-sm font-bold">{paymentLabel(selectedRide.payment_method || 'cash').name}</span></div>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>ℹ️ Statut</p>
+            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>â„¹ï¸ Statut</p>
             <div className="flex justify-between"><span className="text-sm text-gray-500">ID Course</span><span className="text-xs font-mono">{selectedRide.id}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Statut</span><span className="text-sm font-bold">{statusLabel(selectedRide.status).text}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Date</span><span className="text-sm font-bold">{formatDate(selectedRide.created_at)}</span></div>
@@ -1681,7 +1681,7 @@ const OfflineBanner = () => isOffline ? (
           </div>
           {selectedRide.client_rating && (
             <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
-              <p className="font-bold text-sm" style={{ color: '#0F5138' }}>⭐ Évaluation</p>
+              <p className="font-bold text-sm" style={{ color: '#0F5138' }}>â­ Ã‰valuation</p>
               <div className="flex items-center gap-1">{[1,2,3,4,5].map(s => <Star key={s} size={16} color="#F59E0B" fill={s <= selectedRide.client_rating! ? '#F59E0B' : 'none'} />)}</div>
               {selectedRide.client_comment && <p className="text-sm text-gray-600 italic">&quot;{selectedRide.client_comment}&quot;</p>}
               {selectedRide.client_report && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">{REPORT_OPTIONS.find(r => r.id === selectedRide.client_report)?.label}</span>}
@@ -1699,32 +1699,32 @@ const OfflineBanner = () => isOffline ? (
         </header>
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="bg-white rounded-2xl p-6 shadow-sm flex flex-col items-center gap-3">
-            {selectedDriver.profile_photo ? <img src={selectedDriver.profile_photo} alt="Profil" className="w-24 h-24 rounded-full object-cover border-4" style={{ borderColor: '#0F5138' }} /> : <div className="w-24 h-24 rounded-full flex items-center justify-center text-4xl" style={{ background: '#0F5138' }}>🛵</div>}
+            {selectedDriver.profile_photo ? <img src={selectedDriver.profile_photo} alt="Profil" className="w-24 h-24 rounded-full object-cover border-4" style={{ borderColor: '#0F5138' }} /> : <div className="w-24 h-24 rounded-full flex items-center justify-center text-4xl" style={{ background: '#0F5138' }}>ðŸ›µ</div>}
             <div className="text-center">
               <div className="flex items-center gap-2 justify-center">
                 <p className="font-black text-xl">{selectedDriver.name}</p>
-                {selectedDriver.is_premium && <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#1D6BF5' }}>✓ PREMIUM</span>}
+                {selectedDriver.is_premium && <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#1D6BF5' }}>âœ“ PREMIUM</span>}
               </div>
               <div className="flex items-center gap-1 justify-center mt-1">
                 {[1,2,3,4,5].map(s => <Star key={s} size={14} color="#F59E0B" fill={s <= Math.round(selectedDriver.rating || 5) ? '#F59E0B' : 'none'} />)}
-                <span className="text-sm text-gray-500 ml-1">{(selectedDriver.rating || 5).toFixed(1)} • {selectedDriver.total_rides || 0} courses</span>
+                <span className="text-sm text-gray-500 ml-1">{(selectedDriver.rating || 5).toFixed(1)} â€¢ {selectedDriver.total_rides || 0} courses</span>
               </div>
             </div>
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Informations complètes</p>
+            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Informations complÃ¨tes</p>
             <div className="flex justify-between"><span className="text-sm text-gray-500">ID</span><span className="text-xs font-mono">{selectedDriver.id}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Telephone</span><span className="text-sm font-bold">{selectedDriver.phone}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Domicile</span><span className="text-sm font-bold text-right flex-1 ml-4">{selectedDriver.home_address || 'Non renseigne'}</span></div>
-            <div className="flex justify-between"><span className="text-sm text-gray-500">Moto</span><span className="text-sm font-bold">{selectedDriver.moto_type} • {selectedDriver.moto_color}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">Moto</span><span className="text-sm font-bold">{selectedDriver.moto_type} â€¢ {selectedDriver.moto_color}</span></div>
             <div className="flex justify-between"><span className="text-sm text-gray-500">Inscrit le</span><span className="text-sm font-bold">{formatDate(selectedDriver.created_at)}</span></div>
-            <div className="flex justify-between"><span className="text-sm text-gray-500">Statut</span><span className="text-sm font-bold">{selectedDriver.is_suspended ? '🔴 Suspendu' : selectedDriver.is_validated ? '🟢 Valide' : '🟡 En attente'}</span></div>
-            <div className="flex justify-between"><span className="text-sm text-gray-500">En ligne</span><span className="text-sm font-bold">{selectedDriver.is_online ? '🟢 Oui' : '⚫ Non'}</span></div>
-            <div className="flex justify-between"><span className="text-sm text-gray-500">3J Gratuits</span><span className="text-sm font-bold">{selectedDriver.free_trial_used ? (selectedDriver.free_trial_end && new Date(selectedDriver.free_trial_end) > new Date() ? `✅ Actif — ${formatCountdown(selectedDriver.free_trial_end)}` : '✅ Utilisé') : '❌ Non utilisé'}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">Statut</span><span className="text-sm font-bold">{selectedDriver.is_suspended ? 'ðŸ”´ Suspendu' : selectedDriver.is_validated ? 'ðŸŸ¢ Valide' : 'ðŸŸ¡ En attente'}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">En ligne</span><span className="text-sm font-bold">{selectedDriver.is_online ? 'ðŸŸ¢ Oui' : 'âš« Non'}</span></div>
+            <div className="flex justify-between"><span className="text-sm text-gray-500">3J Gratuits</span><span className="text-sm font-bold">{selectedDriver.free_trial_used ? (selectedDriver.free_trial_end && new Date(selectedDriver.free_trial_end) > new Date() ? `âœ… Actif â€” ${formatCountdown(selectedDriver.free_trial_end)}` : 'âœ… UtilisÃ©') : 'âŒ Non utilisÃ©'}</span></div>
             {selectedDriver.is_premium && selectedDriver.premium_expires_at && <div className="flex justify-between"><span className="text-sm text-gray-500">Premium expire</span><span className="text-sm font-bold text-blue-500">{new Date(selectedDriver.premium_expires_at).toLocaleDateString('fr-FR')}</span></div>}
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Pièce d&apos;identité</p>
+            <p className="font-bold text-sm" style={{ color: '#0F5138' }}>PiÃ¨ce d&apos;identitÃ©</p>
             <div className="grid grid-cols-2 gap-3">
               <div><p className="text-xs text-gray-400 mb-1">Recto</p>{selectedDriver.id_card_front ? <img src={selectedDriver.id_card_front} alt="CNI recto" className="w-full h-28 object-cover rounded-xl" /> : <div className="w-full h-28 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 text-xs">Non fourni</div>}</div>
               <div><p className="text-xs text-gray-400 mb-1">Verso</p>{selectedDriver.id_card_back ? <img src={selectedDriver.id_card_back} alt="CNI verso" className="w-full h-28 object-cover rounded-xl" /> : <div className="w-full h-28 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 text-xs">Non fourni</div>}</div>
@@ -1781,13 +1781,13 @@ const OfflineBanner = () => isOffline ? (
                 <button key={driver.id} onClick={() => setSelectedDriver(driver)} className="w-full bg-white rounded-2xl p-4 shadow-sm text-left">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      {driver.profile_photo ? <img src={driver.profile_photo} alt="" className="w-12 h-12 rounded-full object-cover" /> : <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}><span className="text-xl">🛵</span></div>}
-                      {driver.is_premium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs" style={{ background: '#1D6BF5' }}>✓</div>}
+                      {driver.profile_photo ? <img src={driver.profile_photo} alt="" className="w-12 h-12 rounded-full object-cover" /> : <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}><span className="text-xl">ðŸ›µ</span></div>}
+                      {driver.is_premium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs" style={{ background: '#1D6BF5' }}>âœ“</div>}
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-sm">{driver.name}</p>
-                      <p className="text-xs text-gray-400">{driver.phone} • {driver.moto_type}</p>
-                      <div className="flex items-center gap-1 mt-0.5"><Star size={10} color="#F59E0B" fill="#F59E0B" /><span className="text-xs text-gray-500">{(driver.rating || 5).toFixed(1)} • {driver.total_rides || 0} courses</span></div>
+                      <p className="text-xs text-gray-400">{driver.phone} â€¢ {driver.moto_type}</p>
+                      <div className="flex items-center gap-1 mt-0.5"><Star size={10} color="#F59E0B" fill="#F59E0B" /><span className="text-xs text-gray-500">{(driver.rating || 5).toFixed(1)} â€¢ {driver.total_rides || 0} courses</span></div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       {driver.is_suspended ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-500">Suspendu</span> : driver.is_validated ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-600">Valide</span> : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-600">En attente</span>}
@@ -1810,7 +1810,7 @@ const OfflineBanner = () => isOffline ? (
                 return (
                   <button key={ride.id} onClick={() => setSelectedRide(ride)} className="w-full bg-white rounded-2xl p-4 shadow-sm text-left space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm">{ride.service_type === 'moto' ? '🏍️' : '📦'} {ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span>
+                      <span className="font-bold text-sm">{ride.service_type === 'moto' ? 'ðŸï¸' : 'ðŸ“¦'} {ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span>
                       <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: st.color }}>{st.text}</span>
                     </div>
                     <div className="space-y-1">
@@ -1841,7 +1841,7 @@ const OfflineBanner = () => isOffline ? (
                         {driver.profile_photo ? <img src={driver.profile_photo} alt="" className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: '#0F5138' }}><Zap size={16} color="white" /></div>}
                         <div className="flex-1">
                           <p className="font-bold text-sm">{driver.name}</p>
-                          <p className="text-xs text-gray-400">{driver.phone} • {driver.moto_type}</p>
+                          <p className="text-xs text-gray-400">{driver.phone} â€¢ {driver.moto_type}</p>
                         </div>
                         <ChevronRight size={16} color="#D1D5DB" />
                       </button>
@@ -1850,7 +1850,7 @@ const OfflineBanner = () => isOffline ? (
                       <div className="flex items-center gap-1">{[1,2,3,4,5].map(s => <Star key={s} size={14} color="#F59E0B" fill={s <= (eval_.client_rating || 0) ? '#F59E0B' : 'none'} />)}<span className="text-xs font-bold ml-1" style={{ color: '#0F5138' }}>{eval_.client_rating}/5</span></div>
                       <span className="text-xs text-gray-400">{formatDate(eval_.created_at)}</span>
                     </div>
-                    <p className="text-xs text-gray-500">{eval_.from_address} → {eval_.to_address}</p>
+                    <p className="text-xs text-gray-500">{eval_.from_address} â†’ {eval_.to_address}</p>
                     {eval_.client_comment && <div className="rounded-xl p-3" style={{ background: '#F9FAFB' }}><p className="text-sm text-gray-700 italic">&quot;{eval_.client_comment}&quot;</p></div>}
                     {eval_.client_report && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">{REPORT_OPTIONS.find(r => r.id === eval_.client_report)?.label}</span>}
                   </div>
@@ -1860,7 +1860,7 @@ const OfflineBanner = () => isOffline ? (
           )}
           {adminTab === 'selfies' && (
             <div className="space-y-3">
-              <p className="font-black text-sm text-gray-800">🪪 Selfies à valider ({pendingSelfies.length})</p>
+              <p className="font-black text-sm text-gray-800">ðŸªª Selfies Ã  valider ({pendingSelfies.length})</p>
               {pendingSelfies.length === 0 && <p className="text-sm text-gray-400 text-center py-8">Aucun selfie en attente</p>}
               {pendingSelfies.map(u => (
                 <div key={u.id} className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
@@ -1875,11 +1875,11 @@ const OfflineBanner = () => isOffline ? (
                     <button onClick={async () => {
                       await supabase.from('users').update({ is_verified: true, verified_at: new Date().toISOString(), verification_status: 'approved' }).eq('id', u.id)
                       setPendingSelfies(prev => prev.filter(s => s.id !== u.id))
-                    }} className="flex-1 py-2 rounded-xl font-bold text-white text-sm" style={{ background: '#1DB954' }}>✅ Valider</button>
+                    }} className="flex-1 py-2 rounded-xl font-bold text-white text-sm" style={{ background: '#1DB954' }}>âœ… Valider</button>
                     <button onClick={async () => {
                       await supabase.from('users').update({ verification_status: 'rejected' }).eq('id', u.id)
                       setPendingSelfies(prev => prev.filter(s => s.id !== u.id))
-                    }} className="flex-1 py-2 rounded-xl font-bold text-white text-sm bg-red-500">❌ Rejeter</button>
+                    }} className="flex-1 py-2 rounded-xl font-bold text-white text-sm bg-red-500">âŒ Rejeter</button>
                   </div>
                 </div>
               ))}
@@ -1922,19 +1922,19 @@ const OfflineBanner = () => isOffline ? (
             </div>
             {isPremium && !freeTrialUsed && (
               <div className="rounded-2xl p-4 space-y-3" style={{ background: 'linear-gradient(135deg, #F59E0B, #EF4444)' }}>
-                <div className="flex items-center gap-2"><span className="text-2xl">🎯</span><div><p className="font-black text-white">3 Jours GRATUITS</p><p className="text-yellow-100 text-xs">Activer une seule fois </p></div></div>
+                <div className="flex items-center gap-2"><span className="text-2xl">ðŸŽ¯</span><div><p className="font-black text-white">3 Jours GRATUITS</p><p className="text-yellow-100 text-xs">Activer une seule fois </p></div></div>
                 <button onClick={activerFreeTrial} disabled={trialActivating} className="w-full py-3 rounded-xl font-black text-orange-600 bg-white">
-                  {trialActivating ? 'Activation...' : '🚀 Activer mes 3 jours gratuits'}
+                  {trialActivating ? 'Activation...' : 'ðŸš€ Activer mes 3 jours gratuits'}
                 </button>
               </div>
             )}
             {isPremium && freeTrialActive && freeTrialEnd && (
               <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
-                <p className="font-black text-sm" style={{ color: '#0F5138' }}>🎯 3J Gratuits actifs !</p>
+                <p className="font-black text-sm" style={{ color: '#0F5138' }}>ðŸŽ¯ 3J Gratuits actifs !</p>
                 <p className="text-2xl font-black mt-1" style={{ color: '#0F5138' }}>{formatCountdown(freeTrialEnd)}</p>
               </div>
             )}
-            {!isPremium && <button onClick={ouvrirWavePremium} className="w-full py-4 rounded-2xl font-black text-white text-lg flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg, #1D6BF5, #0F5138)' }}>📱 Souscrire via Wave — 5000 FCFA</button>}
+            {!isPremium && <button onClick={ouvrirWavePremium} className="w-full py-4 rounded-2xl font-black text-white text-lg flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg, #1D6BF5, #0F5138)' }}>ðŸ“± Souscrire via Wave â€” 5000 FCFA</button>}
             {isPremium && premiumExpiresAt && (
               <div className="bg-white rounded-2xl p-4 shadow-sm text-center">
                 <p className="text-xs text-gray-400">Premium actif jusqu&apos;au</p>
@@ -1942,7 +1942,7 @@ const OfflineBanner = () => isOffline ? (
                 <p className="text-xs text-gray-400 mt-1">Reste : {formatCountdown(premiumExpiresAt)}</p>
               </div>
             )}
-            <p className="text-xs text-gray-400 text-center px-4">Après paiement Wave, envoie une capture à l&apos;admin pour activation</p>
+            <p className="text-xs text-gray-400 text-center px-4">AprÃ¨s paiement Wave, envoie une capture Ã  l&apos;admin pour activation</p>
           </div>
         </div>
       </div>
@@ -1959,15 +1959,15 @@ const OfflineBanner = () => isOffline ? (
           <div className="flex gap-3">
             {[0,1,2,3].map(i => (
               <div key={i} className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black border-2" style={{ borderColor: pinError ? '#EF4444' : pinInput.length > i ? '#1DB954' : '#E5E7EB', background: pinInput.length > i ? '#E8F5E9' : 'white', color: '#0F5138' }}>
-                {pinInput.length > i ? '●' : ''}
+                {pinInput.length > i ? 'â—' : ''}
               </div>
             ))}
           </div>
-          {pinError && <p className="text-red-500 font-bold text-sm">❌ Code incorrect !</p>}
+          {pinError && <p className="text-red-500 font-bold text-sm">âŒ Code incorrect !</p>}
           <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
-            {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => (
+            {['1','2','3','4','5','6','7','8','9','','0','âŒ«'].map((k, i) => (
               <button key={i} onClick={() => {
-                if (k === '⌫') setPinInput(p => p.slice(0, -1))
+                if (k === 'âŒ«') setPinInput(p => p.slice(0, -1))
                 else if (k !== '' && pinInput.length < 4) setPinInput(p => p + k)
               }} className="h-14 rounded-2xl font-black text-xl flex items-center justify-center" style={{ background: k === '' ? 'transparent' : '#F5F5F5', color: '#111' }}>{k}</button>
             ))}
@@ -1980,8 +1980,8 @@ const OfflineBanner = () => isOffline ? (
     if (rideCancelled) return (
       <div className="fixed inset-0 flex flex-col items-center justify-center px-8 gap-6 bg-gray-100">
         <div className="w-24 h-24 rounded-full flex items-center justify-center bg-red-100"><XCircle size={48} color="#EF4444" /></div>
-        <h2 className="text-2xl font-black text-gray-800 text-center">Course annulée !</h2>
-        <p className="text-sm text-gray-500 text-center">Le client a annulé.</p>
+        <h2 className="text-2xl font-black text-gray-800 text-center">Course annulÃ©e !</h2>
+        <p className="text-sm text-gray-500 text-center">Le client a annulÃ©.</p>
         <button onClick={() => { setRideCancelled(false); setDriverTab('accueil') }} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>Retour au dashboard</button>
       </div>
     )
@@ -2012,13 +2012,13 @@ const OfflineBanner = () => isOffline ? (
             <div className="bg-white rounded-2xl p-5 shadow-sm text-center">
               <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: '#E8F5E9' }}><FileText size={28} color="#0F5138" /></div>
               <p className="font-black text-lg" style={{ color: '#0F5138' }}>Complete ton dossier</p>
-              <p className="text-gray-400 text-sm mt-1">Uploade tes documents pour être validé</p>
+              <p className="text-gray-400 text-sm mt-1">Uploade tes documents pour Ãªtre validÃ©</p>
             </div>
             <div className="bg-white rounded-2xl p-4 shadow-sm space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold text-gray-600">CNI Recto</p>
-                  {formIdFront && <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' }}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>Approuvé</span></div>}
+                  {formIdFront && <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' }}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>ApprouvÃ©</span></div>}
                 </div>
                 {formIdFront ? (
                   <div className="relative">
@@ -2039,7 +2039,7 @@ const OfflineBanner = () => isOffline ? (
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold text-gray-600">CNI Verso</p>
-                  {formIdBack && <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' }}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>Approuvé</span></div>}
+                  {formIdBack && <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' }}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>ApprouvÃ©</span></div>}
                 </div>
                 {formIdBack ? (
                   <div className="relative">
@@ -2060,7 +2060,7 @@ const OfflineBanner = () => isOffline ? (
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold text-gray-600">Photo de profil</p>
-                  {formProfilePhoto && <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' }}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>Approuvé</span></div>}
+                  {formProfilePhoto && <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' }}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>ApprouvÃ©</span></div>}
                 </div>
                 {formProfilePhoto ? (
                   <div className="relative flex justify-center">
@@ -2095,7 +2095,7 @@ const OfflineBanner = () => isOffline ? (
                   }).eq('id', user.id!)
                   setScreen('chauffeur_accueil')
                 } catch {
-                  setAuthError('Erreur upload. Vérifie ta connexion.')
+                  setAuthError('Erreur upload. VÃ©rifie ta connexion.')
                 }
                 setAuthLoading(false)
               }}
@@ -2119,10 +2119,10 @@ const OfflineBanner = () => isOffline ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 gap-4">
           <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: '#E8F5E9' }}><Clock size={40} color="#0F5138" /></div>
           <h2 className="text-xl font-black text-gray-800 text-center">Dossier en cours de validation</h2>
-          <p className="text-sm text-gray-500 text-center">Bonjour {user.name} ! Vérification sous 24h.</p>
+          <p className="text-sm text-gray-500 text-center">Bonjour {user.name} ! VÃ©rification sous 24h.</p>
           <div className="w-full rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
             <div className="flex items-center gap-2 mb-1"><Check size={14} color="#1DB954" /><span className="text-xs text-gray-600">Inscription soumise</span></div>
-            <div className="flex items-center gap-2 mb-1"><Clock size={14} color="#F59E0B" /><span className="text-xs text-gray-600">Vérification en cours</span></div>
+            <div className="flex items-center gap-2 mb-1"><Clock size={14} color="#F59E0B" /><span className="text-xs text-gray-600">VÃ©rification en cours</span></div>
             <div className="flex items-center gap-2"><Clock size={14} color="#D1D5DB" /><span className="text-xs text-gray-400">Activation du compte</span></div>
           </div>
           <a href={SUPPORT_WHATSAPP} target="_blank" rel="noreferrer" className="text-sm font-bold" style={{ color: '#0F5138' }}>Contacter le support</a>
@@ -2135,19 +2135,19 @@ const OfflineBanner = () => isOffline ? (
         <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6">
           <div className="relative flex items-center justify-center">
             <div className="absolute rounded-full" style={{ width: '140px', height: '140px', background: 'rgba(29,185,84,0.2)', animation: 'ping 1s cubic-bezier(0,0,0.2,1) infinite' }} />
-            <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}><span className="text-5xl">{incomingRide.service_type === 'livraison' ? '📦' : '🛵'}</span></div>
+            <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}><span className="text-5xl">{incomingRide.service_type === 'livraison' ? 'ðŸ“¦' : 'ðŸ›µ'}</span></div>
           </div>
           <div className="text-center">
             <p className="text-green-200 text-sm font-semibold mb-1">NOUVELLE {incomingRide.service_type === 'livraison' ? 'LIVRAISON' : 'COURSE'} !</p>
 {(incomingRide as any).client_is_verified && (
   <div className="flex items-center gap-1 bg-green-400 bg-opacity-20 px-3 py-1 rounded-full mb-1">
     <CheckCircle size={12} color="#1DB954" />
-    <span className="text-xs font-bold text-green-300">Client vérifié ✓</span>
+    <span className="text-xs font-bold text-green-300">Client vÃ©rifiÃ© âœ“</span>
   </div>
 )}
             <h2 className="text-2xl font-black text-white mb-1">{formatPrice(incomingRide.price)}</h2>
-            <p className="text-green-200 text-sm">{incomingRide.distance_km} km • {incomingRide.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</p>
-            <p className="text-green-300 text-xs mt-1">Commission : {freeTrialActive ? '0 FCFA 🎉' : formatPrice(calculateCommission(incomingRide.price, isPremium, incomingRide.service_type as 'moto' | 'livraison'))}</p>
+            <p className="text-green-200 text-sm">{incomingRide.distance_km} km â€¢ {incomingRide.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</p>
+            <p className="text-green-300 text-xs mt-1">Commission : {freeTrialActive ? '0 FCFA ðŸŽ‰' : formatPrice(calculateCommission(incomingRide.price, isPremium, incomingRide.service_type as 'moto' | 'livraison'))}</p>
           </div>
           <div className="w-full rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.1)' }}>
             <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full" style={{ background: '#1DB954' }} /><div><p className="text-green-200 text-xs">Client</p><p className="text-white text-sm font-semibold">{incomingRide.from_address}</p></div></div>
@@ -2155,8 +2155,8 @@ const OfflineBanner = () => isOffline ? (
           </div>
         </div>
         <div className="p-6 space-y-3">
-          <button onClick={accepterCourse} disabled={acceptLoading} className="w-full py-4 rounded-2xl font-black text-lg" style={{ background: '#1DB954', color: '#0F5138' }}>{acceptLoading ? 'Acceptation...' : '✅ Accepter'}</button>
-          <button onClick={refuserCourse} className="w-full py-4 rounded-2xl font-bold text-white border-2" style={{ borderColor: 'rgba(255,255,255,0.3)' }}>❌ Refuser</button>
+          <button onClick={accepterCourse} disabled={acceptLoading} className="w-full py-4 rounded-2xl font-black text-lg" style={{ background: '#1DB954', color: '#0F5138' }}>{acceptLoading ? 'Acceptation...' : 'âœ… Accepter'}</button>
+          <button onClick={refuserCourse} className="w-full py-4 rounded-2xl font-bold text-white border-2" style={{ borderColor: 'rgba(255,255,255,0.3)' }}>âŒ Refuser</button>
         </div>
       </div>
     )
@@ -2167,8 +2167,8 @@ const OfflineBanner = () => isOffline ? (
           <div className="fixed top-0 left-0 right-0 z-50 p-3" style={{ background: '#1DB954' }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white font-black text-sm">{nextIncomingRide.service_type === 'livraison' ? '📦' : '🛵'} Nouvelle {nextIncomingRide.service_type === 'livraison' ? 'livraison' : 'course'} !</p>
-                <p className="text-green-100 text-xs">{formatPrice(nextIncomingRide.price)} • {nextIncomingRide.to_address}</p>
+                <p className="text-white font-black text-sm">{nextIncomingRide.service_type === 'livraison' ? 'ðŸ“¦' : 'ðŸ›µ'} Nouvelle {nextIncomingRide.service_type === 'livraison' ? 'livraison' : 'course'} !</p>
+                <p className="text-green-100 text-xs">{formatPrice(nextIncomingRide.price)} â€¢ {nextIncomingRide.to_address}</p>
               </div>
               <div className="flex gap-2">
                 <button onClick={accepterCourseSuivante} className="px-3 py-1.5 rounded-xl font-black text-xs bg-white" style={{ color: '#0F5138' }}>Accepter</button>
@@ -2178,7 +2178,7 @@ const OfflineBanner = () => isOffline ? (
           </div>
         )}
         <header className="px-4 py-3 flex items-center justify-between" style={{ background: '#0F5138', marginTop: showNextRideBanner ? '68px' : '0' }}>
-          <div><p className="text-white font-black">{currentDriverRide.service_type === 'livraison' ? '📦 Vers le client' : '🛵 Vers le client'}</p><p className="text-green-200 text-xs truncate">{currentDriverRide.from_address}</p></div>
+          <div><p className="text-white font-black">{currentDriverRide.service_type === 'livraison' ? 'ðŸ“¦ Vers le client' : 'ðŸ›µ Vers le client'}</p><p className="text-green-200 text-xs truncate">{currentDriverRide.from_address}</p></div>
           <span className="text-green-200 text-sm font-bold">{formatPrice(currentDriverRide.price)}</span>
         </header>
         <div className="flex-1 overflow-y-auto">
@@ -2194,7 +2194,7 @@ const OfflineBanner = () => isOffline ? (
             </div>
             {clientArrived ? (
               <div className="rounded-2xl p-4" style={{ background: '#E8F5E9' }}>
-                <p className="font-black text-base mb-1" style={{ color: '#0F5138' }}>✅ Arrivé ! Demandez le code PIN</p>
+                <p className="font-black text-base mb-1" style={{ color: '#0F5138' }}>âœ… ArrivÃ© ! Demandez le code PIN</p>
               </div>
             ) : (
               <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
@@ -2204,7 +2204,7 @@ const OfflineBanner = () => isOffline ? (
             )}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(currentDriverRide.price)}</p><p className="text-xs text-gray-400">Prix</p></div>
-              <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: freeTrialActive ? '#1DB954' : '#F59E0B' }}>{freeTrialActive ? '0F 🎉' : formatPrice(currentDriverRide.commission || 0)}</p><p className="text-xs text-gray-400">Commission</p></div>
+              <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: freeTrialActive ? '#1DB954' : '#F59E0B' }}>{freeTrialActive ? '0F ðŸŽ‰' : formatPrice(currentDriverRide.commission || 0)}</p><p className="text-xs text-gray-400">Commission</p></div>
             </div>
              <button onClick={async () => {
   try {
@@ -2216,21 +2216,21 @@ const OfflineBanner = () => isOffline ? (
       const blob = new Blob(chunks, { type: 'audio/webm' })
       const file = new File([blob], `audio_course_${currentDriverRide?.id}_${Date.now()}.webm`)
       await supabase.storage.from('sos-audio').upload(file.name, file)
-      alert('✅ Audio enregistré et sauvegardé.')
+      alert('âœ… Audio enregistrÃ© et sauvegardÃ©.')
     }
     recorder.start()
-    alert('🎙️ Enregistrement démarré — il s\'arrêtera dans 5 minutes.')
+    alert('ðŸŽ™ï¸ Enregistrement dÃ©marrÃ© â€” il s\'arrÃªtera dans 5 minutes.')
     setTimeout(() => { recorder.stop(); stream.getTracks().forEach(t => t.stop()) }, 5 * 60 * 1000)
   } catch {
-    alert('❌ Autorise le micro pour activer l\'enregistrement.')
+    alert('âŒ Autorise le micro pour activer l\'enregistrement.')
   }
 }} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#6B7280' }}>
-  🎙️ Activer enregistrement audio
+  ðŸŽ™ï¸ Activer enregistrement audio
   <button onClick={async () => {
   const types = ['danger', 'vol', 'agression', 'accident']
-  const type = prompt('Type de danger :\n1. Danger général\n2. Vol\n3. Agression\n4. Accident\n\nEntre le numéro :')
+  const type = prompt('Type de danger :\n1. Danger gÃ©nÃ©ral\n2. Vol\n3. Agression\n4. Accident\n\nEntre le numÃ©ro :')
   const zoneType = types[(parseInt(type || '1') - 1)] || 'danger'
-  const desc = prompt('Décris brièvement la situation (optionnel) :') || ''
+  const desc = prompt('DÃ©cris briÃ¨vement la situation (optionnel) :') || ''
   try {
     const res = await fetch('/api/danger-zones', {
       method: 'POST',
@@ -2245,15 +2245,15 @@ const OfflineBanner = () => isOffline ? (
       }),
     })
     const data = await res.json()
-    alert(`✅ ${data.message || 'Zone signalée avec succès !'}`)
+    alert(`âœ… ${data.message || 'Zone signalÃ©e avec succÃ¨s !'}`)
   } catch {
-    alert('❌ Erreur lors du signalement.')
+    alert('âŒ Erreur lors du signalement.')
   }
 }} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#F59E0B' }}>
-  ⚠️ Signaler zone dangereuse
+  âš ï¸ Signaler zone dangereuse
 </button>
 </button>
-            <button onClick={() => declencherSOS('chauffeur')} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> 🚨 SOS Urgence</button>
+            <button onClick={() => declencherSOS('chauffeur')} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> ðŸš¨ SOS Urgence</button>
           </div>
         </div>
         {clientArrived && (
@@ -2272,8 +2272,8 @@ const OfflineBanner = () => isOffline ? (
           <div className="fixed top-0 left-0 right-0 z-50 p-3" style={{ background: '#1DB954' }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white font-black text-sm">{nextIncomingRide.service_type === 'livraison' ? '📦' : '🛵'} Prochaine {nextIncomingRide.service_type === 'livraison' ? 'livraison' : 'course'} !</p>
-                <p className="text-green-100 text-xs">{formatPrice(nextIncomingRide.price)} • {nextIncomingRide.to_address}</p>
+                <p className="text-white font-black text-sm">{nextIncomingRide.service_type === 'livraison' ? 'ðŸ“¦' : 'ðŸ›µ'} Prochaine {nextIncomingRide.service_type === 'livraison' ? 'livraison' : 'course'} !</p>
+                <p className="text-green-100 text-xs">{formatPrice(nextIncomingRide.price)} â€¢ {nextIncomingRide.to_address}</p>
               </div>
               <div className="flex gap-2">
                 <button onClick={accepterCourseSuivante} className="px-3 py-1.5 rounded-xl font-black text-xs bg-white" style={{ color: '#0F5138' }}>Accepter</button>
@@ -2283,7 +2283,7 @@ const OfflineBanner = () => isOffline ? (
           </div>
         )}
         <header className="px-4 py-3 flex items-center justify-between" style={{ background: '#0F5138', marginTop: showNextRideBanner ? '68px' : '0' }}>
-          <div><p className="text-white font-black">{currentDriverRide.service_type === 'livraison' ? '📦 Livraison en cours' : '🛵 Course en cours'}</p><p className="text-green-200 text-xs truncate">{currentDriverRide.to_address}</p></div>
+          <div><p className="text-white font-black">{currentDriverRide.service_type === 'livraison' ? 'ðŸ“¦ Livraison en cours' : 'ðŸ›µ Course en cours'}</p><p className="text-green-200 text-xs truncate">{currentDriverRide.to_address}</p></div>
           <span className="text-green-200 text-sm font-bold">{formatPrice(currentDriverRide.price)}</span>
         </header>
         <div className="flex-1 overflow-y-auto">
@@ -2297,9 +2297,9 @@ const OfflineBanner = () => isOffline ? (
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: '#0F5138' }}>{formatPrice(currentDriverRide.price)}</p><p className="text-xs text-gray-400">Prix</p></div>
-              <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: freeTrialActive ? '#1DB954' : '#F59E0B' }}>{freeTrialActive ? '0F 🎉' : formatPrice(currentDriverRide.commission || 0)}</p><p className="text-xs text-gray-400">Commission</p></div>
+              <div className="bg-white rounded-2xl p-3 shadow-sm text-center"><p className="text-xl font-black" style={{ color: freeTrialActive ? '#1DB954' : '#F59E0B' }}>{freeTrialActive ? '0F ðŸŽ‰' : formatPrice(currentDriverRide.commission || 0)}</p><p className="text-xs text-gray-400">Commission</p></div>
             </div>
-            <button onClick={() => declencherSOS('chauffeur')} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> 🚨 SOS Urgence</button>
+            <button onClick={() => declencherSOS('chauffeur')} className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> ðŸš¨ SOS Urgence</button>
           </div>
         </div>
         <div className="p-4 bg-white border-t border-gray-100">
@@ -2315,7 +2315,7 @@ const OfflineBanner = () => isOffline ? (
         <header className="px-4 py-3 flex items-center justify-between" style={{ background: '#0F5138' }}>
           <div className="flex items-center gap-2">
             <span className="text-xl font-black italic text-white">TIAK TIAK</span>
-            {isPremium && <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#1D6BF5' }}>✓ PREMIUM</span>}
+            {isPremium && <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#1D6BF5' }}>âœ“ PREMIUM</span>}
             {freeTrialActive && <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#F59E0B' }}>3J GRATUITS</span>}
           </div>
           <button onClick={logout} className="flex items-center gap-1 text-green-200 text-sm"><LogOut size={16} /> Quitter</button>
@@ -2332,23 +2332,23 @@ const OfflineBanner = () => isOffline ? (
             <>
               <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden" style={{ background: '#0F5138' }}><span className="text-2xl">🛵</span></div>
-                  {isPremium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black" style={{ background: '#1D6BF5' }}>✓</div>}
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden" style={{ background: '#0F5138' }}><span className="text-2xl">ðŸ›µ</span></div>
+                  {isPremium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black" style={{ background: '#1D6BF5' }}>âœ“</div>}
                 </div>
                 <div className="flex-1">
                   <p className="font-black text-base">{user.name}</p>
                   <div className="flex items-center gap-1">
                     {[1,2,3,4,5].map(s => <Star key={s} size={11} color="#F59E0B" fill={s <= Math.round(driverStats.rating) ? '#F59E0B' : 'none'} />)}
-                    <span className="text-xs text-gray-500 ml-1">{driverStats.rating.toFixed(1)} • {driverStats.totalRides} courses</span>
+                    <span className="text-xs text-gray-500 ml-1">{driverStats.rating.toFixed(1)} â€¢ {driverStats.totalRides} courses</span>
                   </div>
-                  {freeTrialActive && freeTrialEnd && <p className="text-xs font-bold text-orange-500 mt-0.5">🎯 {formatCountdown(freeTrialEnd)} gratuits restants</p>}
-                  {isPremium && <p className="text-xs font-bold mt-0.5" style={{ color: '#1D6BF5' }}>⚡ Priorité 1 min sur les courses</p>}
+                  {freeTrialActive && freeTrialEnd && <p className="text-xs font-bold text-orange-500 mt-0.5">ðŸŽ¯ {formatCountdown(freeTrialEnd)} gratuits restants</p>}
+                  {isPremium && <p className="text-xs font-bold mt-0.5" style={{ color: '#1D6BF5' }}>âš¡ PrioritÃ© 1 min sur les courses</p>}
                 </div>
               </div>
 
               <div className="bg-white rounded-2xl p-5 shadow-sm flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-base">{isOnline ? '🟢 En ligne' : '⚫ Hors ligne'}</p>
+                  <p className="font-bold text-base">{isOnline ? 'ðŸŸ¢ En ligne' : 'âš« Hors ligne'}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{isOnline ? 'Tu recois moto-taxi et livraisons' : 'Active pour recevoir'}</p>
                 </div>
                 <button onClick={toggleOnline} disabled={onlineLoading} className="w-16 h-8 rounded-full relative flex items-center" style={{ background: isOnline ? '#1DB954' : '#D1D5DB' }}>
@@ -2359,7 +2359,7 @@ const OfflineBanner = () => isOffline ? (
               {isOnline ? (
                 <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
                   <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: '#1DB954' }} />
-                  <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>En attente de courses 🛵 et livraisons 📦...</p>
+                  <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>En attente de courses ðŸ›µ et livraisons ðŸ“¦...</p>
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl p-4 shadow-sm text-center py-8">
@@ -2377,27 +2377,27 @@ const OfflineBanner = () => isOffline ? (
                     </div>
                     <AlertCircle size={24} color="#F59E0B" />
                   </div>
-                  <button onClick={ouvrirWaveCommission} className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#1D6BF5' }}>📱 Payer avec Wave</button>
+                  <button onClick={ouvrirWaveCommission} className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#1D6BF5' }}>ðŸ“± Payer avec Wave</button>
                 </div>
               )}
 
               <button onClick={() => setScreen('premium_page')} className="w-full rounded-2xl p-4 flex items-center gap-3" style={{ background: isPremium ? 'linear-gradient(135deg, #1D6BF5, #0a4db5)' : 'linear-gradient(135deg, #1D6BF5, #0F5138)' }}>
                 <Award size={24} color="white" />
                 <div className="flex-1 text-left">
-                  <p className="font-black text-white">{isPremium ? '✓ PREMIUM ACTIF' : 'Passe en Premium !'}</p>
-                  <p className="text-blue-100 text-xs">{isPremium ? (premiumExpiresAt ? `Expire le ${new Date(premiumExpiresAt).toLocaleDateString('fr-FR')}` : '') : '5 000 FCFA/mois • Priorité + commission reduite'}</p>
+                  <p className="font-black text-white">{isPremium ? 'âœ“ PREMIUM ACTIF' : 'Passe en Premium !'}</p>
+                  <p className="text-blue-100 text-xs">{isPremium ? (premiumExpiresAt ? `Expire le ${new Date(premiumExpiresAt).toLocaleDateString('fr-FR')}` : '') : '5 000 FCFA/mois â€¢ PrioritÃ© + commission reduite'}</p>
                 </div>
                 <ChevronRight size={20} color="rgba(255,255,255,0.7)" />
               </button>
 
-              <a href="tel:+221755535030" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> SOS — Urgence</a>
+              <a href="tel:+221755535030" className="w-full py-3 rounded-2xl font-bold text-white flex items-center justify-center gap-2 bg-red-500"><AlertCircle size={18} /> SOS â€” Urgence</a>
             </>
           )}
 
           {driverTab === 'gains' && (
             <>
               <h2 className="font-bold text-gray-700">Mes gains</h2>
-              {freeTrialActive && <div className="rounded-2xl p-3" style={{ background: '#E8F5E9' }}><p className="text-sm font-bold" style={{ color: '#0F5138' }}>🎯 Commission 0 FCFA actif !</p></div>}
+              {freeTrialActive && <div className="rounded-2xl p-3" style={{ background: '#E8F5E9' }}><p className="text-sm font-bold" style={{ color: '#0F5138' }}>ðŸŽ¯ Commission 0 FCFA actif !</p></div>}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white rounded-2xl p-4 shadow-sm"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{driverStats.todayRides}</p><p className="text-xs text-gray-400">Courses aujourd&apos;hui</p></div>
@@ -2433,12 +2433,12 @@ const OfflineBanner = () => isOffline ? (
 
               {!freeTrialActive && driverStats.todayCommission > 0 && (
                 <button onClick={ouvrirWaveCommission} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: '#1D6BF5' }}>
-                  📱 Payer {formatPrice(driverStats.todayCommission)} via Wave
+                  ðŸ“± Payer {formatPrice(driverStats.todayCommission)} via Wave
                 </button>
               )}
 
               <button onClick={() => setScreen('premium_page')} className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2" style={{ background: 'linear-gradient(135deg, #1D6BF5, #0F5138)' }}>
-                <Award size={18} /> {isPremium ? 'Voir mon plan Premium' : 'Passer Premium — 5000F/mois'}
+                <Award size={18} /> {isPremium ? 'Voir mon plan Premium' : 'Passer Premium â€” 5000F/mois'}
               </button>
             </>
           )}
@@ -2451,7 +2451,7 @@ const OfflineBanner = () => isOffline ? (
                 return (
                   <div key={ride.id} className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm">{ride.service_type === 'moto' ? '🏍️' : '📦'} {ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span>
+                      <span className="font-bold text-sm">{ride.service_type === 'moto' ? 'ðŸï¸' : 'ðŸ“¦'} {ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span>
                       <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: st.color }}>{st.text}</span>
                     </div>
                     <div className="space-y-1">
@@ -2525,7 +2525,7 @@ const OfflineBanner = () => isOffline ? (
         {pinWrongNotif && (
           <div className="fixed top-4 left-4 right-4 z-50 rounded-2xl p-4 flex items-center gap-3" style={{ background: '#EF4444' }}>
             <AlertCircle size={24} color="white" />
-            <div><p className="text-white font-black text-sm">⚠️ Mauvais code saisi !</p><p className="text-red-100 text-xs">Vérifiez bien votre chauffeur</p></div>
+            <div><p className="text-white font-black text-sm">âš ï¸ Mauvais code saisi !</p><p className="text-red-100 text-xs">VÃ©rifiez bien votre chauffeur</p></div>
           </div>
         )}
         {showPinModal && (
@@ -2533,7 +2533,7 @@ const OfflineBanner = () => isOffline ? (
             <div className="bg-white rounded-3xl p-6 mx-6 text-center space-y-4">
               <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ background: '#E8F5E9' }}><Lock size={28} color="#0F5138" /></div>
               <h3 className="font-black text-xl" style={{ color: '#0F5138' }}>Votre code PIN</h3>
-              <p className="text-gray-500 text-sm">Donnez ce code à votre chauffeur</p>
+              <p className="text-gray-500 text-sm">Donnez ce code Ã  votre chauffeur</p>
               <div className="flex gap-3 justify-center">
                 {clientPinCode.split('').map((d, i) => (
                   <div key={i} className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black border-2" style={{ borderColor: '#1DB954', background: '#E8F5E9', color: '#0F5138' }}>{d}</div>
@@ -2549,21 +2549,21 @@ const OfflineBanner = () => isOffline ? (
         <div className="flex-1 overflow-y-auto">
           <div className="px-4 py-3 flex items-center justify-between" style={{ background: driverArrived ? '#1DB954' : '#0F5138' }}>
             <div>
-              {driverArrived ? <p className="text-white font-black text-lg">🎉 Chauffeur arrivé !</p> : <p className="text-white font-black text-lg">Arrive dans ~{estimatedArrival} min</p>}
-              <p className="text-green-200 text-sm">{distanceToClient > 0 ? `${distanceToClient} km • ` : ''}{driverMotoType} {driverMotoColor}</p>
+              {driverArrived ? <p className="text-white font-black text-lg">ðŸŽ‰ Chauffeur arrivÃ© !</p> : <p className="text-white font-black text-lg">Arrive dans ~{estimatedArrival} min</p>}
+              <p className="text-green-200 text-sm">{distanceToClient > 0 ? `${distanceToClient} km â€¢ ` : ''}{driverMotoType} {driverMotoColor}</p>
             </div>
             <a href={`tel:+221${driverPhone.replace(/\s/g, '')}`} className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}><Phone size={22} color="white" /></a>
           </div>
           <div className="p-4 space-y-3">
             <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-4">
               <div className="relative">
-                {driverProfilePhoto ? <img src={driverProfilePhoto} alt="Chauffeur" className="w-16 h-16 rounded-full object-cover border-2" style={{ borderColor: '#0F5138' }} /> : <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl" style={{ background: '#0F5138' }}>🛵</div>}
-                {driverIsPremium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black" style={{ background: '#1D6BF5' }}>✓</div>}
+                {driverProfilePhoto ? <img src={driverProfilePhoto} alt="Chauffeur" className="w-16 h-16 rounded-full object-cover border-2" style={{ borderColor: '#0F5138' }} /> : <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl" style={{ background: '#0F5138' }}>ðŸ›µ</div>}
+                {driverIsPremium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-black" style={{ background: '#1D6BF5' }}>âœ“</div>}
               </div>
               <div className="flex-1">
-                <div className="flex items-center gap-1"><p className="font-black text-lg">{driverName}</p>{driverIsPremium && <span className="text-xs font-black px-1.5 py-0.5 rounded-full text-white" style={{ background: '#1D6BF5' }}>✓</span>}</div>
+                <div className="flex items-center gap-1"><p className="font-black text-lg">{driverName}</p>{driverIsPremium && <span className="text-xs font-black px-1.5 py-0.5 rounded-full text-white" style={{ background: '#1D6BF5' }}>âœ“</span>}</div>
                 <div className="flex items-center gap-1 mt-0.5">{[1,2,3,4,5].map(s => <Star key={s} size={13} color="#F59E0B" fill={s <= Math.round(driverRating) ? '#F59E0B' : 'none'} />)}<span className="text-sm font-bold text-gray-600 ml-1">{driverRating.toFixed(1)}</span></div>
-                <p className="text-xs text-gray-400 mt-0.5">{driverMotoType} • {driverMotoColor}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{driverMotoType} â€¢ {driverMotoColor}</p>
               </div>
               <a href={`tel:+221${driverPhone.replace(/\s/g, '')}`} className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: '#E8F5E9' }}><Phone size={18} color="#0F5138" /></a>
             </div>
@@ -2596,13 +2596,13 @@ const OfflineBanner = () => isOffline ? (
 
             {driverArrived ? (
               <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
-                <span className="text-2xl">🎉</span>
-                <p className="text-sm font-bold" style={{ color: '#0F5138' }}>Ton chauffeur est là ! Donne-lui ton PIN.</p>
+                <span className="text-2xl">ðŸŽ‰</span>
+                <p className="text-sm font-bold" style={{ color: '#0F5138' }}>Ton chauffeur est lÃ  ! Donne-lui ton PIN.</p>
               </div>
             ) : (
               <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#E8F5E9' }}>
                 <div className="w-3 h-3 rounded-full animate-pulse flex-shrink-0" style={{ background: '#1DB954' }} />
-                <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>Le chauffeur se dirige vers toi... 🛵</p>
+                <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>Le chauffeur se dirige vers toi... ðŸ›µ</p>
               </div>
             )}
             <button onClick={() => setScreen('annulation_suivi')} className="w-full py-3 rounded-2xl font-bold text-red-500 border-2 border-red-100 bg-white text-sm">Annuler la course</button>
@@ -2624,7 +2624,7 @@ const OfflineBanner = () => isOffline ? (
         <div className="text-center mb-2"><XCircle size={48} color="#EF4444" className="mx-auto mb-3" /><p className="font-bold text-gray-800">Pourquoi veux-tu annuler ?</p></div>
         {cancellationFeeApplies && (
           <div className="rounded-2xl p-4" style={{ background: '#FEF3C7' }}>
-            <p className="text-sm font-bold text-orange-700">⚠️ Frais d&apos;annulation</p>
+            <p className="text-sm font-bold text-orange-700">âš ï¸ Frais d&apos;annulation</p>
             <p className="text-xs text-orange-600 mt-1">Ton chauffeur attend depuis plus de 3 minutes. En cas d&apos;annulation, merci de lui donner 200 FCFA en especes pour le deplacement.</p>
           </div>
         )}
@@ -2654,8 +2654,8 @@ const OfflineBanner = () => isOffline ? (
         <CheckCircle size={48} color="white" />
       </div>
       <div className="text-center">
-        <h2 className="text-2xl font-black text-white mb-2">Tu es arrivé(e) !</h2>
-        <p className="text-green-200 text-sm">Es-tu bien arrivé(e) en sécurité ?</p>
+        <h2 className="text-2xl font-black text-white mb-2">Tu es arrivÃ©(e) !</h2>
+        <p className="text-green-200 text-sm">Es-tu bien arrivÃ©(e) en sÃ©curitÃ© ?</p>
       </div>
       <div className="w-full space-y-3">
         <button
@@ -2666,8 +2666,8 @@ const OfflineBanner = () => isOffline ? (
           Oui, tout va bien
         </button>
        {emergencyPhone && (
-          <a href={`https://wa.me/${emergencyPhone.replace(/\s/g, '').replace(/^0/, '221')}?text=${encodeURIComponent(`⚠️ J'ai un problème, je viens d'arriver avec un TIAK TIAK à ${currentClientRide?.to_address || 'destination'}. Appelle-moi !`)}`} target="_blank" rel="noreferrer" className="w-full py-4 rounded-2xl font-bold text-white border-2 flex items-center justify-center" style={{ borderColor: 'rgba(255,255,255,0.3)' }}>
-            J&apos;ai un problème
+          <a href={`https://wa.me/${emergencyPhone.replace(/\s/g, '').replace(/^0/, '221')}?text=${encodeURIComponent(`âš ï¸ J'ai un problÃ¨me, je viens d'arriver avec un TIAK TIAK Ã  ${currentClientRide?.to_address || 'destination'}. Appelle-moi !`)}`} target="_blank" rel="noreferrer" className="w-full py-4 rounded-2xl font-bold text-white border-2 flex items-center justify-center" style={{ borderColor: 'rgba(255,255,255,0.3)' }}>
+            J&apos;ai un problÃ¨me
           </a>
         )}
       </div>
@@ -2684,17 +2684,17 @@ const OfflineBanner = () => isOffline ? (
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3">
           <div className="relative">
-            {driverProfilePhoto ? <img src={driverProfilePhoto} alt="Chauffeur" className="w-14 h-14 rounded-full object-cover" /> : <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl" style={{ background: '#0F5138' }}>🛵</div>}
-            {driverIsPremium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs" style={{ background: '#1D6BF5' }}>✓</div>}
+            {driverProfilePhoto ? <img src={driverProfilePhoto} alt="Chauffeur" className="w-14 h-14 rounded-full object-cover" /> : <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl" style={{ background: '#0F5138' }}>ðŸ›µ</div>}
+            {driverIsPremium && <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs" style={{ background: '#1D6BF5' }}>âœ“</div>}
           </div>
-          <div><p className="font-black text-base">{driverName}</p><p className="text-sm text-gray-400">{driverMotoType} • {driverMotoColor}</p></div>
+          <div><p className="font-black text-base">{driverName}</p><p className="text-sm text-gray-400">{driverMotoType} â€¢ {driverMotoColor}</p></div>
         </div>
         <div className="bg-white rounded-2xl p-5 shadow-sm">
           <p className="font-bold text-sm text-gray-700 mb-3 text-center">Comment etait ta course ?</p>
           <div className="flex justify-center gap-3">
             {[1,2,3,4,5].map(s => <button key={s} onClick={() => setClientRating(s)}><Star size={36} color="#F59E0B" fill={s <= clientRating ? '#F59E0B' : 'none'} strokeWidth={1.5} /></button>)}
           </div>
-          {clientRating > 0 && <p className="text-center text-sm font-bold mt-2" style={{ color: '#0F5138' }}>{clientRating === 5 ? 'Excellent ! 🎉' : clientRating === 4 ? 'Tres bien 👍' : clientRating === 3 ? 'Correct' : clientRating === 2 ? 'Peut mieux faire' : 'Mauvais 😞'}</p>}
+          {clientRating > 0 && <p className="text-center text-sm font-bold mt-2" style={{ color: '#0F5138' }}>{clientRating === 5 ? 'Excellent ! ðŸŽ‰' : clientRating === 4 ? 'Tres bien ðŸ‘' : clientRating === 3 ? 'Correct' : clientRating === 2 ? 'Peut mieux faire' : 'Mauvais ðŸ˜ž'}</p>}
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <p className="font-bold text-sm text-gray-700 mb-2">Commentaire (optionnel)</p>
@@ -2728,8 +2728,8 @@ const OfflineBanner = () => isOffline ? (
   <div className="absolute top-20 left-4 right-4 z-50 bg-red-600 text-white rounded-2xl p-4 shadow-xl flex items-center gap-3">
     <AlertCircle size={24} color="white" />
     <div className="flex-1">
-      <p className="font-black text-sm">⚠️ Déviation détectée</p>
-      <p className="text-xs text-red-100">Ton chauffeur a quitté l'itinéraire prévu</p>
+      <p className="font-black text-sm">âš ï¸ DÃ©viation dÃ©tectÃ©e</p>
+      <p className="text-xs text-red-100">Ton chauffeur a quittÃ© l'itinÃ©raire prÃ©vu</p>
     </div>
     <button onClick={() => declencherSOS('client')} className="bg-white text-red-600 px-3 py-1 rounded-xl font-bold text-xs">SOS</button>
   </div>
@@ -2738,7 +2738,7 @@ const OfflineBanner = () => isOffline ? (
   <div className="absolute top-20 left-4 right-4 z-50 bg-orange-500 text-white rounded-2xl p-4 shadow-xl flex items-center gap-3">
     <AlertCircle size={24} color="white" />
     <div className="flex-1">
-      <p className="font-black text-sm">⏸️ Arrêt anormal</p>
+      <p className="font-black text-sm">â¸ï¸ ArrÃªt anormal</p>
       <p className="text-xs text-orange-100">Ton chauffeur est immobile depuis 5 minutes</p>
     </div>
     <button onClick={() => declencherSOS('client')} className="bg-white text-orange-600 px-3 py-1 rounded-xl font-bold text-xs">SOS</button>
@@ -2752,7 +2752,7 @@ const OfflineBanner = () => isOffline ? (
         <div className="relative flex items-center justify-center">
           <div className="absolute rounded-full" style={{ width: '160px', height: '160px', background: 'rgba(29,185,84,0.15)', animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite' }} />
           <div className="absolute rounded-full" style={{ width: '120px', height: '120px', background: 'rgba(29,185,84,0.2)', animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite', animationDelay: '0.5s' }} />
-          <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}><span className="text-5xl">{service === 'livraison' ? '📦' : '🛵'}</span></div>
+          <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}><span className="text-5xl">{service === 'livraison' ? 'ðŸ“¦' : 'ðŸ›µ'}</span></div>
         </div>
         <div className="text-center"><h2 className="text-2xl font-black text-white mb-2">Recherche en cours...</h2><p className="text-green-200 text-sm">Nous cherchons le chauffeur le plus proche</p></div>
         {selected && (
@@ -2761,8 +2761,8 @@ const OfflineBanner = () => isOffline ? (
             <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full bg-red-400" /><div><p className="text-green-200 text-xs">Destination</p><p className="text-white text-sm font-semibold">{selected.name}</p></div></div>
             {isFirstRide && (
               <div className="rounded-xl p-2 flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.15)' }}>
-                <span className="text-lg">🎉</span>
-                <span className="text-white text-xs font-bold">-10% appliqué — Première course !</span>
+                <span className="text-lg">ðŸŽ‰</span>
+                <span className="text-white text-xs font-bold">-10% appliquÃ© â€” PremiÃ¨re course !</span>
               </div>
             )}
             <div className="border-t border-white border-opacity-20 pt-3 flex justify-between"><span className="text-green-200 text-sm">Prix</span><span className="text-white font-black text-lg">{formatPrice(price)}</span></div>
@@ -2771,7 +2771,7 @@ const OfflineBanner = () => isOffline ? (
                 <div key={i} className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black" style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>{d}</div>
               ))}
             </div>
-            <p className="text-green-200 text-xs text-center">Ton code PIN — garde-le pour ton chauffeur</p>
+            <p className="text-green-200 text-xs text-center">Ton code PIN â€” garde-le pour ton chauffeur</p>
           </div>
         )}
         <div className="flex gap-2">{[0,1,2].map(i => <div key={i} className="w-3 h-3 rounded-full bg-white animate-bounce" style={{ animationDelay: `${i * 0.2}s`, opacity: 0.8 }} />)}</div>
@@ -2820,7 +2820,7 @@ const OfflineBanner = () => isOffline ? (
       <div className="flex-1 overflow-y-auto">
         {!query && freqDests.length > 0 && (
           <div className="p-4">
-            <p className="text-xs font-bold text-gray-400 mb-3">DESTINATIONS FRÉQUENTES</p>
+            <p className="text-xs font-bold text-gray-400 mb-3">DESTINATIONS FRÃ‰QUENTES</p>
             {freqDests.map((dest, i) => (
               <button key={i} onClick={() => selectFreqDest(dest)} className="w-full flex items-center gap-3 py-3 border-b border-gray-50 text-left">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#E8F5E9' }}><Clock size={18} color="#0F5138" /></div>
@@ -2834,11 +2834,11 @@ const OfflineBanner = () => isOffline ? (
         {!loading && results.map((place, i) => (
           <button key={i} onClick={() => selectPlace(place)} className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 text-left">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl" style={{ background: '#F3F4F6' }}>
-              {place.icon || '📍'}
+              {place.icon || 'ðŸ“'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm text-black truncate">{place.name}</p>
-              <p className="text-xs text-gray-400 truncate">{place.category ? `${place.category} · ` : ''}{place.address}</p>
+              <p className="text-xs text-gray-400 truncate">{place.category ? `${place.category} Â· ` : ''}{place.address}</p>
             </div>
             {place.distance !== undefined && (
               <span className="text-xs text-gray-400 font-medium flex-shrink-0">
@@ -2854,10 +2854,10 @@ const OfflineBanner = () => isOffline ? (
   )
 
   if (screen === 'confirm' && selected) {
-    const methods = [{ id: 'cash', icon: '💵', name: 'Especes' }, { id: 'wave', icon: '/images/wave.png', name: 'Wave' }, { id: 'orange', icon: '/images/orange-money.png', name: 'Orange Money' }]
+    const methods = [{ id: 'cash', icon: 'ðŸ’µ', name: 'Especes' }, { id: 'wave', icon: '/images/wave.png', name: 'Wave' }, { id: 'orange', icon: '/images/orange-money.png', name: 'Orange Money' }]
     return (
       <div className="fixed inset-0 bg-gray-100">
-        {/* ===== CARTE PLEIN ÉCRAN (comme Yango) ===== */}
+        {/* ===== CARTE PLEIN Ã‰CRAN (comme Yango) ===== */}
         <div className="absolute inset-0 z-0">
           <MapView fromLat={position.lat} fromLng={position.lng} toLat={selected.lat} toLng={selected.lng} nearbyDrivers={nearbyDrivers} showNearby={true} bottomOffset={320} onDuration={(seconds) => setOsrmEta(Math.max(1, Math.round(seconds / 60)))}
                 dangerZones={dangerZones} />
@@ -2873,7 +2873,7 @@ const OfflineBanner = () => isOffline ? (
           <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: demandLevel === 'high' ? '#EF4444' : demandLevel === 'medium' ? '#F59E0B' : '#1DB954' }}>
             <Zap size={11} color="white" fill="white" />
           </div>
-          <span className="text-xs font-bold" style={{ color: '#111' }}>{demandLevel === 'high' ? 'Forte' : demandLevel === 'medium' ? 'Modérée' : 'Normale'}</span>
+          <span className="text-xs font-bold" style={{ color: '#111' }}>{demandLevel === 'high' ? 'Forte' : demandLevel === 'medium' ? 'ModÃ©rÃ©e' : 'Normale'}</span>
         </button>
 
         {/* ===== BOTTOM SHEET par-dessus la carte ===== */}
@@ -2882,14 +2882,14 @@ const OfflineBanner = () => isOffline ? (
           <div className="flex-1 overflow-y-auto px-4 pt-3 pb-2 space-y-3">
             {nearbyDrivers.length > 0 && (
               <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: '#E8F5E9' }}>
-                <span className="text-lg">🛵</span>
-                <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>{nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} dispo • Plus proche : {nearbyDrivers[0].eta} min</p>
+                <span className="text-lg">ðŸ›µ</span>
+                <p className="text-sm font-semibold" style={{ color: '#0F5138' }}>{nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} dispo â€¢ Plus proche : {nearbyDrivers[0].eta} min</p>
               </div>
             )}
             {isFirstRide && (
               <div className="rounded-2xl p-3 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #F59E0B, #1DB954)' }}>
-                <span className="text-lg">🎉</span>
-                <p className="text-sm font-bold text-white">-10% sur ta première course !</p>
+                <span className="text-lg">ðŸŽ‰</span>
+                <p className="text-sm font-bold text-white">-10% sur ta premiÃ¨re course !</p>
               </div>
             )}
             <div className="bg-gray-50 rounded-2xl p-4">
@@ -2902,7 +2902,7 @@ const OfflineBanner = () => isOffline ? (
                 <div className="pb-2 flex flex-col items-center">
                   <span className="font-bold text-sm" style={{ color: service === 'moto' ? '#0F5138' : '#9CA3AF' }}>Moto-taxi</span>
                   {nearbyDrivers.length > 0 && nearbyDrivers[0].eta <= 3 ? (
-                    <span className="text-xs font-black px-2 py-0.5 rounded-full text-white mt-0.5" style={{ background: '#1DB954' }}>⚡ RAPIDE • {nearbyDrivers[0].eta} min</span>
+                    <span className="text-xs font-black px-2 py-0.5 rounded-full text-white mt-0.5" style={{ background: '#1DB954' }}>âš¡ RAPIDE â€¢ {nearbyDrivers[0].eta} min</span>
                   ) : (
                     <span className="text-xs text-gray-400">{nearbyDrivers.length > 0 ? nearbyDrivers[0].eta : 2} min</span>
                   )}
@@ -2948,7 +2948,7 @@ const OfflineBanner = () => isOffline ? (
                     <circle cx="19" cy="24" r="2" fill="rgba(255,255,255,0.7)"/>
                     <path d="M9 11 L4 9 M17 11 L22 9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
                   </svg>
-                  Commander — {paymentLabel(payment).icon} {paymentLabel(payment).name}
+                  Commander â€” {paymentLabel(payment).icon} {paymentLabel(payment).name}
                 </>
               )}
             </button>
@@ -2966,8 +2966,8 @@ const OfflineBanner = () => isOffline ? (
                 <button onClick={() => setShowDemandSheet(false)}><X size={22} color="#9CA3AF" /></button>
               </div>
               <div>
-                <h3 className="text-xl font-black text-gray-900 mb-2">{demandLevel === 'high' ? 'Prix un peu plus élevé' : 'Niveau de demande'}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{demandLevel === 'high' ? "Il y a actuellement plus de commandes que de chauffeurs disponibles dans cette zone. Les prix augmentent légèrement pour inciter plus de chauffeurs à se rendre disponibles." : "La demande est actuellement équilibrée dans ta zone. Les prix sont normaux."}</p>
+                <h3 className="text-xl font-black text-gray-900 mb-2">{demandLevel === 'high' ? 'Prix un peu plus Ã©levÃ©' : 'Niveau de demande'}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{demandLevel === 'high' ? "Il y a actuellement plus de commandes que de chauffeurs disponibles dans cette zone. Les prix augmentent lÃ©gÃ¨rement pour inciter plus de chauffeurs Ã  se rendre disponibles." : "La demande est actuellement Ã©quilibrÃ©e dans ta zone. Les prix sont normaux."}</p>
               </div>
               <button onClick={() => setShowDemandSheet(false)} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: '#0F5138' }}>
                 J&apos;ai compris
@@ -2983,13 +2983,13 @@ const OfflineBanner = () => isOffline ? (
   <div className="fixed inset-0 flex flex-col bg-gray-100">
     <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
       <button onClick={() => setScreen('accueil')}><ArrowLeft size={24} color="#0F5138" /></button>
-      <span className="font-bold text-black">Centre de sécurité 🛡️</span>
+      <span className="font-bold text-black">Centre de sÃ©curitÃ© ðŸ›¡ï¸</span>
     </header>
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
-      {/* Numéros d'urgence */}
+      {/* NumÃ©ros d'urgence */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">
-        <p className="font-black text-sm text-gray-800 mb-3">🚨 Numéros d'urgence</p>
+        <p className="font-black text-sm text-gray-800 mb-3">ðŸš¨ NumÃ©ros d'urgence</p>
         <div className="space-y-2">
           <a href="tel:17" className="flex items-center justify-between p-3 bg-red-50 rounded-xl">
             <div className="flex items-center gap-3"><Phone size={18} color="#DC2626" /><div><p className="font-bold text-sm text-red-600">Police Secours</p><p className="text-xs text-gray-400">Appel gratuit 24h/24</p></div></div>
@@ -3000,7 +3000,7 @@ const OfflineBanner = () => isOffline ? (
             <span className="text-2xl font-black text-orange-600">18</span>
           </a>
           <a href="tel:15" className="flex items-center justify-between p-3 bg-blue-50 rounded-xl">
-            <div className="flex items-center gap-3"><Phone size={18} color="#1D6BF5" /><div><p className="font-bold text-sm text-blue-600">SAMU</p><p className="text-xs text-gray-400">Urgences médicales</p></div></div>
+            <div className="flex items-center gap-3"><Phone size={18} color="#1D6BF5" /><div><p className="font-bold text-sm text-blue-600">SAMU</p><p className="text-xs text-gray-400">Urgences mÃ©dicales</p></div></div>
             <span className="text-2xl font-black text-blue-600">15</span>
           </a>
           <a href={SUPPORT_WHATSAPP} target="_blank" className="flex items-center justify-between p-3 bg-green-50 rounded-xl">
@@ -3010,37 +3010,37 @@ const OfflineBanner = () => isOffline ? (
         </div>
       </div>
 
-      {/* Statut vérification */}
+      {/* Statut vÃ©rification */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">
-        <p className="font-black text-sm text-gray-800 mb-3">✅ Mon statut de sécurité</p>
+        <p className="font-black text-sm text-gray-800 mb-3">âœ… Mon statut de sÃ©curitÃ©</p>
         <div className="space-y-2">
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-            <div className="flex items-center gap-2"><CheckCircle size={16} color={isVerified ? '#1DB954' : '#9CA3AF'} /><span className="text-sm font-medium">Profil vérifié</span></div>
-            <span className={`text-xs font-bold px-2 py-1 rounded-full ${isVerified ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>{isVerified ? 'Vérifié ✓' : 'Non vérifié'}</span>
+            <div className="flex items-center gap-2"><CheckCircle size={16} color={isVerified ? '#1DB954' : '#9CA3AF'} /><span className="text-sm font-medium">Profil vÃ©rifiÃ©</span></div>
+            <span className={`text-xs font-bold px-2 py-1 rounded-full ${isVerified ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>{isVerified ? 'VÃ©rifiÃ© âœ“' : 'Non vÃ©rifiÃ©'}</span>
           </div>
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-            <div className="flex items-center gap-2"><Phone size={16} color="#1DB954" /><span className="text-sm font-medium">Numéro confirmé</span></div>
-            <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-600">Confirmé ✓</span>
+            <div className="flex items-center gap-2"><Phone size={16} color="#1DB954" /><span className="text-sm font-medium">NumÃ©ro confirmÃ©</span></div>
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-600">ConfirmÃ© âœ“</span>
           </div>
         </div>
       </div>
 
-      {/* Conseils de sécurité */}
+      {/* Conseils de sÃ©curitÃ© */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">
-        <p className="font-black text-sm text-gray-800 mb-3">💡 Conseils de sécurité</p>
+        <p className="font-black text-sm text-gray-800 mb-3">ðŸ’¡ Conseils de sÃ©curitÃ©</p>
         <div className="space-y-2 text-sm text-gray-600">
-          <div className="flex items-start gap-2 p-2"><span>🛵</span><span>Vérifie toujours la plaque et la couleur de la moto avant de monter</span></div>
-          <div className="flex items-start gap-2 p-2"><span>📱</span><span>Partage ton trajet avec un proche avant de démarrer</span></div>
-          <div className="flex items-start gap-2 p-2"><span>🌙</span><span>La nuit, préfère les zones éclairées pour ta prise en charge</span></div>
-          <div className="flex items-start gap-2 p-2"><span>🔴</span><span>En cas de danger, utilise le bouton SOS dans l'app</span></div>
-          <div className="flex items-start gap-2 p-2"><span>📸</span><span>Note le numéro du chauffeur visible dans l'app avant de démarrer</span></div>
+          <div className="flex items-start gap-2 p-2"><span>ðŸ›µ</span><span>VÃ©rifie toujours la plaque et la couleur de la moto avant de monter</span></div>
+          <div className="flex items-start gap-2 p-2"><span>ðŸ“±</span><span>Partage ton trajet avec un proche avant de dÃ©marrer</span></div>
+          <div className="flex items-start gap-2 p-2"><span>ðŸŒ™</span><span>La nuit, prÃ©fÃ¨re les zones Ã©clairÃ©es pour ta prise en charge</span></div>
+          <div className="flex items-start gap-2 p-2"><span>ðŸ”´</span><span>En cas de danger, utilise le bouton SOS dans l'app</span></div>
+          <div className="flex items-start gap-2 p-2"><span>ðŸ“¸</span><span>Note le numÃ©ro du chauffeur visible dans l'app avant de dÃ©marrer</span></div>
         </div>
       </div>
 
       {/* Mode nuit */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center gap-2 mb-2"><span>🌙</span><p className="font-black text-sm text-gray-800">Mode nuit sécurisé</p></div>
-        <p className="text-xs text-gray-500">Après 22h, seuls les profils vérifiés peuvent commander. Cette protection est automatique et s'applique pour ta sécurité et celle des chauffeurs.</p>
+        <div className="flex items-center gap-2 mb-2"><span>ðŸŒ™</span><p className="font-black text-sm text-gray-800">Mode nuit sÃ©curisÃ©</p></div>
+        <p className="text-xs text-gray-500">AprÃ¨s 22h, seuls les profils vÃ©rifiÃ©s peuvent commander. Cette protection est automatique et s'applique pour ta sÃ©curitÃ© et celle des chauffeurs.</p>
       </div>
 
     </div>
@@ -3061,12 +3061,12 @@ const OfflineBanner = () => isOffline ? (
           {isVerified ? (
   <div className="mt-2 flex items-center gap-1 bg-green-50 px-3 py-1.5 rounded-full">
     <CheckCircle size={14} color="#1DB954" />
-    <span className="text-xs font-bold text-green-600">Profil vérifié ✓</span>
+    <span className="text-xs font-bold text-green-600">Profil vÃ©rifiÃ© âœ“</span>
   </div>
 ) : user?.verification_status === 'pending' ? (
   <div className="mt-2 flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-full">
     <AlertCircle size={14} color="#F59E0B" />
-    <span className="text-xs font-bold text-yellow-600">Vérification en cours...</span>
+    <span className="text-xs font-bold text-yellow-600">VÃ©rification en cours...</span>
   </div>
 ) : (  <button onClick={async () => {
     try {
@@ -3080,15 +3080,15 @@ const OfflineBanner = () => isOffline ? (
       if (!error && data) {
         const { data: url } = supabase.storage.from('selfies').getPublicUrl(file.name)
         await supabase.from('users').update({ verification_selfie: url.publicUrl, verification_status: 'pending' }).eq('id', user!.id)
-        alert('✅ Selfie envoyé ! Ton profil sera vérifié par l\'admin sous 24h.')
+        alert('âœ… Selfie envoyÃ© ! Ton profil sera vÃ©rifiÃ© par l\'admin sous 24h.')
       }
     } catch {
       await supabase.from('users').update({ verification_status: 'pending' }).eq('id', user!.id)
-      alert('✅ Demande envoyée ! Ton profil sera vérifié par l\'admin sous 24h.')
+      alert('âœ… Demande envoyÃ©e ! Ton profil sera vÃ©rifiÃ© par l\'admin sous 24h.')
     }
   }} className="mt-2 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-full">
     <Shield size={14} color="#1D6BF5" />
-    <span className="text-xs font-bold text-blue-600">Vérifier mon profil</span>
+    <span className="text-xs font-bold text-blue-600">VÃ©rifier mon profil</span>
   </button>
 )}
         </div>
@@ -3096,9 +3096,9 @@ const OfflineBanner = () => isOffline ? (
           <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-2xl font-black" style={{ color: '#0F5138' }}>{clientTotalRides}</p><p className="text-xs text-gray-400">Courses</p></div>
           <div className="bg-white rounded-2xl p-4 shadow-sm text-center">
             {clientTotalRides === 0 ? (
-              <><p className="text-lg font-black" style={{ color: '#1DB954' }}>🎉 -10%</p><p className="text-xs text-gray-400">1ère course</p></>
+              <><p className="text-lg font-black" style={{ color: '#1DB954' }}>ðŸŽ‰ -10%</p><p className="text-xs text-gray-400">1Ã¨re course</p></>
             ) : (
-              <><p className="text-2xl font-black" style={{ color: '#0F5138' }}>🛵</p><p className="text-xs text-gray-400">Membre TIAK TIAK</p></>
+              <><p className="text-2xl font-black" style={{ color: '#0F5138' }}>ðŸ›µ</p><p className="text-xs text-gray-400">Membre TIAK TIAK</p></>
             )}
           </div>
         </div>
@@ -3108,11 +3108,11 @@ const OfflineBanner = () => isOffline ? (
             <p className="font-bold text-sm" style={{ color: '#0F5138' }}>Contact d&apos;urgence SOS</p>
           </div>
           <input value={emergencyName} onChange={e => setEmergencyName(e.target.value)} placeholder="Nom du contact" className="w-full px-4 py-3 bg-gray-100 rounded-xl outline-none text-sm" />
-          <input value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)} placeholder="Téléphone (ex: 77 123 45 67)" className="w-full px-4 py-3 bg-gray-100 rounded-xl outline-none text-sm" />
+          <input value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)} placeholder="TÃ©lÃ©phone (ex: 77 123 45 67)" className="w-full px-4 py-3 bg-gray-100 rounded-xl outline-none text-sm" />
           <button onClick={async () => {
             if (!user?.id) return
             await supabase.from('users').update({ emergency_contact_name: emergencyName.trim(), emergency_contact_phone: emergencyPhone.trim() }).eq('id', user.id)
-            alert('Contact d\'urgence sauvegardé !')
+            alert('Contact d\'urgence sauvegardÃ© !')
           }} className="w-full py-3 rounded-2xl font-bold text-white text-sm" style={{ background: '#0F5138' }}>
             Sauvegarder
           </button>
@@ -3129,7 +3129,7 @@ const OfflineBanner = () => isOffline ? (
   )
 
   if (screen === 'paiement') {
-    const methods = [{ id: 'cash', icon: '💵', name: 'Especes', desc: 'Payer en liquide au chauffeur' }, { id: 'wave', icon: '/images/wave.png', name: 'Wave', desc: 'Paiement mobile Wave' }, { id: 'orange', icon: '/images/orange-money.png', name: 'Orange Money', desc: 'Paiement mobile Orange' }]
+    const methods = [{ id: 'cash', icon: 'ðŸ’µ', name: 'Especes', desc: 'Payer en liquide au chauffeur' }, { id: 'wave', icon: '/images/wave.png', name: 'Wave', desc: 'Paiement mobile Wave' }, { id: 'orange', icon: '/images/orange-money.png', name: 'Orange Money', desc: 'Paiement mobile Orange' }]
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
         <header className="bg-white px-4 py-4 flex items-center gap-3 border-b border-gray-100">
@@ -3174,12 +3174,12 @@ const OfflineBanner = () => isOffline ? (
 
   if (screen === 'aide') {
     const faqs = [
-      { q: 'Comment commander ?', a: 'Choisis ta destination, vérifie le prix, puis appuie sur Commander.' },
-      { q: "C'est quoi le code PIN ?", a: 'Un code 4 chiffres envoyé après acceptation. Donne-le au chauffeur pour confirmer ton identité.' },
-      { q: 'Badge bleu ?', a: 'Le ✓ bleu = chauffeur Premium certifié par TIAK TIAK.' },
+      { q: 'Comment commander ?', a: 'Choisis ta destination, vÃ©rifie le prix, puis appuie sur Commander.' },
+      { q: "C'est quoi le code PIN ?", a: 'Un code 4 chiffres envoyÃ© aprÃ¨s acceptation. Donne-le au chauffeur pour confirmer ton identitÃ©.' },
+      { q: 'Badge bleu ?', a: 'Le âœ“ bleu = chauffeur Premium certifiÃ© par TIAK TIAK.' },
       { q: 'Zones couvertes ?', a: 'Tout le Senegal : Dakar, Thies, Touba, Saint-Louis, Kaolack...' },
-      { q: 'Comment partager mon trajet ?', a: "Sur l'écran de suivi, appuie sur Partager pour envoyer ta position à un proche." },
-      { q: 'La réduction -10% ?', a: "Automatiquement appliquée sur ta toute première course. Aucun code à entrer." },
+      { q: 'Comment partager mon trajet ?', a: "Sur l'Ã©cran de suivi, appuie sur Partager pour envoyer ta position Ã  un proche." },
+      { q: 'La rÃ©duction -10% ?', a: "Automatiquement appliquÃ©e sur ta toute premiÃ¨re course. Aucun code Ã  entrer." },
     ]
     return (
       <div className="fixed inset-0 flex flex-col bg-gray-100">
@@ -3272,7 +3272,7 @@ const OfflineBanner = () => isOffline ? (
         <div className="flex flex-col items-center py-6 gap-3">
           <LogoIcon size={72} />
           <LogoWordmark size={32} onDark={false} />
-          <p className="text-gray-400 text-sm mt-1">Le Tiak Tiak de ta génération</p>
+          <p className="text-gray-400 text-sm mt-1">Le Tiak Tiak de ta gÃ©nÃ©ration</p>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm space-y-2">
           <p className="font-bold text-sm mb-1" style={{ color: '#0F5138' }}>Ce que nous offrons</p>
@@ -3282,7 +3282,7 @@ const OfflineBanner = () => isOffline ? (
           <div className="flex items-center gap-2 text-sm text-gray-600"><Award size={16} color="#0F5138" /><span>Chauffeurs Premium certifies</span></div>
           <div className="flex items-center gap-2 text-sm text-gray-600"><MapPin size={16} color="#0F5138" /><span>Tout le Senegal</span></div>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-sm text-gray-600">Fierement senegalais 🇸🇳</p><p className="text-xs text-gray-400 mt-1">Version 1.0.0</p></div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm text-center"><p className="text-sm text-gray-600">Fierement senegalais ðŸ‡¸ðŸ‡³</p><p className="text-xs text-gray-400 mt-1">Version 1.0.0</p></div>
       </div>
     </div>
   )
@@ -3304,7 +3304,7 @@ const OfflineBanner = () => isOffline ? (
           return (
             <div key={ride.id} className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><span className="text-lg">{ride.service_type === 'moto' ? '🏍️' : '📦'}</span><span className="font-bold text-sm">{ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span></div>
+                <div className="flex items-center gap-2"><span className="text-lg">{ride.service_type === 'moto' ? 'ðŸï¸' : 'ðŸ“¦'}</span><span className="font-bold text-sm">{ride.service_type === 'moto' ? 'Moto-taxi' : 'Livraison'}</span></div>
                 <span className="text-xs font-bold px-3 py-1 rounded-full text-white" style={{ background: st.color }}>{st.text}</span>
               </div>
               <div className="space-y-1">
@@ -3373,8 +3373,8 @@ const OfflineBanner = () => isOffline ? (
                 <Navigation size={20} color="#0F5138" />
               </div>
               <div>
-                <p className="font-black text-base text-gray-900">Activez les services de géolocalisation</p>
-                <p className="text-gray-400 text-xs mt-0.5">Nous ne savons pas où vous êtes</p>
+                <p className="font-black text-base text-gray-900">Activez les services de gÃ©olocalisation</p>
+                <p className="text-gray-400 text-xs mt-0.5">Nous ne savons pas oÃ¹ vous Ãªtes</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -3433,7 +3433,7 @@ const OfflineBanner = () => isOffline ? (
       <div className="px-4 pt-3">
         <div className="bg-white rounded-xl px-3 py-2.5 flex items-center gap-2 shadow-sm">
           {nearbyDrivers.length > 0 ? (
-            <><div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#1DB954' }} /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>{nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} dispo • Plus proche : {nearbyDrivers[0]?.eta} min</span></>
+            <><div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#1DB954' }} /><span className="text-xs font-bold" style={{ color: '#0F5138' }}>{nearbyDrivers.length} chauffeur{nearbyDrivers.length > 1 ? 's' : ''} dispo â€¢ Plus proche : {nearbyDrivers[0]?.eta} min</span></>
           ) : (
             <><div className="w-2 h-2 rounded-full bg-gray-300" /><span className="text-xs text-gray-400">Aucun chauffeur disponible pour le moment</span></>
           )}
@@ -3455,8 +3455,8 @@ const OfflineBanner = () => isOffline ? (
 
         {isFirstRide && (
           <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: 'linear-gradient(135deg, #F59E0B, #1DB954)' }}>
-            <span className="text-2xl">🎉</span>
-            <div><p className="font-black text-white text-sm">-10% sur ta première course</p><p className="text-white text-xs opacity-90">Applique automatiquement à la commande</p></div>
+            <span className="text-2xl">ðŸŽ‰</span>
+            <div><p className="font-black text-white text-sm">-10% sur ta premiÃ¨re course</p><p className="text-white text-xs opacity-90">Applique automatiquement Ã  la commande</p></div>
           </div>
         )}
 

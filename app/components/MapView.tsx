@@ -317,7 +317,7 @@ useEffect(() => {
     m.bindPopup(`<b>🚨 Collègue en danger !</b><br>${alert.triggered_by_name || 'Chauffeur TIAK TIAK'}`)
     ;(map as any)._sosLayers.push(m)
   })
-}, [mapReady, sosAlerts])
+}, [mapReady, sosAlerts]) 
 
   // 3. MOTOS PROCHES
   useEffect(() => {
