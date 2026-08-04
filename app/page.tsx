@@ -932,20 +932,24 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     })
   }
 
-  const compressImage = (base64: string, quality = 0.8): Promise<string> => {
+  const compressImage = (base64: string, quality = 0.6): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image()
       img.onload = () => {
         const canvas = document.createElement('canvas')
-        const MAX = 1200
+        const MAX = 800
         const scale = Math.min(MAX / img.width, MAX / img.height, 1)
-        canvas.width = img.width * scale
-        canvas.height = img.height * scale
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
         const ctx = canvas.getContext('2d')
         if (!ctx) return resolve(base64)
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        resolve(canvas.toDataURL('image/jpeg', quality))
+        const result = canvas.toDataURL('image/jpeg', quality)
+        canvas.width = 1
+        canvas.height = 1
+        resolve(result)
       }
+      img.onerror = () => resolve(base64)
       img.src = base64
     })
   }
