@@ -1,0 +1,125 @@
+﻿
+app\page.tsx:195:  const [formIdFront, setFormIdFront] = useState('')
+app\page.tsx:196:  const [formIdBack, setFormIdBack] = useState('')
+app\page.tsx:197:  const [formProfilePhoto, setFormProfilePhoto] = useState('')
+app\page.tsx:882:  const uploadPhoto = async (dataUrl: string, path: string): 
+Promise<string> => {
+app\page.tsx:892:  const processImageFile = async (
+app\page.tsx:900:      bitmap = await createImageBitmap(file, {
+app\page.tsx:906:        const tall = await createImageBitmap(file, {
+app\page.tsx:915:      bitmap = await createImageBitmap(file)
+app\page.tsx:946: const capturePhoto = (setter: (v: string) => void, useGallery = 
+false, isIdCard = false) => {
+app\page.tsx:969:        const { dataUrl, dark, tooSmall } = await 
+processImageFile(file, maxDim, quality, isIdCard)
+app\page.tsx:994:    setFormIdFront(''); setFormIdBack(''); setFormProfilePhoto(''); 
+setFormAddress('')
+app\page.tsx:1678:            {selectedDriver.profile_photo ? <img 
+src={selectedDriver.profile_photo} alt="Profil" className="w-24 h-24 rounded-full 
+object-cover border-4" style={{ borderColor: '#0F5138' }} /> : <div className="w-24 
+h-24 rounded-full flex items-center justify-center text-4xl" style={{ background: 
+'#0F5138' }}>🛵</div>}
+app\page.tsx:1705:              <div><p className="text-xs text-gray-400 
+mb-1">Recto</p>{selectedDriver.id_card_front ? <img 
+src={selectedDriver.id_card_front} alt="CNI recto" className="w-full h-28 
+object-cover rounded-xl" /> : <div className="w-full h-28 rounded-xl bg-gray-100 
+flex items-center justify-center text-gray-400 text-xs">Non fourni</div>}</div>
+app\page.tsx:1706:              <div><p className="text-xs text-gray-400 
+mb-1">Verso</p>{selectedDriver.id_card_back ? <img src={selectedDriver.id_card_back} 
+alt="CNI verso" className="w-full h-28 object-cover rounded-xl" /> : <div 
+className="w-full h-28 rounded-xl bg-gray-100 flex items-center justify-center 
+text-gray-400 text-xs">Non fourni</div>}</div>
+app\page.tsx:1760:                      {driver.profile_photo ? <img 
+src={driver.profile_photo} alt="" className="w-12 h-12 rounded-full object-cover" /> 
+: <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ 
+background: '#0F5138' }}><span className="text-xl">🛵</span></div>}
+app\page.tsx:1817:                        {driver.profile_photo ? <img 
+src={driver.profile_photo} alt="" className="w-10 h-10 rounded-full object-cover" /> 
+: <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ 
+background: '#0F5138' }}><Zap size={16} color="white" /></div>}
+app\page.tsx:1848:                    <img src={u.verification_selfie} alt="Selfie" 
+className="w-full h-48 object-cover rounded-xl" />
+app\page.tsx:1980:      const dossierComplet = !!(formIdFront && formIdBack && 
+formProfilePhoto)
+app\page.tsx:1997:                  {formIdFront && <div className="flex 
+items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' 
+}}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" 
+style={{ color: '#0F5138' }}>Approuvé</span></div>}
+app\page.tsx:1999:                {formIdFront ? (
+app\page.tsx:2001:                    <img src={formIdFront} alt="CNI recto" 
+className="w-full h-44 object-cover rounded-2xl" style={{ border: '2px solid 
+#1DB954' }} />
+app\page.tsx:2004:                      <button onClick={() => setFormIdFront('')} 
+className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center"><X 
+size={14} color="white" /></button>
+app\page.tsx:2008:                  <button onClick={() => 
+capturePhoto(setFormIdFront, false, true)} className="w-full h-44 rounded-2xl 
+border-2 border-dashed border-gray-300 flex flex-col items-center justify-center 
+gap-3 relative" style={{ background: '#FAFAFA' }}>
+app\page.tsx:2018:                  {formIdBack && <div className="flex items-center 
+gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' }}><CheckCircle 
+size={12} color="#1DB954" /><span className="text-xs font-bold" style={{ color: 
+'#0F5138' }}>Approuvé</span></div>}
+app\page.tsx:2020:                {formIdBack ? (
+app\page.tsx:2022:                    <img src={formIdBack} alt="CNI verso" 
+className="w-full h-44 object-cover rounded-2xl" style={{ border: '2px solid 
+#1DB954' }} />
+app\page.tsx:2025:                      <button onClick={() => setFormIdBack('')} 
+className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center"><X 
+size={14} color="white" /></button>
+app\page.tsx:2029:                  <button onClick={() => 
+capturePhoto(setFormIdBack, false, true)} className="w-full h-44 rounded-2xl 
+border-2 border-dashed border-gray-300 flex flex-col items-center justify-center 
+gap-3" style={{ background: '#FAFAFA' }}>
+app\page.tsx:2039:                  {formProfilePhoto && <div className="flex 
+items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: '#E8F5E9' 
+}}><CheckCircle size={12} color="#1DB954" /><span className="text-xs font-bold" 
+style={{ color: '#0F5138' }}>Approuvé</span></div>}
+app\page.tsx:2041:                {formProfilePhoto ? (
+app\page.tsx:2043:                    <img src={formProfilePhoto} alt="Profil" 
+className="w-40 h-40 object-cover rounded-full border-4" style={{ borderColor: 
+'#0F5138' }} />
+app\page.tsx:2044:                    <button onClick={() => 
+setFormProfilePhoto('')} className="absolute top-0 right-12 w-8 h-8 rounded-full 
+bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button>
+app\page.tsx:2048:                    <button onClick={() => 
+capturePhoto(setFormProfilePhoto)} className="w-full py-4 rounded-2xl border-2 
+border-dashed border-gray-300 flex items-center justify-center gap-3"><Camera 
+size={24} color="#9CA3AF" /><span className="text-sm text-gray-500 
+font-semibold">Prendre une photo</span></button>
+app\page.tsx:2049:                    <button onClick={() => 
+capturePhoto(setFormProfilePhoto, true)} className="w-full py-4 rounded-2xl border-2 
+border-dashed border-gray-300 flex items-center justify-center gap-3"><Globe 
+size={22} color="#9CA3AF" /><span className="text-sm text-gray-500 
+font-semibold">Choisir depuis la galerie</span></button>
+app\page.tsx:2063:                    uploadPhoto(formIdFront, 
+`${user.id}/id_front.jpg`),
+app\page.tsx:2064:                    uploadPhoto(formIdBack, 
+`${user.id}/id_back.jpg`),
+app\page.tsx:2065:                    uploadPhoto(formProfilePhoto, 
+`${user.id}/profile.jpg`),
+app\page.tsx:2536:                {driverProfilePhoto ? <img 
+src={driverProfilePhoto} alt="Chauffeur" className="w-16 h-16 rounded-full 
+object-cover border-2" style={{ borderColor: '#0F5138' }} /> : <div className="w-16 
+h-16 rounded-full flex items-center justify-center text-3xl" style={{ background: 
+'#0F5138' }}>🛵</div>}
+app\page.tsx:2569:              <div className="flex items-center 
+gap-2">{pmLabel.icon.startsWith('/') ? <img src={pmLabel.icon} alt={pmLabel.name} 
+className="w-6 h-6 rounded-full object-cover" /> : <span 
+className="text-lg">{pmLabel.icon}</span>}<span className="text-sm font-bold 
+text-gray-600">{pmLabel.name}</span></div>
+app\page.tsx:2663:            {driverProfilePhoto ? <img src={driverProfilePhoto} 
+alt="Chauffeur" className="w-14 h-14 rounded-full object-cover" /> : <div 
+className="w-14 h-14 rounded-full flex items-center justify-center text-2xl" 
+style={{ background: '#0F5138' }}>🛵</div>}
+app\page.tsx:2877:                <img src="/images/moto-taxi.png" alt="Moto-taxi" 
+style={{ width: '100%', height: '70px', objectFit: 'contain', opacity: service === 
+'moto' ? 1 : 0.45 }} />
+app\page.tsx:2888:                <img src="/images/livraison.png" alt="Livraison" 
+style={{ width: '100%', height: '70px', objectFit: 'contain', opacity: service === 
+'livraison' ? 1 : 0.45 }} />
+app\page.tsx:2908:                    {m.icon.startsWith('/') ? <img src={m.icon} 
+alt={m.name} className="w-7 h-7 rounded-full object-cover" /> : <span 
+className="text-xl">{m.icon}</span>}
+
+

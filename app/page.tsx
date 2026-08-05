@@ -957,25 +957,15 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
       if (document.body.contains(input)) document.body.removeChild(input)
     }
 
-    input.onchange = async (e) => {
+    input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       cleanup()
       if (!file) return
-
-      setAuthError('Traitement en cours...')
-      try {
-        const maxDim = isIdCard ? 1280 : 800
-        const quality = isIdCard ? 0.7 : 0.72
-        const { dataUrl, dark, tooSmall } = await processImageFile(file, maxDim, quality, isIdCard)
-        if (isIdCard) {
-          if (tooSmall) { setAuthError('Photo trop petite. Rapproche-toi de la CNI.'); return }
-          if (dark) { setAuthError("Photo trop sombre. Améliore l'éclairage."); return }
-        }
-        setAuthError('')
-        setter(dataUrl)
-      } catch {
-        setAuthError('Erreur lors de la capture. Réessaie.')
-      }
+      setAuthError('')
+      // Aucun décodage, aucun canvas : le fichier JPEG est gardé tel quel.
+      // L'image 50MP n'est JAMAIS décodée en mémoire → crash impossible.
+      const objectUrl = URL.createObjectURL(file)
+      setter(objectUrl)
     }
 
     input.addEventListener('cancel', cleanup)
