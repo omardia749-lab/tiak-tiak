@@ -1988,7 +1988,7 @@ const OfflineBanner = () => isOffline ? (
                 </div>
                 {formIdFront ? (
                   <div className="relative">
-                    <img src={formIdFront} alt="CNI recto" className="w-full h-44 object-cover rounded-2xl" style={{ border: '2px solid #1DB954' }} />
+                    <div className="w-full h-44 rounded-2xl flex flex-col items-center justify-center gap-2" style={{ border: '2px solid #1DB954', background: '#E8F5E9' }}><span className="text-4xl">✓</span><span className="text-sm font-bold" style={{ color: '#0F5138' }}>Photo CNI prise</span></div>
                     <div className="absolute top-2 right-2 flex gap-1">
                       <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: '#1DB954' }}><CheckCircle size={16} color="white" /></div>
                       <button onClick={() => setFormIdFront('')} className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center"><X size={14} color="white" /></button>
@@ -2009,7 +2009,7 @@ const OfflineBanner = () => isOffline ? (
                 </div>
                 {formIdBack ? (
                   <div className="relative">
-                    <img src={formIdBack} alt="CNI verso" className="w-full h-44 object-cover rounded-2xl" style={{ border: '2px solid #1DB954' }} />
+                    <div className="w-full h-44 rounded-2xl flex flex-col items-center justify-center gap-2" style={{ border: '2px solid #1DB954', background: '#E8F5E9' }}><span className="text-4xl">✓</span><span className="text-sm font-bold" style={{ color: '#0F5138' }}>Photo CNI prise</span></div>
                     <div className="absolute top-2 right-2 flex gap-1">
                       <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: '#1DB954' }}><CheckCircle size={16} color="white" /></div>
                       <button onClick={() => setFormIdBack('')} className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center"><X size={14} color="white" /></button>
@@ -2030,7 +2030,7 @@ const OfflineBanner = () => isOffline ? (
                 </div>
                 {formProfilePhoto ? (
                   <div className="relative flex justify-center">
-                    <img src={formProfilePhoto} alt="Profil" className="w-40 h-40 object-cover rounded-full border-4" style={{ borderColor: '#0F5138' }} />
+                    <div className="w-40 h-40 rounded-full flex flex-col items-center justify-center gap-2" style={{ border: '4px solid #0F5138', background: '#E8F5E9' }}><span className="text-4xl">✓</span><span className="text-xs font-bold" style={{ color: '#0F5138' }}>Photo prise</span></div>
                     <button onClick={() => setFormProfilePhoto('')} className="absolute top-0 right-12 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center"><X size={16} color="white" /></button>
                   </div>
                 ) : (
