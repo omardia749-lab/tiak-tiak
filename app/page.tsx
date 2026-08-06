@@ -882,10 +882,10 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
   const uploadPhoto = async (dataUrl: string, path: string): Promise<string> => {
     const blob = await (await fetch(dataUrl)).blob()
     const { error } = await supabase.storage
-      .from('conducteurs')
+      .from('drivers')
       .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
     if (error) throw error
-    const { data } = supabase.storage.from('conducteurs').getPublicUrl(path)
+    const { data } = supabase.storage.from('drivers').getPublicUrl(path)
     return data.publicUrl
   }
 
