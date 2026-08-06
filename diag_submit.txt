@@ -1,0 +1,41 @@
+﻿
+app\page.tsx:20:  verification_status?: string
+app\page.tsx:21:verification_selfie?: string
+app\page.tsx:855:    const selfiesRes = await supabase.from('users').select('id, 
+name, phone, verification_selfie, verification_status').eq('verification_status', 
+'pending').not('verification_selfie', 'is', null)
+app\page.tsx:1411:  const soumettreEvaluation = async () => {
+app\page.tsx:1837:                  {u.verification_selfie && (
+app\page.tsx:1838:                    <img src={u.verification_selfie} alt="Selfie" 
+className="w-full h-48 object-cover rounded-xl" />
+app\page.tsx:1842:                      await supabase.from('users').update({ 
+is_verified: true, verified_at: new Date().toISOString(), verification_status: 
+'approved' }).eq('id', u.id)
+app\page.tsx:1846:                      await supabase.from('users').update({ 
+verification_status: 'rejected' }).eq('id', u.id)
+app\page.tsx:1970:      const dossierComplet = !!(formIdFront && formIdBack && 
+formProfilePhoto)
+app\page.tsx:1980:              <p className="font-black text-lg" style={{ color: 
+'#0F5138' }}>Complete ton dossier</p>
+app\page.tsx:2049:                if (!dossierComplet) { setAuthError('Uploade les 3 
+documents'); return }
+app\page.tsx:2068:              disabled={!dossierComplet || authLoading}
+app\page.tsx:2070:              style={{ background: !dossierComplet || authLoading 
+? '#D1D5DB' : '#0F5138' }}
+app\page.tsx:2072:              {authLoading ? 'Upload en cours...' : 'Soumettre mon 
+dossier'}
+app\page.tsx:2087:          <h2 className="text-xl font-black text-gray-800 
+text-center">Dossier en cours de validation</h2>
+app\page.tsx:2683:        <button onClick={soumettreEvaluation} 
+disabled={clientRating === 0 || evalLoading} className="w-full py-4 rounded-2xl 
+font-bold text-white" style={{ background: clientRating === 0 || evalLoading ? 
+'#D1D5DB' : '#0F5138' }}>
+app\page.tsx:2684:          {evalLoading ? 'Envoi...' : clientRating === 0 ? 
+'Selectionne une note' : 'Soumettre'}
+app\page.tsx:3032:) : user?.verification_status === 'pending' ? (
+app\page.tsx:3048:        await supabase.from('users').update({ verification_selfie: 
+url.publicUrl, verification_status: 'pending' }).eq('id', user!.id)
+app\page.tsx:3052:      await supabase.from('users').update({ verification_status: 
+'pending' }).eq('id', user!.id)
+
+

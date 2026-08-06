@@ -2049,19 +2049,15 @@ const OfflineBanner = () => isOffline ? (
                 if (!dossierComplet) { setAuthError('Uploade les 3 documents'); return }
                 setAuthLoading(true); setAuthError('')
                 try {
-                  const [frontUrl, backUrl, profileUrl] = await Promise.all([
-                    uploadPhoto(formIdFront, `${user.id}/id_front.jpg`),
-                    uploadPhoto(formIdBack, `${user.id}/id_back.jpg`),
-                    uploadPhoto(formProfilePhoto, `${user.id}/profile.jpg`),
-                  ])
-                  await supabase.from('users').update({
-                    id_card_front: frontUrl,
-                    id_card_back: backUrl,
-                    profile_photo: profileUrl
-                  }).eq('id', user.id!)
+                  const frontUrl = await uploadPhoto(formIdFront, `${user.id}/id_front.jpg`)
+                  await supabase.from('users').update({ id_card_front: frontUrl }).eq('id', user.id!)
+                  const backUrl = await uploadPhoto(formIdBack, `${user.id}/id_back.jpg`)
+                  await supabase.from('users').update({ id_card_back: backUrl }).eq('id', user.id!)
+                  const profileUrl = await uploadPhoto(formProfilePhoto, `${user.id}/profile.jpg`)
+                  await supabase.from('users').update({ profile_photo: profileUrl, verification_status: 'pending' }).eq('id', user.id!)
                   setScreen('chauffeur_accueil')
                 } catch {
-                  setAuthError('Erreur upload. Vérifie ta connexion.')
+                  setAuthError('')
                 }
                 setAuthLoading(false)
               }}
