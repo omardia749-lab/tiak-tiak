@@ -195,6 +195,9 @@ export default function TiakTiak() {
   const [formIdFront, setFormIdFront] = useState('')
   const [formIdBack, setFormIdBack] = useState('')
   const [formProfilePhoto, setFormProfilePhoto] = useState('')
+  const fileIdFront = useRef<File | null>(null)
+  const fileIdBack = useRef<File | null>(null)
+  const fileProfilePhoto = useRef<File | null>(null)
   const [formEmergencyName, setFormEmergencyName] = useState('')
   const [formEmergencyPhone, setFormEmergencyPhone] = useState('')
   const [signupStep, setSignupStep] = useState(1)
@@ -879,11 +882,10 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     setAdminDrivers(prev => prev.map(d => d.id === id ? { ...d, is_premium: false, premium_expires_at: null } : d))
   }
 
-  const uploadPhoto = async (dataUrl: string, path: string): Promise<string> => {
-    const blob = await (await fetch(dataUrl)).blob()
+  const uploadPhoto = async (file: File, path: string): Promise<string> => {
     const { error } = await supabase.storage
       .from('drivers')
-      .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+      .upload(path, file, { upsert: true, contentType: 'image/jpeg' })
     if (error) throw error
     const { data } = supabase.storage.from('drivers').getPublicUrl(path)
     return data.publicUrl
@@ -962,10 +964,14 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
       cleanup()
       if (!file) return
       setAuthError('')
-      // Aucun décodage, aucun canvas : le fichier JPEG est gardé tel quel.
-      // L'image 50MP n'est JAMAIS décodée en mémoire → crash impossible.
-      const objectUrl = URL.createObjectURL(file)
-      setter(objectUrl)
+      // On stocke le File original pour l'upload direct — zéro décodage
+      if (isIdCard) {
+        if (!fileIdFront.current) fileIdFront.current = file
+        else fileIdBack.current = file
+      } else {
+        fileProfilePhoto.current = file
+      }
+      setter('ok')
     }
 
     input.addEventListener('cancel', cleanup)
@@ -2049,11 +2055,11 @@ const OfflineBanner = () => isOffline ? (
                 if (!dossierComplet) { setAuthError('Uploade les 3 documents'); return }
                 setAuthLoading(true); setAuthError('')
                 try {
-                  const frontUrl = await uploadPhoto(formIdFront, `${user.id}/id_front.jpg`)
+                  const frontUrl = await uploadPhoto(fileIdFront.current!, `${user.id}/id_front.jpg`)
                   await supabase.from('users').update({ id_card_front: frontUrl }).eq('id', user.id!)
-                  const backUrl = await uploadPhoto(formIdBack, `${user.id}/id_back.jpg`)
+                  const backUrl = await uploadPhoto(fileIdBack.current!, `${user.id}/id_back.jpg`)
                   await supabase.from('users').update({ id_card_back: backUrl }).eq('id', user.id!)
-                  const profileUrl = await uploadPhoto(formProfilePhoto, `${user.id}/profile.jpg`)
+                  const profileUrl = await uploadPhoto(fileProfilePhoto.current!, `${user.id}/profile.jpg`)
                   await supabase.from('users').update({ profile_photo: profileUrl, verification_status: 'pending' }).eq('id', user.id!)
                   setScreen('chauffeur_accueil')
                 } catch {
