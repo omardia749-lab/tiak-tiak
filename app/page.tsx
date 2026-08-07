@@ -2061,7 +2061,7 @@ const OfflineBanner = () => isOffline ? (
                   await supabase.from('users').update({ id_card_back: backUrl }).eq('id', user.id!)
                   const profileUrl = await uploadPhoto(fileProfilePhoto.current!, `${user.id}/profile.jpg`)
                   await supabase.from('users').update({ profile_photo: profileUrl, verification_status: 'pending' }).eq('id', user.id!)
-                  setScreen('chauffeur_accueil')
+                  setIsValidated(false)
                 } catch {
                   setAuthError('')
                 }
