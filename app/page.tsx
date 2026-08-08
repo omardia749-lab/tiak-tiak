@@ -192,6 +192,7 @@ export default function TiakTiak() {
   const [formMoto, setFormMoto] = useState('')
   const [formColor, setFormColor] = useState('')
   const [formAddress, setFormAddress] = useState('')
+  const [formDob, setFormDob] = useState('')
   const [formIdFront, setFormIdFront] = useState('')
   const [formIdBack, setFormIdBack] = useState('')
   const [formProfilePhoto, setFormProfilePhoto] = useState('')
@@ -1021,8 +1022,8 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
     setAuthLoading(false)
   }
 
- const signupDriver = async () => {
-    if (!formName || !formPhone || !formMoto || !formColor || !formAddress) {
+const signupDriver = async () => {
+    if (!formName || !formPhone || !formMoto || !formColor || !formAddress || !formDob) {
       setAuthError('Remplis tous les champs')
       return
     }
@@ -1035,6 +1036,9 @@ const distToPickup = haversineDistance(driverPosition.lat, driverPosition.lng, n
         moto_type: formMoto.trim(),
         moto_color: formColor.trim(),
         home_address: formAddress.trim(),
+        date_of_birth: formDob,
+        is_validated: false,
+        verification_status: 'pending',
       }).select('id').single()
       if (error) {
         if (error.code === '23505') {
@@ -1569,6 +1573,8 @@ const OfflineBanner = () => isOffline ? (
               <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ background: '#E8F5E9' }}><Zap size={28} color="#0F5138" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Nom complet</label><input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Moussa Diallo" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Telephone</label><input value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="Ex: 77 123 45 67" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
+              <div><label className="text-sm font-semibold text-gray-600">Date de naissance</label><input type="date" value={formAddress} onChange={e => setFormAddress(e.target.value)} className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
+              <div><label className="text-sm font-semibold text-gray-600">Date de naissance</label><input type="date" value={formDob} onChange={e => setFormDob(e.target.value)} className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Adresse domicile</label><input value={formAddress} onChange={e => setFormAddress(e.target.value)} placeholder="Ex: Pikine, Dakar" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Type de moto</label><input value={formMoto} onChange={e => setFormMoto(e.target.value)} placeholder="Ex: Jakarta 125cc" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
               <div><label className="text-sm font-semibold text-gray-600">Couleur moto</label><input value={formColor} onChange={e => setFormColor(e.target.value)} placeholder="Ex: Rouge" className="w-full mt-1 px-4 py-3 bg-gray-100 rounded-xl outline-none" /></div>
